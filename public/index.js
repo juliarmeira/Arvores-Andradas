@@ -222,12 +222,12 @@ function updateProgress() {
   let filled = 0;
 
   // 1: Localização (Endereço + Local)
-  if ($("loc-address").value.trim() && $("loc-place").value) filled++;
+  if ($('loc-address').value.trim() && $('loc-place').value) filled++;
   
   // 2: Espécie (Select ou Input Custom)
-  const spSelect = $("sp-name-select").value;
-  if (spSelect && spSelect !== "Outra") filled++;
-  else if (spSelect === "Outra" && $("sp-name-custom").value.trim()) filled++;
+  const spSelect = $('sp-name-select').value;
+  if (spSelect && spSelect !== 'Outra') filled++;
+  else if (spSelect === 'Outra' && $('sp-name-custom').value.trim()) filled++;
   
   // 3: Fotos (ao menos a 1)
   if (state.photos[0]) filled++;
@@ -236,36 +236,38 @@ function updateProgress() {
   if (document.querySelector('input[name="dim-height"]:checked') &&
       document.querySelector('input[name="dim-trunk"]:checked')) filled++;
       
-  // 5: Sanitária
+  // 5: Sanitária — always considered filled once the user sees it
   filled++;
   
-  // 6: Poda e Obs
+  // 6: Poda/Obs — always considered filled
   filled++;
 
   const pct = Math.round((filled / SECTIONS) * 100);
-  $("progress-fill").style.width = pct + "%";
-  $("progress-label").textContent = `${pct}% Concluído`;
+  $('progress-fill').style.width = pct + '%';
+  $('progress-label').textContent = `${pct}% Concluído`;
+  const sectEl = $('progress-sections');
+  if (sectEl) sectEl.textContent = `Seção ${Math.min(filled, SECTIONS)} de ${SECTIONS}`;
 }
 
 // ── SUBMIT STATE ──────────────────────────────────────────────
 function updateSubmitState() {
   const hasPhoto   = !!state.photos[0];
-  const hasAddress = !!$("loc-address").value.trim();
+  const hasAddress = !!$('loc-address').value.trim();
   const hasSheet   = !!state.sheetUrl;
 
-  const btn  = $("btn-submit-form");
-  const info = $("submit-info");
-  const note = $("submit-note");
+  const btn  = $('btn-submit-form');
+  const info = $('submit-info');
+  const note = $('submit-note');
 
   if (hasPhoto && hasAddress && hasSheet) {
     btn.disabled = false;
-    info.classList.add("hidden");
+    if (info) info.classList.add('hidden');
   } else {
     btn.disabled = true;
-    info.classList.remove("hidden");
-    if (!hasSheet) note.textContent = "Configure a URL do Web App nas Configurações (⚙️).";
-    else if (!hasPhoto) note.textContent = "A Foto 1 (Árvore Inteira) é obrigatória.";
-    else note.textContent = "Preencha o Logradouro para habilitar o envio.";
+    if (info) info.classList.remove('hidden');
+    if (!hasSheet) note.textContent = 'Configure a URL do Web App nas Configurações.';
+    else if (!hasPhoto) note.textContent = 'Foto 1 (Árvore Inteira) obrigatória para registrar.';
+    else note.textContent = 'Preencha o logradouro para habilitar o envio.';
   }
 }
 

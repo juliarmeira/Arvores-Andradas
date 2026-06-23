@@ -2,19 +2,20 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>ArboAndradas — Inventário Arbóreo</title>
-  <meta name="description" content="Sistema de Inventário Arbóreo Urbano. Levantamento de campo orgânico e otimizado.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ArboAndradas — Catálogo Vivo</title>
+  <meta name="description" content="Inventário Arbóreo Urbano de Andradas. Levantamento de campo com design orgânico e integração direta com Google Sheets.">
+  <meta name="theme-color" content="#212C1B">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- FontAwesome Icons -->
+  <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- Leaflet Map -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
@@ -22,19 +23,22 @@
 </head>
 <body>
 
-  <!-- HEADER -->
+  <!-- Silhueta botânica de fundo (topo-esquerda) -->
+  <div class="bg-leaf-tl" aria-hidden="true"></div>
+
+  <!-- ═══════════════ HEADER ═══════════════ -->
   <header class="app-header">
     <div class="header-container">
       <div class="logo">
         <span class="logo-leaf"><i class="fa-solid fa-leaf"></i></span>
         <div class="logo-text">
           <span class="logo-title">ArboAndradas</span>
-          <span class="logo-sub">Inventário Arbóreo Urbano</span>
+          <span class="logo-sub">Catálogo Vivo · Andradas–MG</span>
         </div>
       </div>
       <div class="header-right">
-        <button class="btn-config" id="btn-toggle-config" title="Configurações">
-          <i class="fa-solid fa-gear"></i>
+        <button class="btn-config" id="btn-toggle-config" title="Configurações" aria-label="Abrir configurações">
+          <i class="fa-solid fa-sliders"></i>
         </button>
       </div>
     </div>
@@ -42,37 +46,39 @@
 
   <main class="app-main">
 
-    <!-- CONFIG PANEL -->
-    <div class="config-panel hidden" id="config-section">
+    <!-- ═══════════════ CONFIG PANEL (Glassmorphism) ═══════════════ -->
+    <div class="config-panel hidden" id="config-section" role="dialog" aria-modal="true" aria-label="Configurações">
       <div class="config-inner">
         <div class="config-header">
           <h2><i class="fa-solid fa-sliders"></i> Configurações</h2>
-          <button class="btn-close-config" id="btn-close-config"><i class="fa-solid fa-xmark"></i></button>
+          <button class="btn-close-config" id="btn-close-config" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="form-group">
-          <label for="input-sheet-url">URL do Google Apps Script (Web App):</label>
+          <label for="input-sheet-url">URL do Google Apps Script</label>
           <input type="url" id="input-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
-          <small>Cole aqui a URL do Web App implantado no Google Apps Script.</small>
+          <small>Cole aqui a URL do Web App implantado vinculado à planilha.</small>
         </div>
         <div class="config-actions">
-          <button class="btn btn-primary" id="btn-save-config"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+          <button class="btn btn-primary" id="btn-save-config" style="width:100%">
+            <i class="fa-solid fa-check"></i> Salvar Configurações
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- SUCCESS MODAL -->
-    <div class="modal-overlay hidden" id="success-modal">
+    <!-- ═══════════════ MODAL DE SUCESSO ═══════════════ -->
+    <div class="modal-overlay hidden" id="success-modal" role="dialog" aria-modal="true" aria-label="Árvore registrada">
       <div class="modal-box success-modal-box">
         <div class="success-icon-wrap"><i class="fa-solid fa-check"></i></div>
         <h2>Árvore Registrada!</h2>
-        <p>Os dados foram salvos com sucesso na planilha.</p>
+        <p>Dados salvos com sucesso na planilha do Meio Ambiente.</p>
         <div class="success-details">
-          <div class="success-row"><span>Espécie:</span> <strong id="success-sp">--</strong></div>
-          <div class="success-row"><span>Endereço:</span> <strong id="success-addr">--</strong></div>
-          <div class="success-row"><span>Protocolo:</span> <strong id="success-proto">--</strong></div>
+          <div class="success-row"><span>Espécie</span>    <strong id="success-sp">—</strong></div>
+          <div class="success-row"><span>Endereço</span>   <strong id="success-addr">—</strong></div>
+          <div class="success-row"><span>Protocolo</span>  <strong id="success-proto">—</strong></div>
         </div>
         <div class="success-actions">
-          <a href="#" target="_blank" class="btn btn-outline" id="btn-open-spreadsheet">
+          <a href="#" target="_blank" rel="noopener" class="btn btn-outline" id="btn-open-spreadsheet">
             <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver Planilha
           </a>
           <button class="btn btn-primary" id="btn-new-registration">
@@ -82,59 +88,69 @@
       </div>
     </div>
 
-    <!-- FORM WRAPPER -->
-    <form id="tree-form" class="form-wrapper" novalidate>
-
-      <div class="form-intro">
-        <h1>Novo Levantamento</h1>
-        <p>Preencha os dados da vistoria ambiental abaixo.</p>
+    <!-- ═══════════════ HERO INTRO ═══════════════ -->
+    <div class="form-intro">
+      <div class="form-intro-badge">
+        <i class="fa-solid fa-leaf"></i> Vistoria de Campo
       </div>
+      <h1>Novo Levantamento<br><em>Arbóreo</em></h1>
+      <p>Preencha os dados da árvore abaixo para alimentar o catálogo vivo.</p>
+    </div>
 
-      <!-- PROGRESS BAR -->
+    <!-- ═══════════════ BARRA DE PROGRESSO — CAULE ═══════════════ -->
+    <div class="progress-wrap">
       <div class="progress-bar-track">
         <div class="progress-bar-fill" id="progress-fill"></div>
-        <div class="progress-label" id="progress-label">0% Concluído</div>
       </div>
+      <div class="progress-meta">
+        <span class="progress-label" id="progress-label">0% Concluído</span>
+        <span class="progress-sections" id="progress-sections">Seção 0 de 6</span>
+      </div>
+    </div>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 1: LOCALIZAÇÃO
-      ════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════ FORMULÁRIO ═══════════════ -->
+    <form id="tree-form" class="form-wrapper" novalidate>
+
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 1 · LOCALIZAÇÃO GEOGRÁFICA
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-localizacao">
         <div class="section-header">
           <div class="section-icon"><i class="fa-solid fa-location-dot"></i></div>
           <div>
-            <h2 class="section-title">Localização Geográfica</h2>
+            <h2 class="section-title">Localização</h2>
             <p class="section-sub">Coordenadas e endereço da árvore</p>
           </div>
-          <div class="section-badge required-badge">Obrigatório</div>
+          <div class="required-badge">Obrigatório</div>
         </div>
 
-        <!-- GPS Card -->
+        <!-- Card do Mapa + GPS -->
         <div class="gps-card">
           <div class="gps-controls">
             <button type="button" class="btn btn-primary btn-gps" id="btn-refresh-gps">
-              <i class="fa-solid fa-location-crosshairs"></i> Obter Minha Localização
+              <i class="fa-solid fa-location-crosshairs"></i> Usar Minha Localização
             </button>
-            <div class="gps-status" id="gps-status-text">Aguardando localização...</div>
+            <div class="gps-status" id="gps-status-text">Aguardando GPS…</div>
           </div>
           <div id="mini-map"></div>
         </div>
 
         <div class="form-group">
-          <label for="loc-address">Logradouro / Endereço (Autopreenchido pelo GPS) <span class="req">*</span></label>
-          <input type="text" id="loc-address" placeholder="Av. Principal, 100 - Centro" required>
+          <label for="loc-address">Logradouro / Endereço <span class="req">*</span></label>
+          <input type="text" id="loc-address" placeholder="Preenchido automaticamente pelo GPS…" required>
+          <small>O GPS preenche automaticamente. Você pode editar se necessário.</small>
         </div>
 
         <div class="form-group">
           <label for="loc-reference">Ponto de Referência</label>
-          <input type="text" id="loc-reference" placeholder="Em frente ao comércio X...">
+          <input type="text" id="loc-reference" placeholder="Ex: Em frente ao comércio X, próximo à escola…">
         </div>
 
         <div class="form-group">
           <label for="loc-place">Local de Plantio <span class="req">*</span></label>
           <div class="select-wrapper">
             <select id="loc-place" required>
-              <option value="">— Selecione —</option>
+              <option value="">— Selecione o local —</option>
               <option value="Calçada">Calçada</option>
               <option value="Praça/Parque">Praça / Parque</option>
               <option value="Canteiro Central">Canteiro Central</option>
@@ -145,15 +161,15 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 2: IDENTIFICAÇÃO DA ESPÉCIE
-      ════════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 2 · ESPÉCIE BOTÂNICA
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-especie">
         <div class="section-header">
           <div class="section-icon"><i class="fa-solid fa-seedling"></i></div>
           <div>
             <h2 class="section-title">Espécie Botânica</h2>
-            <p class="section-sub">Identificação visual</p>
+            <p class="section-sub">Identificação visual da árvore</p>
           </div>
         </div>
 
@@ -162,35 +178,35 @@
           <div class="select-wrapper">
             <select id="sp-name-select">
               <option value="">— Selecione uma espécie —</option>
-              <!-- Populated via JS -->
+              <!-- Preenchido via JS -->
             </select>
           </div>
         </div>
 
         <div class="form-group hidden" id="custom-species-group">
-          <label for="sp-name-custom">Digite o Nome da Espécie</label>
-          <input type="text" id="sp-name-custom" placeholder="Ex: Carvalho, Pinheiro...">
+          <label for="sp-name-custom">Nome da Espécie (outro)</label>
+          <input type="text" id="sp-name-custom" placeholder="Ex: Carvalho, Pinheiro-do-Paraná…">
         </div>
 
         <div class="form-group">
-          <label>Nível de Certeza da Identificação</label>
+          <label>Nível de Certeza na Identificação</label>
           <div class="radio-cards">
             <label class="radio-card">
-              <input type="radio" name="sp-certainty" value="Tenho certeza">
+              <input type="radio" name="sp-certainty" value="Tenho certeza" id="cert-sure">
               <div class="radio-content">
-                <i class="fa-solid fa-check"></i>
-                <span class="radio-label">Certeza</span>
+                <i class="fa-solid fa-check-circle"></i>
+                <span class="radio-label">Certeza total</span>
               </div>
             </label>
             <label class="radio-card">
-              <input type="radio" name="sp-certainty" value="É apenas um palpite">
+              <input type="radio" name="sp-certainty" value="É apenas um palpite" id="cert-guess">
               <div class="radio-content">
                 <i class="fa-regular fa-lightbulb"></i>
-                <span class="radio-label">Palpite</span>
+                <span class="radio-label">Um palpite</span>
               </div>
             </label>
             <label class="radio-card">
-              <input type="radio" name="sp-certainty" value="Não sei identificar" checked>
+              <input type="radio" name="sp-certainty" value="Não sei identificar" id="cert-unknown" checked>
               <div class="radio-content">
                 <i class="fa-solid fa-question"></i>
                 <span class="radio-label">Desconhecida</span>
@@ -200,76 +216,90 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 3: REGISTROS FOTOGRÁFICOS
-      ════════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 3 · REGISTROS FOTOGRÁFICOS
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-fotos">
         <div class="section-header">
           <div class="section-icon"><i class="fa-solid fa-camera-retro"></i></div>
           <div>
             <h2 class="section-title">Registros Fotográficos</h2>
-            <p class="section-sub">Evidências visuais da árvore</p>
+            <p class="section-sub">Evidências visuais para laudos técnicos</p>
           </div>
         </div>
 
         <div class="photos-grid">
+
+          <!-- Foto 1 — Obrigatória -->
           <div class="photo-slot" id="slot-0">
             <div class="photo-slot-label">
               <span class="photo-num">1</span>
-              <span class="photo-desc">Árvore Inteira (Porte e Copa)</span>
+              <span class="photo-desc">Árvore Inteira<br><small>Porte geral e copa</small></span>
               <span class="req-badge">Obrigatória</span>
             </div>
             <div class="photo-preview-area" id="preview-0">
-              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+              <div class="photo-placeholder">
+                <i class="fa-regular fa-image"></i>
+                <span>Nenhuma foto</span>
+              </div>
             </div>
             <div class="photo-controls">
-              <label class="btn btn-photo" for="file-0"><i class="fa-solid fa-camera"></i> Foto</label>
+              <label class="btn-photo" for="file-0"><i class="fa-solid fa-camera"></i> Capturar</label>
               <input type="file" id="file-0" accept="image/*" capture="environment" class="file-hidden" data-slot="0">
-              <button type="button" class="btn btn-remove-photo hidden" data-slot="0"><i class="fa-solid fa-trash"></i></button>
+              <button type="button" class="btn-remove-photo hidden" data-slot="0" aria-label="Remover foto 1"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>
 
+          <!-- Foto 2 -->
           <div class="photo-slot" id="slot-1">
             <div class="photo-slot-label">
               <span class="photo-num">2</span>
-              <span class="photo-desc">Tronco e Base (Raízes)</span>
+              <span class="photo-desc">Tronco e Base<br><small>Foco nas raízes</small></span>
             </div>
             <div class="photo-preview-area" id="preview-1">
-              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+              <div class="photo-placeholder">
+                <i class="fa-regular fa-image"></i>
+                <span>Nenhuma foto</span>
+              </div>
             </div>
             <div class="photo-controls">
-              <label class="btn btn-photo" for="file-1"><i class="fa-solid fa-camera"></i> Foto</label>
+              <label class="btn-photo" for="file-1"><i class="fa-solid fa-camera"></i> Capturar</label>
               <input type="file" id="file-1" accept="image/*" capture="environment" class="file-hidden" data-slot="1">
-              <button type="button" class="btn btn-remove-photo hidden" data-slot="1"><i class="fa-solid fa-trash"></i></button>
+              <button type="button" class="btn-remove-photo hidden" data-slot="1" aria-label="Remover foto 2"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>
 
+          <!-- Foto 3 -->
           <div class="photo-slot" id="slot-2">
             <div class="photo-slot-label">
               <span class="photo-num">3</span>
-              <span class="photo-desc">Folhas (Validação)</span>
+              <span class="photo-desc">Folhas e Flores<br><small>Validação botânica</small></span>
             </div>
             <div class="photo-preview-area" id="preview-2">
-              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+              <div class="photo-placeholder">
+                <i class="fa-regular fa-image"></i>
+                <span>Nenhuma foto</span>
+              </div>
             </div>
             <div class="photo-controls">
-              <label class="btn btn-photo" for="file-2"><i class="fa-solid fa-camera"></i> Foto</label>
+              <label class="btn-photo" for="file-2"><i class="fa-solid fa-camera"></i> Capturar</label>
               <input type="file" id="file-2" accept="image/*" capture="environment" class="file-hidden" data-slot="2">
-              <button type="button" class="btn btn-remove-photo hidden" data-slot="2"><i class="fa-solid fa-trash"></i></button>
+              <button type="button" class="btn-remove-photo hidden" data-slot="2" aria-label="Remover foto 3"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>
+
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 4: DIMENSÕES ESTIMADAS
-      ════════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 4 · DIMENSÕES
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-dimensoes">
         <div class="section-header">
-          <div class="section-icon"><i class="fa-solid fa-ruler"></i></div>
+          <div class="section-icon"><i class="fa-solid fa-ruler-vertical"></i></div>
           <div>
             <h2 class="section-title">Dimensões</h2>
-            <p class="section-sub">Porte e espessura do tronco</p>
+            <p class="section-sub">Porte estimado e espessura do tronco</p>
           </div>
         </div>
 
@@ -279,7 +309,7 @@
             <label class="visual-choice">
               <input type="radio" name="dim-height" value="Pequeno (Até 4m)">
               <div class="vc-content">
-                <i class="fa-solid fa-tree"></i>
+                <i class="fa-solid fa-tree" style="font-size:1.1rem"></i>
                 <span class="vc-title">Pequeno</span>
                 <span class="vc-desc">Até 4m</span>
               </div>
@@ -287,7 +317,7 @@
             <label class="visual-choice">
               <input type="radio" name="dim-height" value="Médio (Alcança fiação)">
               <div class="vc-content">
-                <i class="fa-solid fa-tree" style="font-size: 1.5em;"></i>
+                <i class="fa-solid fa-tree" style="font-size:1.6rem"></i>
                 <span class="vc-title">Médio</span>
                 <span class="vc-desc">Alcança fiação</span>
               </div>
@@ -295,9 +325,9 @@
             <label class="visual-choice">
               <input type="radio" name="dim-height" value="Grande (Acima de telhados)">
               <div class="vc-content">
-                <i class="fa-solid fa-tree" style="font-size: 2em;"></i>
+                <i class="fa-solid fa-tree" style="font-size:2.1rem"></i>
                 <span class="vc-title">Grande</span>
-                <span class="vc-desc">Alta tensão/Telhados</span>
+                <span class="vc-desc">Alta tensão</span>
               </div>
             </label>
           </div>
@@ -309,37 +339,40 @@
             <label class="visual-choice">
               <input type="radio" name="dim-trunk" value="Fino (Mãos ao redor)">
               <div class="vc-content">
-                <i class="fa-solid fa-circle-notch"></i>
+                <i class="fa-regular fa-circle" style="font-size:1rem"></i>
                 <span class="vc-title">Fino</span>
+                <span class="vc-desc">Mãos ao redor</span>
               </div>
             </label>
             <label class="visual-choice">
               <input type="radio" name="dim-trunk" value="Médio (Abraçável)">
               <div class="vc-content">
-                <i class="fa-solid fa-circle"></i>
+                <i class="fa-regular fa-circle" style="font-size:1.5rem"></i>
                 <span class="vc-title">Médio</span>
+                <span class="vc-desc">Abraçável</span>
               </div>
             </label>
             <label class="visual-choice">
               <input type="radio" name="dim-trunk" value="Grosso (Não abraçável)">
               <div class="vc-content">
-                <i class="fa-solid fa-circle" style="font-size: 1.8em;"></i>
+                <i class="fa-regular fa-circle" style="font-size:2rem"></i>
                 <span class="vc-title">Grosso</span>
+                <span class="vc-desc">Não abraçável</span>
               </div>
             </label>
           </div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 5: CONDIÇÃO SANITÁRIA E INTERFERÊNCIAS
-      ════════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 5 · SAÚDE E INTERFERÊNCIAS
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-sanitaria">
         <div class="section-header">
           <div class="section-icon"><i class="fa-solid fa-stethoscope"></i></div>
           <div>
-            <h2 class="section-title">Saúde e Interferências</h2>
-            <p class="section-sub">Riscos e problemas visíveis</p>
+            <h2 class="section-title">Saúde &amp; Interferências</h2>
+            <p class="section-sub">Riscos e conflitos urbanos visíveis</p>
           </div>
         </div>
 
@@ -348,29 +381,29 @@
           <div class="yn-item">
             <span class="yn-label">Inclinação acentuada no tronco?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Não" checked><span>Não</span></label>
             </div>
           </div>
           <div class="yn-item">
-            <span class="yn-label">Rachaduras, buracos ou fungos?</span>
+            <span class="yn-label">Rachaduras, cavidades ou fungos no tronco?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Não" checked><span>Não</span></label>
             </div>
           </div>
           <div class="yn-item">
-            <span class="yn-label">Pragas (cupins, formigas, brocas)?</span>
+            <span class="yn-label">Pragas visíveis (cupins, brocas, formigas)?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="san-pragas" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="san-pragas" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="san-pragas" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-pragas" value="Não" checked><span>Não</span></label>
             </div>
           </div>
           <div class="yn-item">
-            <span class="yn-label">Galhos secos ou parasitas na copa?</span>
+            <span class="yn-label">Galhos secos ou erva-de-passarinho na copa?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="san-galhos" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="san-galhos" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="san-galhos" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-galhos" value="Não" checked><span>Não</span></label>
             </div>
           </div>
         </div>
@@ -378,75 +411,79 @@
         <div class="checklist-group">
           <h3 class="checklist-subtitle">Interferências Urbanas</h3>
           <div class="yn-item">
-            <span class="yn-label">Raízes danificando a calçada?</span>
+            <span class="yn-label">Raízes danificando calçada ou asfalto?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="int-calcada" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="int-calcada" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="int-calcada" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-calcada" value="Não" checked><span>Não</span></label>
             </div>
           </div>
           <div class="yn-item">
-            <span class="yn-label">Conflito com rede elétrica/iluminação?</span>
+            <span class="yn-label">Copa em conflito com rede elétrica ou iluminação?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Não" checked><span>Não</span></label>
             </div>
           </div>
           <div class="yn-item">
-            <span class="yn-label">Danificando muros ou atrapalhando acessibilidade?</span>
+            <span class="yn-label">Danificando muros ou obstruindo acessibilidade?</span>
             <div class="yn-toggle">
-              <label class="yn-opt"><input type="radio" name="int-muros" value="Sim"> <span>Sim</span></label>
-              <label class="yn-opt"><input type="radio" name="int-muros" value="Não" checked> <span>Não</span></label>
+              <label class="yn-opt"><input type="radio" name="int-muros" value="Sim"><span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-muros" value="Não" checked><span>Não</span></label>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           SEÇÃO 6: PODA E OBSERVAÇÕES
-      ════════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════
+           SEÇÃO 6 · MANUTENÇÃO E RELATOS
+      ══════════════════════════════════════════ -->
       <section class="form-section" id="sec-poda">
         <div class="section-header">
           <div class="section-icon"><i class="fa-solid fa-scissors"></i></div>
           <div>
-            <h2 class="section-title">Manutenção e Relatos</h2>
-            <p class="section-sub">Poda e observações gerais</p>
+            <h2 class="section-title">Manutenção &amp; Relatos</h2>
+            <p class="section-sub">Poda e observações da comunidade</p>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="poda-necessidade">Necessidade visual de intervenção</label>
+          <label for="poda-necessidade">Necessidade Visual de Intervenção</label>
           <div class="select-wrapper">
             <select id="poda-necessidade">
-              <option value="Nenhuma">Nenhuma</option>
-              <option value="Poda de Limpeza">Poda de Limpeza</option>
-              <option value="Poda de Adequação">Poda de Adequação</option>
-              <option value="Risco de Queda (Urgente)">Risco de Queda (URGENTE)</option>
+              <option value="Nenhuma">Nenhuma — árvore saudável</option>
+              <option value="Poda de Limpeza">Poda de Limpeza (galhos secos)</option>
+              <option value="Poda de Adequação">Poda de Adequação (fiação / acesso)</option>
+              <option value="Risco de Queda (Urgente)">⚠ Risco de Queda — URGENTE</option>
             </select>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="obs-finais">Observações Finais</label>
-          <textarea id="obs-finais" rows="4" placeholder="Relatos da comunidade, histórico local, etc..."></textarea>
+          <label for="obs-finais">Observações Livres</label>
+          <textarea id="obs-finais" rows="4" placeholder="Relatos da comunidade, histórico de podas, situações especiais…"></textarea>
         </div>
       </section>
 
-      <!-- SUBMIT -->
+      <!-- ══════════════════════════════════════════
+           ÁREA DE ENVIO
+      ══════════════════════════════════════════ -->
       <div class="submit-area">
-        <div class="submit-info" id="submit-info">
+        <div class="submit-info hidden" id="submit-info">
           <i class="fa-solid fa-circle-info"></i>
-          <span id="submit-note">Adicione a Foto 1 e o endereço para habilitar o envio.</span>
+          <span id="submit-note">Adicione ao menos a Foto 1 e preencha o endereço.</span>
         </div>
         <button type="submit" class="btn btn-submit" id="btn-submit-form" disabled>
           <i class="fa-solid fa-leaf"></i>
-          <span>Registrar Vistoria</span>
+          <span>Registrar no Catálogo Vivo</span>
         </button>
       </div>
 
     </form>
   </main>
 
-  <div id="toast-container"></div>
+  <!-- Toast notifications -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
   <script src="index.js"></script>
 </body>
 </html>
