@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>ArboAndradas — Inventário Arbóreo</title>
+  <meta name="description" content="Sistema de Inventário Arbóreo Urbano. Levantamento de campo orgânico e otimizado.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo">
+        <span class="logo-leaf"><i class="fa-solid fa-leaf"></i></span>
+        <div class="logo-text">
+          <span class="logo-title">ArboAndradas</span>
+          <span class="logo-sub">Inventário Arbóreo Urbano</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="btn-config" id="btn-toggle-config" title="Configurações">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- CONFIG PANEL -->
+    <div class="config-panel hidden" id="config-section">
+      <div class="config-inner">
+        <div class="config-header">
+          <h2><i class="fa-solid fa-sliders"></i> Configurações</h2>
+          <button class="btn-close-config" id="btn-close-config"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="form-group">
+          <label for="input-sheet-url">URL do Google Apps Script (Web App):</label>
+          <input type="url" id="input-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
+          <small>Cole aqui a URL do Web App implantado no Google Apps Script.</small>
+        </div>
+        <div class="config-actions">
+          <button class="btn btn-primary" id="btn-save-config"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUCCESS MODAL -->
+    <div class="modal-overlay hidden" id="success-modal">
+      <div class="modal-box success-modal-box">
+        <div class="success-icon-wrap"><i class="fa-solid fa-check"></i></div>
+        <h2>Árvore Registrada!</h2>
+        <p>Os dados foram salvos com sucesso na planilha.</p>
+        <div class="success-details">
+          <div class="success-row"><span>Espécie:</span> <strong id="success-sp">--</strong></div>
+          <div class="success-row"><span>Endereço:</span> <strong id="success-addr">--</strong></div>
+          <div class="success-row"><span>Protocolo:</span> <strong id="success-proto">--</strong></div>
+        </div>
+        <div class="success-actions">
+          <a href="#" target="_blank" class="btn btn-outline" id="btn-open-spreadsheet">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver Planilha
+          </a>
+          <button class="btn btn-primary" id="btn-new-registration">
+            <i class="fa-solid fa-plus"></i> Novo Registro
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORM WRAPPER -->
+    <form id="tree-form" class="form-wrapper" novalidate>
+
+      <div class="form-intro">
+        <h1>Novo Levantamento</h1>
+        <p>Preencha os dados da vistoria ambiental abaixo.</p>
+      </div>
+
+      <!-- PROGRESS BAR -->
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+        <div class="progress-label" id="progress-label">0% Concluído</div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 1: LOCALIZAÇÃO
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-localizacao">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-location-dot"></i></div>
+          <div>
+            <h2 class="section-title">Localização Geográfica</h2>
+            <p class="section-sub">Coordenadas e endereço da árvore</p>
+          </div>
+          <div class="section-badge required-badge">Obrigatório</div>
+        </div>
+
+        <!-- GPS Card -->
+        <div class="gps-card">
+          <div class="gps-controls">
+            <button type="button" class="btn btn-primary btn-gps" id="btn-refresh-gps">
+              <i class="fa-solid fa-location-crosshairs"></i> Obter Minha Localização
+            </button>
+            <div class="gps-status" id="gps-status-text">Aguardando localização...</div>
+          </div>
+          <div id="mini-map"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="loc-address">Logradouro / Endereço (Autopreenchido pelo GPS) <span class="req">*</span></label>
+          <input type="text" id="loc-address" placeholder="Av. Principal, 100 - Centro" required>
+        </div>
+
+        <div class="form-group">
+          <label for="loc-reference">Ponto de Referência</label>
+          <input type="text" id="loc-reference" placeholder="Em frente ao comércio X...">
+        </div>
+
+        <div class="form-group">
+          <label for="loc-place">Local de Plantio <span class="req">*</span></label>
+          <div class="select-wrapper">
+            <select id="loc-place" required>
+              <option value="">— Selecione —</option>
+              <option value="Calçada">Calçada</option>
+              <option value="Praça/Parque">Praça / Parque</option>
+              <option value="Canteiro Central">Canteiro Central</option>
+              <option value="Propriedade Privada">Propriedade Privada</option>
+              <option value="Área Verde/Mata">Área Verde / Mata</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 2: IDENTIFICAÇÃO DA ESPÉCIE
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-especie">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-seedling"></i></div>
+          <div>
+            <h2 class="section-title">Espécie Botânica</h2>
+            <p class="section-sub">Identificação visual</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="sp-name-select">Nome Popular da Árvore</label>
+          <div class="select-wrapper">
+            <select id="sp-name-select">
+              <option value="">— Selecione uma espécie —</option>
+              <!-- Populated via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group hidden" id="custom-species-group">
+          <label for="sp-name-custom">Digite o Nome da Espécie</label>
+          <input type="text" id="sp-name-custom" placeholder="Ex: Carvalho, Pinheiro...">
+        </div>
+
+        <div class="form-group">
+          <label>Nível de Certeza da Identificação</label>
+          <div class="radio-cards">
+            <label class="radio-card">
+              <input type="radio" name="sp-certainty" value="Tenho certeza">
+              <div class="radio-content">
+                <i class="fa-solid fa-check"></i>
+                <span class="radio-label">Certeza</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="sp-certainty" value="É apenas um palpite">
+              <div class="radio-content">
+                <i class="fa-regular fa-lightbulb"></i>
+                <span class="radio-label">Palpite</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="sp-certainty" value="Não sei identificar" checked>
+              <div class="radio-content">
+                <i class="fa-solid fa-question"></i>
+                <span class="radio-label">Desconhecida</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 3: REGISTROS FOTOGRÁFICOS
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-fotos">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-camera-retro"></i></div>
+          <div>
+            <h2 class="section-title">Registros Fotográficos</h2>
+            <p class="section-sub">Evidências visuais da árvore</p>
+          </div>
+        </div>
+
+        <div class="photos-grid">
+          <div class="photo-slot" id="slot-0">
+            <div class="photo-slot-label">
+              <span class="photo-num">1</span>
+              <span class="photo-desc">Árvore Inteira (Porte e Copa)</span>
+              <span class="req-badge">Obrigatória</span>
+            </div>
+            <div class="photo-preview-area" id="preview-0">
+              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+            </div>
+            <div class="photo-controls">
+              <label class="btn btn-photo" for="file-0"><i class="fa-solid fa-camera"></i> Foto</label>
+              <input type="file" id="file-0" accept="image/*" capture="environment" class="file-hidden" data-slot="0">
+              <button type="button" class="btn btn-remove-photo hidden" data-slot="0"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+
+          <div class="photo-slot" id="slot-1">
+            <div class="photo-slot-label">
+              <span class="photo-num">2</span>
+              <span class="photo-desc">Tronco e Base (Raízes)</span>
+            </div>
+            <div class="photo-preview-area" id="preview-1">
+              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+            </div>
+            <div class="photo-controls">
+              <label class="btn btn-photo" for="file-1"><i class="fa-solid fa-camera"></i> Foto</label>
+              <input type="file" id="file-1" accept="image/*" capture="environment" class="file-hidden" data-slot="1">
+              <button type="button" class="btn btn-remove-photo hidden" data-slot="1"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+
+          <div class="photo-slot" id="slot-2">
+            <div class="photo-slot-label">
+              <span class="photo-num">3</span>
+              <span class="photo-desc">Folhas (Validação)</span>
+            </div>
+            <div class="photo-preview-area" id="preview-2">
+              <div class="photo-placeholder"><i class="fa-regular fa-image"></i></div>
+            </div>
+            <div class="photo-controls">
+              <label class="btn btn-photo" for="file-2"><i class="fa-solid fa-camera"></i> Foto</label>
+              <input type="file" id="file-2" accept="image/*" capture="environment" class="file-hidden" data-slot="2">
+              <button type="button" class="btn btn-remove-photo hidden" data-slot="2"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 4: DIMENSÕES ESTIMADAS
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-dimensoes">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-ruler"></i></div>
+          <div>
+            <h2 class="section-title">Dimensões</h2>
+            <p class="section-sub">Porte e espessura do tronco</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Porte / Altura Estimada</label>
+          <div class="visual-choices">
+            <label class="visual-choice">
+              <input type="radio" name="dim-height" value="Pequeno (Até 4m)">
+              <div class="vc-content">
+                <i class="fa-solid fa-tree"></i>
+                <span class="vc-title">Pequeno</span>
+                <span class="vc-desc">Até 4m</span>
+              </div>
+            </label>
+            <label class="visual-choice">
+              <input type="radio" name="dim-height" value="Médio (Alcança fiação)">
+              <div class="vc-content">
+                <i class="fa-solid fa-tree" style="font-size: 1.5em;"></i>
+                <span class="vc-title">Médio</span>
+                <span class="vc-desc">Alcança fiação</span>
+              </div>
+            </label>
+            <label class="visual-choice">
+              <input type="radio" name="dim-height" value="Grande (Acima de telhados)">
+              <div class="vc-content">
+                <i class="fa-solid fa-tree" style="font-size: 2em;"></i>
+                <span class="vc-title">Grande</span>
+                <span class="vc-desc">Alta tensão/Telhados</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Espessura do Tronco</label>
+          <div class="visual-choices">
+            <label class="visual-choice">
+              <input type="radio" name="dim-trunk" value="Fino (Mãos ao redor)">
+              <div class="vc-content">
+                <i class="fa-solid fa-circle-notch"></i>
+                <span class="vc-title">Fino</span>
+              </div>
+            </label>
+            <label class="visual-choice">
+              <input type="radio" name="dim-trunk" value="Médio (Abraçável)">
+              <div class="vc-content">
+                <i class="fa-solid fa-circle"></i>
+                <span class="vc-title">Médio</span>
+              </div>
+            </label>
+            <label class="visual-choice">
+              <input type="radio" name="dim-trunk" value="Grosso (Não abraçável)">
+              <div class="vc-content">
+                <i class="fa-solid fa-circle" style="font-size: 1.8em;"></i>
+                <span class="vc-title">Grosso</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 5: CONDIÇÃO SANITÁRIA E INTERFERÊNCIAS
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-sanitaria">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-stethoscope"></i></div>
+          <div>
+            <h2 class="section-title">Saúde e Interferências</h2>
+            <p class="section-sub">Riscos e problemas visíveis</p>
+          </div>
+        </div>
+
+        <div class="checklist-group">
+          <h3 class="checklist-subtitle">Problemas Sanitários</h3>
+          <div class="yn-item">
+            <span class="yn-label">Inclinação acentuada no tronco?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-inclinacao" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+          <div class="yn-item">
+            <span class="yn-label">Rachaduras, buracos ou fungos?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-rachaduras" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+          <div class="yn-item">
+            <span class="yn-label">Pragas (cupins, formigas, brocas)?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="san-pragas" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-pragas" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+          <div class="yn-item">
+            <span class="yn-label">Galhos secos ou parasitas na copa?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="san-galhos" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="san-galhos" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="checklist-group">
+          <h3 class="checklist-subtitle">Interferências Urbanas</h3>
+          <div class="yn-item">
+            <span class="yn-label">Raízes danificando a calçada?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="int-calcada" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-calcada" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+          <div class="yn-item">
+            <span class="yn-label">Conflito com rede elétrica/iluminação?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-eletrica" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+          <div class="yn-item">
+            <span class="yn-label">Danificando muros ou atrapalhando acessibilidade?</span>
+            <div class="yn-toggle">
+              <label class="yn-opt"><input type="radio" name="int-muros" value="Sim"> <span>Sim</span></label>
+              <label class="yn-opt"><input type="radio" name="int-muros" value="Não" checked> <span>Não</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════
+           SEÇÃO 6: PODA E OBSERVAÇÕES
+      ════════════════════════════════════════════════════════════════ -->
+      <section class="form-section" id="sec-poda">
+        <div class="section-header">
+          <div class="section-icon"><i class="fa-solid fa-scissors"></i></div>
+          <div>
+            <h2 class="section-title">Manutenção e Relatos</h2>
+            <p class="section-sub">Poda e observações gerais</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="poda-necessidade">Necessidade visual de intervenção</label>
+          <div class="select-wrapper">
+            <select id="poda-necessidade">
+              <option value="Nenhuma">Nenhuma</option>
+              <option value="Poda de Limpeza">Poda de Limpeza</option>
+              <option value="Poda de Adequação">Poda de Adequação</option>
+              <option value="Risco de Queda (Urgente)">Risco de Queda (URGENTE)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="obs-finais">Observações Finais</label>
+          <textarea id="obs-finais" rows="4" placeholder="Relatos da comunidade, histórico local, etc..."></textarea>
+        </div>
+      </section>
+
+      <!-- SUBMIT -->
+      <div class="submit-area">
+        <div class="submit-info" id="submit-info">
+          <i class="fa-solid fa-circle-info"></i>
+          <span id="submit-note">Adicione a Foto 1 e o endereço para habilitar o envio.</span>
+        </div>
+        <button type="submit" class="btn btn-submit" id="btn-submit-form" disabled>
+          <i class="fa-solid fa-leaf"></i>
+          <span>Registrar Vistoria</span>
+        </button>
+      </div>
+
+    </form>
+  </main>
+
+  <div id="toast-container"></div>
+  <script src="index.js"></script>
+</body>
+</html>
