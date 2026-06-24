@@ -64,13 +64,16 @@ const COMMON_NAMES = {
     'Mangifera indica': 'Mangueira',
     'Handroanthus albus': 'Ipê-amarelo',
     'Handroanthus impetiginosus': 'Ipê-roxo',
-    'Handroanthus chrysotrichus': 'Ipê-amarelo',
+    'Handroanthus chrysotrichus': 'Ipê-amarelo-do-cerrado',
     'Jacaranda mimosifolia': 'Jacarandá',
     'Syagrus romanzoffiana': 'Coqueiro-queen',
     'Ficus benjamina': 'Ficus',
     'Ficus microcarpa': 'Ficus',
+    'Ficus elastica': 'Ficus-elástico',
     'Eugenia uniflora': 'Pitangueira',
+    'Eugenia pyriformis': 'Uvaia',
     'Psidium guajava': 'Goiabeira',
+    'Psidium cattleyanum': 'Araçázeiro',
     'Casuarina equisetifolia': 'Casuarina',
     'Phoenix canariensis': 'Palmeira-reis',
     'Chorisia speciosa': 'Paineira',
@@ -100,7 +103,64 @@ const COMMON_NAMES = {
     'Annona reticulata': 'Ata',
     'Citrus sinensis': 'Laranjeira',
     'Eriobotrya japonica': 'Macieira-japonesa',
-    'Albizia lebbek': 'Sicomoro'
+    'Albizia lebbek': 'Sicomoro',
+    'Acacia mangium': 'Acácia-nova',
+    'Albizia lebbek': 'Sicomoro',
+    'Alchornea triplinervia': 'Tanalá',
+    'Annona squamosa': 'Pinha',
+    'Bambusa oldhamii': 'Bambu',
+    'Bixa orellana': 'Urucum',
+    'Campomanesia xanthocarpa': 'Gabirobeira',
+    'Cariniana legalis': 'Jequitibá',
+    'Cinnamomum glaucescens': 'Canela',
+    'Clitoria ternatea': 'Butá-de-vagem',
+    'Cupania vernalis': 'Camboatá',
+    'Cyathea delgadii': 'Samambaia-açu',
+    'Dipteryx alata': 'Baruú',
+    'Eriobotrya japonica': 'Nespereira',
+    'Eschweilera ovata': 'Castanheira',
+    'Fraxinus uhdei': 'Freijó',
+    'Garcinia gardneriana': 'Bacupari',
+    'Guarea trichilioides': 'Mogló',
+    'Guazuma ulmifolia': 'Mutambo',
+    'Inga vera': 'Ingá-cipó',
+    'Lafoensia glyptocarpa': 'Resedá',
+    'Libidibia ferrea': 'Jucá',
+    'Maackia amurensis': 'Maácia',
+    'Nectandra megapotamica': 'Canelão',
+    'Ocotea puberula': 'Canela-amarela',
+    'Olea europaea': 'Oliveira',
+    'Parapiptadenia rigida': 'Angico',
+    'Peltophorum dubium': 'Canafístula-amarela',
+    'Pera glabrata': 'Perao',
+    'Phyllanthus tenellus': 'Araçá-do-mato',
+    'Piper aduncum': 'Capoeira',
+    'Plathymenia reticulata': 'Catinga-de-mulher',
+    'Poincianella pluviosa': 'Barbatimão',
+    'Pouteria torta': 'Curupita',
+    'Qualea grandiflora': 'Pau-terra',
+    'Ricinus communis': 'Mamona',
+    'Robinia pseudoacacia': 'Acácia-negra',
+    'Rollinia mucosa': 'Araticum',
+    'Salix humboldtiana': 'Salgueiro',
+    'Senna multijuga': 'Cássia',
+    'Sideroxylon obtusifolium': 'Quina',
+    'Simarouba amara': 'Marupá',
+    'Solanum lycocarpum': 'Lobeira',
+    'Spathodea campanulata': 'Tulipana-africano',
+    'Tabebuia alba': 'Ipê-branco-de-bahia',
+    'Tabebuia vellosoi': 'Ipê-rosa',
+    'Tabernaemontana catharinensis': 'Jasmim-manga',
+    'Tibouchina granulosa': 'Amor-de-veterano',
+    'Trichilia pallida': 'Catiguá-branco',
+    'Trophis racemosa': 'Amendoeira-brava',
+    'Urera baccifera': 'Urtigão',
+    'Viburnum nudum': 'Veludinho',
+    'Vochysia magnifica': 'Vózia',
+    'Xylosma ciliatifolia': 'Canelinha',
+    'Zeyheria tuberculosa': 'Tarumã',
+    'Zingiber officinale': 'Gengibre',
+    'Zollernia ilicifolia': 'Capitão-do-mato'
 };
 
 let trees = JSON.parse(localStorage.getItem(DB_KEY)) || [];
@@ -364,15 +424,23 @@ function initSpeciesSearch() {
         var matches = SPECIES_DB.filter(function(s) {
             var cn = COMMON_NAMES[s] || '';
             return s.toLowerCase().indexOf(val) !== -1 || cn.toLowerCase().indexOf(val) !== -1;
-        }).slice(0, 6);
+        }).slice(0, 8);
 
         var html = '';
         if (matches.length === 0 && val.length >= 3) {
-            html = '<div class="sdo" data-val="' + esc(input.value.trim()) + '"><strong>' + esc(input.value.trim()) + '</strong> <small>cadastrar nova especie</small></div>';
+            html = '<div class="sdo" data-val="' + esc(input.value.trim()) + '">' +
+                '<span class="sdo-nova">+ Cadastrar "' + esc(input.value.trim()) + '" como nova espécie</span></div>';
         } else {
             html = matches.map(function(m) {
                 var cn = COMMON_NAMES[m];
-                return '<div class="sdo" data-val="' + esc(m) + '"><strong>' + esc(cn || m) + '</strong>' + (cn ? ' <small>' + m + '</small>' : '') + '</div>';
+                if (cn) {
+                    return '<div class="sdo" data-val="' + esc(m) + '">' +
+                        '<span class="sdo-popular">' + esc(cn) + '</span>' +
+                        '<span class="sdo-cientifico">' + esc(m) + '</span></div>';
+                } else {
+                    return '<div class="sdo" data-val="' + esc(m) + '">' +
+                        '<span class="sdo-popular">' + esc(m) + '</span></div>';
+                }
             }).join('');
         }
 
@@ -619,44 +687,78 @@ function esc(s) {
 }
 
 function initPhotoInputs() {
-    document.querySelectorAll('input[type="file"][id^="photo"]').forEach(function(input) {
-        input.addEventListener('change', function(e) {
-            var file = e.target.files[0];
-            if (!file) return;
-            var n = input.id.replace('photo', '');
-            var preview = document.getElementById('preview' + n);
-
-            var reader = new FileReader();
-            reader.onload = function(ev) {
-                var img = new Image();
-                img.onload = function() {
-                    var canvas = document.createElement('canvas');
-                    var max = 600;
-                    var w = img.width, h = img.height;
-                    if (w > max || h > max) {
-                        if (w > h) { h = Math.round(h * max / w); w = max; }
-                        else { w = Math.round(w * max / h); h = max; }
-                    }
-                    canvas.width = w;
-                    canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    var resized = canvas.toDataURL('image/jpeg', 0.7);
-                    if (preview) {
-                        preview.src = resized;
-                        preview.classList.remove('hidden');
-                        preview.classList.add('block');
-                    }
-                };
-                img.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-    });
+    // Photo inputs are now handled by the photo chooser modal
+    // This function is kept for compatibility
 }
 
 function upPhoto(n) {
-    var input = document.getElementById('photo' + n);
-    if (input) input.click();
+    var photoNum = n;
+    var chooser = document.getElementById('photoChooser');
+    var cameraInput = document.getElementById('photoCamera');
+    var galleryInput = document.getElementById('photoGallery');
+    var btnCamera = document.getElementById('btnCamera');
+    var btnGallery = document.getElementById('btnGallery');
+
+    chooser.classList.add('show');
+
+    function onCamera() {
+        cleanup();
+        closePhotoChooser();
+        cameraInput.onchange = function(e) { handlePhotoSelect(e, photoNum); };
+        cameraInput.click();
+    }
+
+    function onGallery() {
+        cleanup();
+        closePhotoChooser();
+        galleryInput.onchange = function(e) { handlePhotoSelect(e, photoNum); };
+        galleryInput.click();
+    }
+
+    function cleanup() {
+        btnCamera.removeEventListener('click', onCamera);
+        btnGallery.removeEventListener('click', onGallery);
+    }
+
+    btnCamera.addEventListener('click', onCamera);
+    btnGallery.addEventListener('click', onGallery);
+}
+
+function handlePhotoSelect(e, n) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var preview = document.getElementById('preview' + n);
+
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+        var img = new Image();
+        img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var max = 600;
+            var w = img.width, h = img.height;
+            if (w > max || h > max) {
+                if (w > h) { h = Math.round(h * max / w); w = max; }
+                else { w = Math.round(w * max / h); h = max; }
+            }
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            var resized = canvas.toDataURL('image/jpeg', 0.7);
+            if (preview) {
+                preview.src = resized;
+                preview.classList.remove('hidden');
+                preview.classList.add('block');
+            }
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+}
+
+function closePhotoChooser() {
+    var chooser = document.getElementById('photoChooser');
+    if (chooser) chooser.classList.remove('show');
 }
 
 function showStep(n) {
@@ -684,7 +786,15 @@ function showStep(n) {
     currentStep = n;
 }
 
-function goStep(n) { showStep(n); }
+function goStep(n) {
+    showStep(n);
+    var formPage = document.getElementById('pageForm');
+    if (formPage) {
+        formPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
 
 function getFormData() {
     var d = {};

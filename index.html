@@ -169,10 +169,11 @@
             width: 100%; max-width: 480px;
             display: flex; align-items: center; justify-content: space-around;
             padding: 8px 16px 20px;
-            background: rgba(255,253,249,0.85);
+            background: rgba(255,253,249,0.95);
             backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(122,148,68,0.06);
-            z-index: 100;
+            z-index: 9999;
         }
         .bnav-item {
             display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -217,7 +218,7 @@
             display: none; position: absolute; top: 100%; left: 0; right: 0;
             background: white; border-radius: 16px;
             box-shadow: 0 8px 32px rgba(26,34,21,0.1);
-            max-height: 200px; overflow-y: auto; z-index: 50;
+            max-height: 240px; overflow-y: auto; z-index: 50;
             margin-top: 4px;
         }
         .search-dropdown.show { display: block; }
@@ -226,6 +227,10 @@
             transition: background 0.15s;
         }
         .search-dropdown div:hover { background: rgba(122,148,68,0.06); }
+        .sdo { display: flex; flex-direction: column; gap: 1px; }
+        .sdo .sdo-popular { font-size: 14px; font-weight: 700; color: #1A2215; }
+        .sdo .sdo-cientifico { font-size: 11px; font-style: italic; color: #7A9444; }
+        .sdo .sdo-nova { font-size: 12px; color: #C0693A; font-weight: 600; }
 
         /* Filter pills */
         .filter { transition: all 0.2s; }
@@ -544,31 +549,26 @@
 
                         <div class="grid grid-cols-2 gap-3 mb-5">
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(1)">
-                                <input type="file" id="photo1" accept="image/*" hidden>
                                 <i data-lucide="tree-palm" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
                                 <span class="text-[10px] font-bold text-palm-dark/50">Árvore inteira</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview1">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(2)">
-                                <input type="file" id="photo2" accept="image/*" hidden>
                                 <i data-lucide="circle-dot" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
                                 <span class="text-[10px] font-bold text-palm-dark/50">Tronco</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview2">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(3)">
-                                <input type="file" id="photo3" accept="image/*" hidden>
                                 <i data-lucide="leaf" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
                                 <span class="text-[10px] font-bold text-palm-dark/50">Folhas</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview3">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(4)">
-                                <input type="file" id="photo4" accept="image/*" hidden>
                                 <i data-lucide="flower" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
                                 <span class="text-[10px] font-bold text-palm-dark/50">Flores / Frutos</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview4">
                             </div>
                             <div class="form-card text-center cursor-pointer col-span-2 active:scale-[0.97] transition-transform" onclick="upPhoto(5)">
-                                <input type="file" id="photo5" accept="image/*" hidden>
                                 <i data-lucide="alert-triangle" class="w-7 h-7 text-terra/20 mx-auto mb-1"></i>
                                 <span class="text-[10px] font-bold text-palm-dark/50">Danos ou pragas (opcional)</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview5">
@@ -747,6 +747,25 @@
 
     <!-- Toast -->
     <div class="toast" id="toast"><span id="toastMsg"></span></div>
+
+    <!-- Photo Source Chooser -->
+    <div class="modal-sheet" id="photoChooser">
+        <div class="modal-content" style="max-height:40vh;padding:24px 24px 32px;">
+            <div class="w-10 h-1 bg-palm-dark/10 rounded-full mx-auto mb-4"></div>
+            <p class="text-center font-display text-sm font-semibold text-palm-dark mb-4">Escolha a origem da foto</p>
+            <div class="flex flex-col gap-3">
+                <button type="button" id="btnCamera" class="w-full py-3.5 bg-gradient-to-r from-palm to-palm-dark text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                    <i data-lucide="camera" class="w-4 h-4"></i> Tirar Foto
+                </button>
+                <button type="button" id="btnGallery" class="w-full py-3.5 bg-white/80 text-palm-dark rounded-2xl font-bold text-sm border border-leaf/15 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                    <i data-lucide="image" class="w-4 h-4"></i> Escolher da Galeria
+                </button>
+                <button type="button" onclick="closePhotoChooser()" class="w-full py-3 bg-white/50 text-palm-dark/50 rounded-2xl font-bold text-sm active:scale-[0.98] transition-transform">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="photoCamera" accept="image/*" capture="environment" hidden>
+    <input type="file" id="photoGallery" accept="image/*" hidden>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
