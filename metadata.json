@@ -1,0 +1,6 @@
+{
+  "name": "Inventário Arbóreo Andradas",
+  "description": "Aplicativo de Gestão Ambiental Pública e Inventário Arbóreo Urbano para otimizar levantamentos de campo em Andradas.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

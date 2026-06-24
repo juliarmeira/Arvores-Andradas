@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+  
+  --color-cream: #FAF7F0;
+  --color-cream-dark: #ECE7DC;
+  --color-cream-deep: #FCE0C0;
+  --color-palm: #657F38;
+  --color-palm-dark: #4d6622;
+  --color-leaf: #9EAB57;
+  --color-terracotta: #D57640;
+  --color-terracotta-dark: #ba5e2a;
+  --color-shadow-brand: #212C1B;
+  --color-shadow-brand-light: rgba(33, 44, 27, 0.08);
+}
+
+/* Organic background gradients and floral design details */
+.bg-organic-gradient {
+  background: linear-gradient(135deg, #FAF7F0 0%, #F5EFE4 100%);
+}
+
+.bg-organic-leaf-gradient {
+  background: linear-gradient(135deg, #657F38 0%, #4D6622 100%);
+}
+
+.bg-organic-leaf-light {
+  background: linear-gradient(135deg, rgba(158, 171, 87, 0.15) 0%, rgba(101, 127, 56, 0.1) 100%);
+}
+
+/* Customized organic border radius curves matching reference designs */
+.rounded-organic-card {
+  border-radius: 2rem 2rem 2rem 2rem;
+}
+
+.rounded-organic-leaf-1 {
+  border-radius: 2.5rem 0.5rem 2.5rem 2.5rem;
+}
+
+.rounded-organic-leaf-2 {
+  border-radius: 0.5rem 2.5rem 2.5rem 2.5rem;
+}
+
+.rounded-organic-button {
+  border-radius: 1.5rem 0.5rem 1.5rem 1.5rem;
+}
+
+/* Floating animation for botanical leaves overlay */
+@keyframes float-gentle {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(3deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-float-gentle {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(-4deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-float-slow {
+  animation: float-slow 9s ease-in-out infinite;
+}
+
+/* Scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Premium shadows */
+.shadow-organic-sm {
+  box-shadow: 0 4px 20px rgba(33, 44, 27, 0.04);
+}
+
+.shadow-organic-md {
+  box-shadow: 0 10px 30px rgba(33, 44, 27, 0.06);
+}
+
+.shadow-organic-lg {
+  box-shadow: 0 20px 50px rgba(33, 44, 27, 0.1);
+}
+
