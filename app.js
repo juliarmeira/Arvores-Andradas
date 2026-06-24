@@ -1,5 +1,5 @@
 const DB_KEY = 'arbore_andradas_v4';
-const SHEETS_URL = '';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzas_Z2hDLxFxfXEA8JEQEY9UTC-HKZWv_W5c2b3hUrkZ5ZFE8Y6EWWCFgj3nzsNiHX/exec';
 
 const TREE_ICONS_POOL = [
     'tree-pine',
@@ -118,10 +118,44 @@ document.addEventListener('DOMContentLoaded', () => {
     initPhotoInputs();
     initCatalogSearch();
     initFilters();
+    initLocationFilters();
     initMapFilters();
     initFormSubmit();
-    loadMockData();
-    trees = JSON.parse(localStorage.getItem(DB_KEY)) || [];
+    /* Limpeza de dados mock (uma vez) */
+    if (!localStorage.getItem('arbore_mock_cleaned')) {
+        const before = trees.length;
+        trees = trees.filter(t => !t.id || !String(t.id).startsWith('m'));
+        if (trees.length !== before) {
+            localStorage.setItem(DB_KEY, JSON.stringify(trees));
+        }
+        localStorage.setItem('arbore_mock_cleaned', '1');
+    }
+
+    if (!localStorage.getItem('arbore_location_migrated')) {
+        var migrated = false;
+        trees.forEach(function(t) {
+            if (!t.bairro && t.logradouro) {
+                var parts = t.logradouro.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+                if (parts.length >= 2) {
+                    t.rua = t.rua || parts[0];
+                    t.bairro = t.bairro || parts[1];
+                    migrated = true;
+                } else if (parts.length === 1) {
+                    var sub = parts[0].split(/\s*[-–—]\s*/);
+                    if (sub.length >= 2) {
+                        t.rua = t.rua || sub[0].trim();
+                        t.bairro = t.bairro || sub[1].trim();
+                        migrated = true;
+                    }
+                }
+            }
+        });
+        if (migrated) {
+            localStorage.setItem(DB_KEY, JSON.stringify(trees));
+        }
+        localStorage.setItem('arbore_location_migrated', '1');
+    }
+
     renderAll();
     lucide.createIcons();
 });
@@ -155,7 +189,7 @@ function navigateTo(pageId) {
         if (span && !activeBtn.classList.contains('bnav-center')) span.style.color = '#4E6B2E';
     }
 
-    if (pageId === 'pageDashboard' && map) setTimeout(() => map.invalidateSize(), 150);
+    if (pageId === 'pageDashboard') { renderAll(); if (map) setTimeout(() => map.invalidateSize(), 150); }
     if (pageId === 'pageCatalog') renderCatalog();
     if (pageId === 'pageForm') {
         if (!editingId) { currentStep = 1; }
@@ -213,8 +247,9 @@ function renderMapMarkers() {
         marker.bindPopup(
             '<div style="padding:12px;display:flex;flex-direction:column;gap:8px;min-width:200px;">' +
             photoHtml +
-            '<div><strong style="font-family:Playfair Display,serif;font-style:italic;font-size:0.9rem;color:#1A2215;">' + (t.especie || 'Arvore') + '</strong><br>' +
-            '<small style="font-size:0.72rem;color:#6B7560;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</small></div>' +
+            '<div><strong style="font-size:0.9rem;color:#1A2215;">' + (COMMON_NAMES[t.especie] || t.especie || 'Arvore') + '</strong><br>' +
+            '<small style="font-size:0.72rem;color:#6B7560;font-style:italic;">' + (COMMON_NAMES[t.especie] ? (t.especie || '') : '') + '</small>' +
+            '<small style="font-size:0.72rem;color:#6B7560;display:block;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</small></div>' +
             '<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:50px;font-size:0.65rem;font-weight:700;background:' + color + '15;color:' + color + ';width:fit-content;">' + (statusLabels[t.status] || '-') + '</div>' +
             '<button onclick="closePopups();openModal(' + t.id + ')" style="width:100%;padding:8px;border:none;border-radius:10px;background:#4E6B2E;color:white;font-family:Nunito,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">Ver detalhes</button>' +
             '</div>',
@@ -226,6 +261,44 @@ function renderMapMarkers() {
 }
 
 function closePopups() { if (map) map.closePopup(); }
+
+function reverseGeocode(lat, lng) {
+    document.getElementById('gpsStatus').textContent = 'Obtendo endereco...';
+    var script = document.createElement('script');
+    var callbackName = 'nominatimCB_' + Date.now();
+    window[callbackName] = function(d) {
+        delete window[callbackName];
+        document.body.removeChild(script);
+        if (d.address) {
+            var a = d.address;
+            var road = a.road || a.pedestrian || a.path || '';
+            var number = a.house_number || '';
+            var fullRoad = road + (number ? ', ' + number : '');
+            var neighbourhood = a.neighbourhood || a.suburb || a.quarter || '';
+            var city = a.city || a.town || a.village || '';
+            var state = a.state || '';
+            document.getElementById('logradouro').value = [fullRoad, neighbourhood, city, state].filter(Boolean).join(', ');
+            document.getElementById('rua').value = road;
+            document.getElementById('bairro').value = neighbourhood;
+            document.getElementById('gpsStatus').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5) + ' - ' + (road || neighbourhood || 'Endereco encontrado');
+        } else if (d.display_name) {
+            document.getElementById('logradouro').value = d.display_name;
+            var parts = d.display_name.split(',').map(function(s) { return s.trim(); });
+            document.getElementById('rua').value = parts[0] || '';
+            document.getElementById('bairro').value = parts[1] || '';
+            document.getElementById('gpsStatus').textContent = 'Endereco: ' + parts.slice(0, 2).join(', ');
+        }
+    };
+    script.src = 'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1&accept-language=pt&json_callback=' + callbackName;
+    document.body.appendChild(script);
+    setTimeout(function() {
+        if (window[callbackName]) {
+            delete window[callbackName];
+            document.body.removeChild(script);
+            document.getElementById('gpsStatus').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+        }
+    }, 10000);
+}
 
 function initGPS() {
     var btn = document.getElementById('captureGps');
@@ -246,21 +319,9 @@ function initGPS() {
                 var lng = pos.coords.longitude;
                 document.getElementById('latitude').value = lat.toFixed(6);
                 document.getElementById('longitude').value = lng.toFixed(6);
-                document.getElementById('gpsStatus').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
                 btn.style.borderColor = '#7A9444';
                 btn.style.background = 'rgba(122,148,68,0.06)';
-
-                fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1&accept-language=pt')
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) {
-                        if (d.address) {
-                            var a = d.address;
-                            var parts = [a.road, a.neighbourhood, a.suburb, a.city || a.town, a.state].filter(Boolean);
-                            document.getElementById('logradouro').value = parts.join(', ');
-                        }
-                    })
-                    .catch(function() {});
-
+                reverseGeocode(lat, lng);
                 if (map) map.setView([lat, lng], 16);
             },
             function() {
@@ -270,6 +331,20 @@ function initGPS() {
             { enableHighAccuracy: true, timeout: 15000 }
         );
     });
+
+    var latInput = document.getElementById('latitude');
+    var lngInput = document.getElementById('longitude');
+    if (latInput && lngInput) {
+        function onCoordChange() {
+            var lat = latInput.value;
+            var lng = lngInput.value;
+            if (lat && lng) {
+                reverseGeocode(parseFloat(lat), parseFloat(lng));
+            }
+        }
+        latInput.addEventListener('change', onCoordChange);
+        lngInput.addEventListener('change', onCoordChange);
+    }
 }
 
 function initSpeciesSearch() {
@@ -306,8 +381,15 @@ function initSpeciesSearch() {
                 input.value = COMMON_NAMES[v] || v;
                 hidden.value = v;
                 results.classList.remove('show');
+            });
+        });
     });
-});
+
+    input.addEventListener('blur', function() {
+        setTimeout(function() { results.classList.remove('show'); }, 250);
+        hidden.value = input.value.trim();
+    });
+}
 
 function openModal(id) {
     var t = trees.find(function(x) { return x.id === id; });
@@ -342,13 +424,20 @@ function openModal(id) {
             '</div></div>';
     }
 
-    var html = '<div style="font-family:Playfair Display,serif;font-style:italic;font-size:1.3rem;color:#4E6B2E;font-weight:700;margin-bottom:4px;padding-right:40px;">' + (t.especie || 'Arvore sem nome') + '</div>' +
+    var nomePopularModal = COMMON_NAMES[t.especie] || '';
+    var nomeCientificoModal = t.especie || '';
+    var nomeExibicaoModal = nomePopularModal || nomeCientificoModal || 'Arvore sem nome';
+
+    var html = '<div style="font-family:Playfair Display,serif;font-size:1.3rem;color:#4E6B2E;font-weight:700;margin-bottom:2px;padding-right:40px;">' + nomeExibicaoModal + '</div>' +
+        (nomePopularModal ? '<div style="font-family:Playfair Display,serif;font-style:italic;font-size:0.82rem;color:#7A9444;margin-bottom:6px;">' + nomeCientificoModal + '</div>' : '') +
         '<div style="font-size:0.76rem;color:#6B7560;margin-bottom:14px;">' + (t.logradouro || t.referencia || 'Sem endereco') + ' &middot; ' + date + '</div>' +
         '<div style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:50px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:16px;background:' + color + '15;color:' + color + ';">' + (statusLabels[t.status] || t.status) + '</div>';
 
     html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
         '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Localizacao</div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Logradouro</span><span style="font-weight:700;text-align:right;">' + (t.logradouro || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Rua</span><span style="font-weight:700;text-align:right;">' + (t.rua || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Bairro</span><span style="font-weight:700;text-align:right;">' + (t.bairro || '-') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Referencia</span><span style="font-weight:700;text-align:right;">' + (t.referencia || '-') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Local</span><span style="font-weight:700;text-align:right;">' + (localLabels[t.localPlantio] || '-') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">GPS</span><span style="font-weight:700;text-align:right;">' + (t.latitude ? parseFloat(t.latitude).toFixed(4) + ', ' + parseFloat(t.longitude).toFixed(4) : 'Nao capturado') + '</span></div>' +
@@ -356,7 +445,8 @@ function openModal(id) {
 
     html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
         '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Especie</div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome</span><span style="font-weight:700;text-align:right;">' + (t.especie || 'Nao identificada') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Popular</span><span style="font-weight:700;text-align:right;">' + (nomePopularModal || 'Nao identificado') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Cientifico</span><span style="font-weight:700;font-style:italic;text-align:right;">' + (nomeCientificoModal || 'Nao identificado') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Porte</span><span style="font-weight:700;text-align:right;">' + (porteLabels[t.porte] || '-') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">Tronco</span><span style="font-weight:700;text-align:right;">' + (troncoLabels[t.tronco] || '-') + '</span></div>' +
         '</div>';
@@ -409,6 +499,8 @@ function editTree(id) {
     document.getElementById('latitude').value = t.latitude || '';
     document.getElementById('longitude').value = t.longitude || '';
     document.getElementById('logradouro').value = t.logradouro || '';
+    document.getElementById('rua').value = t.rua || '';
+    document.getElementById('bairro').value = t.bairro || '';
     document.getElementById('referencia').value = t.referencia || '';
 
     if (t.localPlantio) { var r = document.querySelector('input[name="localPlantio"][value="' + t.localPlantio + '"]'); if (r) r.checked = true; }
@@ -448,7 +540,7 @@ function deleteTree(id) {
     if (tree) syncToSheets(tree, 'delete');
     closeModal();
     renderAll();
-    showToast('Registro excluido');
+    showToast('Arvore excluida');
 }
 
 function saveData() {
@@ -461,20 +553,29 @@ function syncToSheets(data, action) {
         action: action,
         id: data.id,
         data: Object.assign({}, data, {
-            foto1: (data.fotos && data.fotos[0]) || '',
-            foto2: (data.fotos && data.fotos[1]) || '',
-            foto3: (data.fotos && data.fotos[2]) || '',
-            foto4: (data.fotos && data.fotos[3]) || '',
-            foto5: (data.fotos && data.fotos[4]) || '',
+            foto1: (data.fotos && data.fotos[0]) ? 'Sim' : 'Nao',
+            foto2: (data.fotos && data.fotos[1]) ? 'Sim' : 'Nao',
+            foto3: (data.fotos && data.fotos[2]) ? 'Sim' : 'Nao',
+            foto4: (data.fotos && data.fotos[3]) ? 'Sim' : 'Nao',
+            foto5: (data.fotos && data.fotos[4]) ? 'Sim' : 'Nao',
             fotos: undefined
         })
     };
     fetch(SHEETS_URL, {
         method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-    }).catch(function() {});
+    }).then(function(res) {
+        return res.json();
+    }).then(function(result) {
+        if (result && (result.success || result.status === 'ok')) {
+            showToast('Salvo com sucesso na planilha!');
+        } else {
+            showToast('Nao foi possivel salvar na planilha');
+        }
+    }).catch(function(err) {
+        showToast('Nao foi possivel conectar na planilha');
+    });
 }
 
 function showToast(msg) {
@@ -487,14 +588,7 @@ function showToast(msg) {
     setTimeout(function() {
         t.classList.add('hidden');
         t.classList.remove('block');
-    }, 2800);
-}
-    });
-
-    input.addEventListener('blur', function() {
-        setTimeout(function() { results.classList.remove('show'); }, 250);
-        hidden.value = input.value.trim();
-    });
+    }, 3500);
 }
 
 function selectSpecies(name) {
@@ -584,6 +678,15 @@ function getFormData() {
     d.latitude = document.getElementById('latitude') ? document.getElementById('latitude').value : '';
     d.longitude = document.getElementById('longitude') ? document.getElementById('longitude').value : '';
     d.logradouro = document.getElementById('logradouro') ? document.getElementById('logradouro').value : '';
+    d.rua = document.getElementById('rua') ? document.getElementById('rua').value : '';
+    d.bairro = document.getElementById('bairro') ? document.getElementById('bairro').value : '';
+    if (!d.rua && !d.bairro && d.logradouro) {
+        var parts = d.logradouro.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        if (parts.length >= 2) {
+            d.rua = parts[0];
+            d.bairro = parts[1];
+        }
+    }
     d.referencia = document.getElementById('referencia') ? document.getElementById('referencia').value : '';
     d.localPlantio = (document.querySelector('input[name="localPlantio"]:checked') || {}).value || '';
     d.especie = (document.getElementById('especie') ? document.getElementById('especie').value : '') || (document.getElementById('especieSearch') ? document.getElementById('especieSearch').value : '');
@@ -628,21 +731,21 @@ function initFormSubmit() {
 
 function submitForm() {
     var data = getFormData();
+    var action = editingId ? 'update' : 'create';
 
     if (editingId) {
         var idx = trees.findIndex(function(t) { return t.id === editingId; });
         if (idx !== -1) trees[idx] = data;
         editingId = null;
-        syncToSheets(data, 'update');
     } else {
         trees.push(data);
-        syncToSheets(data, 'create');
     }
 
     saveData();
     resetForm();
     navigateTo('pageDashboard');
-    showToast('Arvore cadastrada com sucesso!');
+    showToast('Arvore salva!');
+    syncToSheets(data, action);
 }
 
 function resetForm() {
@@ -656,6 +759,10 @@ function resetForm() {
     if (lat) lat.value = '';
     var lng = document.getElementById('longitude');
     if (lng) lng.value = '';
+    var rua = document.getElementById('rua');
+    if (rua) rua.value = '';
+    var bairro = document.getElementById('bairro');
+    if (bairro) bairro.value = '';
     var gps = document.getElementById('captureGps');
     if (gps) { gps.style.borderColor = ''; gps.style.borderStyle = ''; gps.style.background = ''; }
     var status = document.getElementById('gpsStatus');
@@ -674,6 +781,7 @@ function renderAll() {
     renderAlerts();
     renderMapMarkers();
     renderRecent();
+    populateLocationFilters();
 }
 
 function renderStats() {
@@ -736,7 +844,11 @@ function renderRecent() {
     var el = document.getElementById('recentList');
     if (!el) return;
 
-    var sorted = trees.slice().sort(function(a, b) { return b.timestamp - a.timestamp; }).slice(0, 5);
+    var sorted = trees.slice().sort(function(a, b) {
+        var ta = a.dataAtualizacao || a.timestamp || 0;
+        var tb = b.dataAtualizacao || b.timestamp || 0;
+        return tb - ta;
+    }).slice(0, 5);
 
     if (sorted.length === 0) {
         el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px 20px;text-align:center;">' +
@@ -753,6 +865,10 @@ function renderRecent() {
         var color = statusColors[t.status] || '#7A9444';
         var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
         var iconName = getTreeIcon(t.id);
+        var nomePopular = COMMON_NAMES[t.especie] || '';
+        var nomeCientifico = t.especie || '';
+        var nomeExibicao = nomePopular || nomeCientifico || 'Arvore sem nome';
+        var subtitulo = nomePopular ? nomeCientifico : (t.logradouro || t.referencia || 'Sem endereco');
 
         var iconHtml;
         if (photo) {
@@ -764,8 +880,8 @@ function renderRecent() {
         return '<div class="list-card rc" data-id="' + t.id + '">' +
             '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
             '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.especie || 'Arvore sem nome') + '</div>' +
-            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</div>' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + nomeExibicao + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + subtitulo + '</div>' +
             '</div>' +
             '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
             '</div>';
@@ -785,15 +901,28 @@ function renderCatalog() {
     search = search.toLowerCase();
     var filter = (document.querySelector('.filter.active') || {}).dataset || {};
     filter = filter.filter || 'all';
+    var bairroFilter = (document.getElementById('filterBairro') || {}).value || '';
+    var ruaFilter = (document.getElementById('filterRua') || {}).value || '';
 
     var filtered = trees;
     if (search) {
         filtered = filtered.filter(function(t) {
-            return (t.especie || '').toLowerCase().indexOf(search) !== -1 || (t.logradouro || '').toLowerCase().indexOf(search) !== -1;
+            var nomePopular = (COMMON_NAMES[t.especie] || '').toLowerCase();
+            var especie = (t.especie || '').toLowerCase();
+            var logradouro = (t.logradouro || '').toLowerCase();
+            var bairro = (t.bairro || '').toLowerCase();
+            var rua = (t.rua || '').toLowerCase();
+            return nomePopular.indexOf(search) !== -1 || especie.indexOf(search) !== -1 || logradouro.indexOf(search) !== -1 || bairro.indexOf(search) !== -1 || rua.indexOf(search) !== -1;
         });
     }
     if (filter !== 'all') {
         filtered = filtered.filter(function(t) { return t.status === filter; });
+    }
+    if (bairroFilter) {
+        filtered = filtered.filter(function(t) { return t.bairro === bairroFilter; });
+    }
+    if (ruaFilter) {
+        filtered = filtered.filter(function(t) { return t.rua === ruaFilter; });
     }
 
     if (filtered.length === 0) {
@@ -819,11 +948,17 @@ function renderCatalog() {
             iconHtml = '<i data-lucide="' + iconName + '" class="w-6 h-6" style="color:' + color + ';"></i>';
         }
 
+        var nomePopular = COMMON_NAMES[t.especie] || '';
+        var nomeCientifico = t.especie || '';
+        var nomeExibicao = nomePopular || nomeCientifico || 'Arvore sem nome';
+        var locationStr = [t.rua, t.bairro].filter(Boolean).join(', ') || t.logradouro || t.referencia || 'Sem endereco';
+        var subtitulo = nomePopular ? nomeCientifico : locationStr;
+
         return '<div class="list-card cc" data-id="' + t.id + '">' +
             '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
             '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.especie || 'Arvore sem nome') + '</div>' +
-            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</div>' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + nomeExibicao + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + subtitulo + '</div>' +
             '</div>' +
             '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
             '</div>';
@@ -839,6 +974,38 @@ function renderCatalog() {
 function initCatalogSearch() {
     var el = document.getElementById('catalogSearch');
     if (el) el.addEventListener('input', renderCatalog);
+}
+
+function populateLocationFilters() {
+    var bairros = [];
+    var ruas = [];
+    trees.forEach(function(t) {
+        if (t.bairro && bairros.indexOf(t.bairro) === -1) bairros.push(t.bairro);
+        if (t.rua && ruas.indexOf(t.rua) === -1) ruas.push(t.rua);
+    });
+    bairros.sort();
+    ruas.sort();
+
+    var bairroSelect = document.getElementById('filterBairro');
+    if (bairroSelect) {
+        var currentBairro = bairroSelect.value;
+        bairroSelect.innerHTML = '<option value="">Todos os bairros</option>' +
+            bairros.map(function(b) { return '<option value="' + b + '"' + (b === currentBairro ? ' selected' : '') + '>' + b + '</option>'; }).join('');
+    }
+
+    var ruaSelect = document.getElementById('filterRua');
+    if (ruaSelect) {
+        var currentRua = ruaSelect.value;
+        ruaSelect.innerHTML = '<option value="">Todas as ruas</option>' +
+            ruas.map(function(r) { return '<option value="' + r + '"' + (r === currentRua ? ' selected' : '') + '>' + r + '</option>'; }).join('');
+    }
+}
+
+function initLocationFilters() {
+    var bairroSelect = document.getElementById('filterBairro');
+    var ruaSelect = document.getElementById('filterRua');
+    if (bairroSelect) bairroSelect.addEventListener('change', renderCatalog);
+    if (ruaSelect) ruaSelect.addEventListener('change', renderCatalog);
 }
 
 function initFilters() {

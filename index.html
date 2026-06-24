@@ -48,12 +48,52 @@
         html { font-size: 16px; scroll-behavior: smooth; }
         body {
             font-family: 'Quicksand', sans-serif;
-            background: #FAF6F0;
+            background: linear-gradient(180deg, #F5F0E8 0%, #FAF6F0 40%, #EDE5D8 100%);
             color: #1A2215;
             min-height: 100dvh;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Form page background */
+        #pageForm {
+            position: relative;
+        }
+        #pageForm::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(78,107,46,0.03) 0%, rgba(122,148,68,0.02) 100%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Input fields (form only, excludes catalog filter selects) */
+        input, textarea {
+            background: rgba(255,255,255,0.8) !important;
+            color: #1A2215 !important;
+            border: 1.5px solid rgba(78,107,46,0.12) !important;
+            border-radius: 14px !important;
+            padding: 12px 16px !important;
+            font-size: 15px !important;
+            font-family: 'Quicksand', sans-serif !important;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        #formPage select, .form-step select {
+            background: rgba(255,255,255,0.8) !important;
+            color: #1A2215 !important;
+            border: 1.5px solid rgba(78,107,46,0.12) !important;
+            border-radius: 14px !important;
+            padding: 12px 16px !important;
+            font-size: 15px !important;
+            font-family: 'Quicksand', sans-serif !important;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus, textarea:focus {
+            border-color: rgba(78,107,46,0.35) !important;
+            box-shadow: 0 0 0 3px rgba(78,107,46,0.08) !important;
+            outline: none !important;
         }
 
         /* Page transitions */
@@ -78,37 +118,44 @@
         /* Section labels */
         .section-label {
             display: flex; align-items: center; gap: 8px;
-            font-size: 11px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.08em; color: rgba(26,34,21,0.4);
+            font-size: 12px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: #3A5120;
         }
+        .section-label i { color: #4E6B2E; }
         .section-label::after {
             content: ''; flex: 1; height: 1px;
-            background: linear-gradient(to right, rgba(122,148,68,0.12), transparent);
+            background: linear-gradient(to right, rgba(78,107,46,0.2), transparent);
         }
 
         /* Form cards */
         .form-card {
-            background: rgba(255,255,255,0.7);
-            backdrop-filter: blur(8px);
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(12px);
             border-radius: 20px;
             padding: 16px;
             margin-bottom: 12px;
-            border: 1px solid rgba(122,148,68,0.06);
+            border: 1px solid rgba(78,107,46,0.15);
+            box-shadow: 0 2px 12px rgba(78,107,46,0.06);
+        }
+        .form-card:focus-within {
+            border-color: rgba(78,107,46,0.3);
+            box-shadow: 0 2px 16px rgba(78,107,46,0.1);
         }
         .form-label {
-            display: block; font-size: 11px; font-weight: 700;
+            display: block; font-size: 12px; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.06em;
-            color: rgba(26,34,21,0.45); margin-bottom: 8px;
+            color: #3A5120; margin-bottom: 8px;
         }
 
         /* GPS button */
         .gps-btn {
             display: flex; align-items: center; gap: 14px; width: 100%;
-            padding: 14px; background: rgba(250,246,240,0.6);
-            border: 1.5px dashed rgba(78,107,46,0.2); border-radius: 16px;
+            padding: 14px; background: rgba(78,107,46,0.06);
+            border: 1.5px dashed rgba(78,107,46,0.25); border-radius: 16px;
             cursor: pointer; transition: all 0.2s;
         }
-        .gps-btn:active { transform: scale(0.98); background: rgba(78,107,46,0.04); }
+        .gps-btn:hover { background: rgba(78,107,46,0.1); }
+        .gps-btn:active { transform: scale(0.98); background: rgba(78,107,46,0.12); }
 
         /* Progress */
         .progress-track {
@@ -136,7 +183,7 @@
             background: none; border: none; cursor: pointer;
             font-family: 'Quicksand', sans-serif;
             font-size: 10px; font-weight: 600;
-            color: rgba(26,34,21,0.35); transition: color 0.2s;
+            color: rgba(26,34,21,0.50); transition: color 0.2s;
         }
         .bnav-item.active { color: #4E6B2E; }
         .bnav-center { position: relative; top: -14px; }
@@ -179,7 +226,7 @@
         }
         .search-dropdown.show { display: block; }
         .search-dropdown div {
-            padding: 10px 14px; font-size: 13px; cursor: pointer;
+            padding: 10px 14px; font-size: 14px; cursor: pointer;
             transition: background 0.15s;
         }
         .search-dropdown div:hover { background: rgba(122,148,68,0.06); }
@@ -197,6 +244,16 @@
             background: linear-gradient(135deg, #4E6B2E, #3A5120);
             color: white; border-color: transparent;
         }
+
+        /* Map markers */
+        .custom-marker {
+            width: 10px; height: 10px; border-radius: 50%;
+            border: 1.5px solid white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        }
+        .custom-marker.green { background: #7A9444; }
+        .custom-marker.orange { background: #C0693A; }
+        .custom-marker.red { background: #ef4444; }
 
         /* Photo preview */
         .photo-preview { max-height: 140px; object-fit: cover; }
@@ -225,7 +282,7 @@
             position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-100px);
             background: linear-gradient(135deg, #4E6B2E, #3A5120);
             color: white; padding: 12px 24px; border-radius: 16px;
-            font-size: 13px; font-weight: 700; z-index: 300;
+            font-size: 14px; font-weight: 700; z-index: 300;
             box-shadow: 0 4px 20px rgba(78,107,46,0.25);
             transition: transform 0.3s ease;
         }
@@ -242,6 +299,14 @@
             position: absolute; inset: 0;
             width: 100%; height: 100%; object-fit: cover;
         }
+
+        /* Page / Step navigation */
+        .page { display: none; }
+        .page.active { display: block; animation: pageIn 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes pageIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .fs { display: none; }
+        .fs.active { display: block; animation: stepIn 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes stepIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
     </style>
 </head>
 <body class="bg-cream text-palm-dark">
@@ -280,15 +345,15 @@
                 <div class="hero-card rounded-3xl overflow-hidden mb-5 shadow-petal">
                     <img src="Referencias/4782ef7660a1e5511ce778895693fc88.jpg" alt="" onerror="this.style.display='none'">
                     <div class="absolute inset-0" style="background:linear-gradient(160deg,rgba(45,63,24,0.85) 0%,rgba(78,107,46,0.65) 50%,rgba(122,148,68,0.45) 100%);"></div>
-                    <div class="relative z-10 p-6 pb-7">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                                <i data-lucide="leaf" class="w-3.5 h-3.5 text-white/80"></i>
+                    <div class="relative z-10 px-6 pt-5 pb-5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                                <i data-lucide="leaf" class="w-3 h-3 text-white/80"></i>
                             </div>
-                            <span class="text-white/60 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
+                            <span class="text-white/70 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
                         </div>
-                        <h1 class="font-display italic text-white text-[1.9rem] font-semibold leading-[1.08] mb-1.5" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Inventário<br>Arbóreo Urbano</h1>
-                        <p class="text-white/60 text-xs font-light leading-relaxed" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Gestão ambiental sustentável<br>do município de Andradas</p>
+                        <h1 class="font-display italic text-white text-[1.55rem] font-semibold leading-[1.1] mb-1" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Inventário Arbóreo Urbano</h1>
+                        <p class="text-white/65 text-[12px] font-light" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Gestão ambiental sustentável do município de Andradas</p>
                     </div>
                 </div>
 
@@ -299,21 +364,21 @@
                             <i data-lucide="trees" class="w-4 h-4 text-palm"></i>
                         </div>
                         <div class="font-display text-[1.25rem] font-semibold text-palm-dark leading-none" id="totalTrees">0</div>
-                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Total de Árvores</div>
+                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Total de Árvores</div>
                     </div>
                     <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-red-100/40">
                         <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-red-50 flex items-center justify-center">
                             <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
                         </div>
                         <div class="font-display text-[1.25rem] font-semibold text-red-400 leading-none" id="statRisco">0</div>
-                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Risco de Queda</div>
+                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Risco de Queda</div>
                     </div>
                     <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-terra/8">
                         <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-terra/8 flex items-center justify-center">
                             <i data-lucide="scissors" class="w-4 h-4 text-terra"></i>
                         </div>
                         <div class="font-display text-[1.25rem] font-semibold text-terra leading-none" id="statPoda">0</div>
-                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Poda Próxima</div>
+                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Poda Próxima</div>
                     </div>
                 </div>
 
@@ -345,28 +410,33 @@
                         <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
                             <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
                         </div>
-                        <p class="font-display italic text-sm text-palm-dark/35">Nenhum cadastro ainda</p>
-                        <p class="text-[10px] text-palm-dark/20 mt-1">Toque em cadastrar para começar</p>
+                        <p class="font-display italic text-sm text-palm-dark/50">Nenhum cadastro ainda</p>
+                        <p class="text-[11px] text-palm-dark/40 mt-1">Toque em cadastrar para começar</p>
                     </div>
                 </div>
 
             </section>
 
             <!-- ========== FORMULARIO ========== -->
-            <section class="page px-5 pt-5 pb-6" id="pageForm">
-                <div class="mb-5">
-                    <h2 class="font-display italic text-[1.35rem] font-semibold text-palm-dark">Novo Cadastro</h2>
-                    <p class="text-xs text-palm-dark/40 mt-0.5">Preencha os dados da árvore encontrada</p>
+            <section class="page pb-6" id="pageForm">
+                <div class="relative overflow-hidden rounded-b-3xl mb-5 px-5 pt-5 pb-8" style="background:linear-gradient(160deg,rgba(45,63,24,0.92) 0%,rgba(78,107,46,0.78) 60%,rgba(122,148,68,0.6) 100%),url('Referencias/4782ef7660a1e5511ce778895693fc88.jpg') center/cover;">
+                    <div class="relative z-10">
+                        <h2 class="font-display italic text-[1.6rem] font-semibold text-white">Novo Cadastro</h2>
+                        <p class="text-xs text-white/70 mt-1">Preencha os dados da árvore encontrada</p>
+                    </div>
                 </div>
+
+                <div class="px-5">
+                <div class="mb-6">
 
                 <div class="mb-6">
                     <div class="progress-track"><div class="progress-fill" id="progFill" style="width:20%"></div></div>
                     <div class="flex justify-between px-0.5">
-                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm" data-s="1">Local</span>
-                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="2">Espécie</span>
-                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="3">Fotos</span>
-                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="4">Saúde</span>
-                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="5">Poda</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm" data-s="1" onclick="goStep(1)">Local</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="2" onclick="goStep(2)">Espécie</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="3" onclick="goStep(3)">Fotos</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="4" onclick="goStep(4)">Saúde</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="5" onclick="goStep(5)">Poda</span>
                     </div>
                 </div>
 
@@ -374,29 +444,42 @@
 
                     <!-- STEP 1: LOCALIZAÇÃO -->
                     <div class="fs active" id="step1">
-                        <div class="section-label mb-3"><i data-lucide="map-pin" class="w-3 h-3"></i><span>Dados de Localização</span></div>
+                        <div class="section-label mb-4"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i><span>Dados de Localização</span></div>
 
                         <div class="form-card">
                             <label class="form-label">Coordenadas GPS</label>
                             <button type="button" class="gps-btn" id="captureGps">
-                                <div class="w-9 h-9 rounded-full bg-palm/8 flex items-center justify-center"><i data-lucide="crosshair" class="w-4.5 h-4.5 text-palm"></i></div>
+                                <div class="w-10 h-10 rounded-full bg-palm/10 flex items-center justify-center"><i data-lucide="crosshair" class="w-5 h-5 text-palm"></i></div>
                                 <div class="text-left">
                                     <strong class="text-sm text-palm-dark block">Capturar coordenadas GPS</strong>
-                                    <small class="text-xs text-palm-dark/35" id="gpsStatus">Toque para localizar</small>
+                                    <small class="text-[11px] text-palm-dark/50" id="gpsStatus">Toque para localizar</small>
                                 </div>
                             </button>
-                            <input type="hidden" id="latitude">
-                            <input type="hidden" id="longitude">
+                            <div class="grid grid-cols-2 gap-3 mt-3">
+                                <input type="text" id="latitude" class="w-full bg-cream/50 rounded-2xl px-4 py-2.5 text-xs text-palm-dark border border-leaf/10 outline-none placeholder:text-palm-dark/25" placeholder="Latitude">
+                                <input type="text" id="longitude" class="w-full bg-cream/50 rounded-2xl px-4 py-2.5 text-xs text-palm-dark border border-leaf/10 outline-none placeholder:text-palm-dark/25" placeholder="Longitude">
+                            </div>
                         </div>
 
                         <div class="form-card">
                             <label class="form-label" for="logradouro">Logradouro / Endereço</label>
-                            <input type="text" id="logradouro" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/20" placeholder="Preenchido automaticamente...">
+                            <input type="text" id="logradouro" class="w-full bg-cream/50 rounded-2xl px-4 py-3 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/25" placeholder="Preenchido automaticamente...">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="form-card">
+                                <label class="form-label" for="rua">Rua</label>
+                                <input type="text" id="rua" class="w-full bg-cream/50 rounded-2xl px-4 py-3 text-base text-palm-dark border-none outline-none placeholder:text-palm-dark/25" placeholder="Auto...">
+                            </div>
+                            <div class="form-card">
+                                <label class="form-label" for="bairro">Bairro</label>
+                                <input type="text" id="bairro" class="w-full bg-cream/50 rounded-2xl px-4 py-3 text-base text-palm-dark border-none outline-none placeholder:text-palm-dark/25" placeholder="Auto...">
+                            </div>
                         </div>
 
                         <div class="form-card">
                             <label class="form-label" for="referencia">Ponto de Referência</label>
-                            <input type="text" id="referencia" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/20" placeholder="Ex: em frente ao mercado...">
+                            <input type="text" id="referencia" class="w-full bg-cream/50 rounded-2xl px-4 py-3 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/25" placeholder="Ex: em frente ao mercado...">
                         </div>
 
                         <div class="form-card">
@@ -405,7 +488,7 @@
                                 <label class="cursor-pointer"><input type="radio" name="localPlantio" value="calcada" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="footprints" class="w-4 h-4"></i> Calçada</span></label>
                                 <label class="cursor-pointer"><input type="radio" name="localPlantio" value="praca" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="trees" class="w-4 h-4"></i> Praça</span></label>
                                 <label class="cursor-pointer"><input type="radio" name="localPlantio" value="canteiro" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="flower-2" class="w-4 h-4"></i> Canteiro</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="privada" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="home" class="w-4 h-4"></i> Privada</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="privada" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="home" class="w-4 h-4"></i> Área Privada</span></label>
                                 <label class="cursor-pointer"><input type="radio" name="localPlantio" value="verde" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="leaf" class="w-4 h-4"></i> Área Verde</span></label>
                             </div>
                         </div>
@@ -421,7 +504,7 @@
                             <label class="form-label" for="especieSearch">Espécie (Nome Popular)</label>
                             <div class="flex items-center gap-2 bg-cream/50 rounded-2xl px-3.5 py-2.5 relative">
                                 <i data-lucide="search" class="w-4 h-4 text-palm-dark/20"></i>
-                                <input type="text" id="especieSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/20" placeholder="Buscar espécie...">
+                                <input type="text" id="especieSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/25" placeholder="Buscar espécie...">
                                 <div id="especieResults" class="search-dropdown"></div>
                             </div>
                             <input type="hidden" id="especie">
@@ -477,31 +560,31 @@
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(1)">
                                 <input type="file" id="photo1" accept="image/*" hidden>
                                 <i data-lucide="tree-palm" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
-                                <span class="text-[10px] font-bold text-palm-dark/35">Árvore inteira</span>
+                                <span class="text-[10px] font-bold text-palm-dark/50">Árvore inteira</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview1">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(2)">
                                 <input type="file" id="photo2" accept="image/*" hidden>
                                 <i data-lucide="circle-dot" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
-                                <span class="text-[10px] font-bold text-palm-dark/35">Tronco</span>
+                                <span class="text-[10px] font-bold text-palm-dark/50">Tronco</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview2">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(3)">
                                 <input type="file" id="photo3" accept="image/*" hidden>
                                 <i data-lucide="leaf" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
-                                <span class="text-[10px] font-bold text-palm-dark/35">Folhas</span>
+                                <span class="text-[10px] font-bold text-palm-dark/50">Folhas</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview3">
                             </div>
                             <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(4)">
                                 <input type="file" id="photo4" accept="image/*" hidden>
                                 <i data-lucide="flower" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
-                                <span class="text-[10px] font-bold text-palm-dark/35">Flores / Frutos</span>
+                                <span class="text-[10px] font-bold text-palm-dark/50">Flores / Frutos</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview4">
                             </div>
                             <div class="form-card text-center cursor-pointer col-span-2 active:scale-[0.97] transition-transform" onclick="upPhoto(5)">
                                 <input type="file" id="photo5" accept="image/*" hidden>
                                 <i data-lucide="alert-triangle" class="w-7 h-7 text-terra/20 mx-auto mb-1"></i>
-                                <span class="text-[10px] font-bold text-palm-dark/35">Danos ou pragas (opcional)</span>
+                                <span class="text-[10px] font-bold text-palm-dark/50">Danos ou pragas (opcional)</span>
                                 <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview5">
                             </div>
                         </div>
@@ -603,18 +686,28 @@
                     </div>
 
                 </form>
+                </div>
             </section>
 
             <!-- ========== CATÁLOGO ========== -->
             <section class="page px-5 pt-5 pb-6" id="pageCatalog">
                 <div class="mb-5">
                     <h2 class="font-display italic text-[1.35rem] font-semibold text-palm-dark">Catálogo de Árvores</h2>
-                    <p class="text-xs text-palm-dark/40 mt-0.5">Todas as árvores cadastradas em Andradas</p>
+                    <p class="text-xs text-palm-dark/50 mt-0.5">Todas as árvores cadastradas em Andradas</p>
                 </div>
 
                 <div class="flex items-center gap-2.5 bg-white/70 backdrop-blur-sm rounded-full px-4 py-2.5 mb-4 border border-leaf/8 shadow-soft">
                     <i data-lucide="search" class="w-4 h-4 text-palm-dark/20"></i>
-                    <input type="text" id="catalogSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/20" placeholder="Buscar por espécie ou endereço...">
+                    <input type="text" id="catalogSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/30" placeholder="Buscar por espécie ou endereço...">
+                </div>
+
+                <div class="flex gap-2 mb-3 overflow-x-auto pb-1">
+                    <select id="filterBairro" class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border border-leaf/10 bg-white/50 text-palm-dark outline-none">
+                        <option value="">Todos os bairros</option>
+                    </select>
+                    <select id="filterRua" class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border border-leaf/10 bg-white/50 text-palm-dark outline-none">
+                        <option value="">Todas as ruas</option>
+                    </select>
                 </div>
 
                 <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
@@ -629,8 +722,8 @@
                         <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
                             <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
                         </div>
-                        <p class="font-display italic text-sm text-palm-dark/35">Nenhuma árvore ainda</p>
-                        <p class="text-[10px] text-palm-dark/20 mt-1">Cadastre a primeira árvore pelo formulário</p>
+                        <p class="font-display italic text-sm text-palm-dark/50">Nenhuma árvore ainda</p>
+                        <p class="text-[11px] text-palm-dark/40 mt-1">Cadastre a primeira árvore pelo formulário</p>
                     </div>
                 </div>
             </section>
@@ -669,7 +762,7 @@
     <div class="toast" id="toast"><span id="toastMsg"></span></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="app.js"></script>
+    <script src="app.js"></script>
     <script>
         lucide.createIcons();
 
