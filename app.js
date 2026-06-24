@@ -260,12 +260,27 @@ function navigateTo(pageId) {
 }
 
 function initMap() {
-    map = L.map('map', { zoomControl: false }).setView([-22.0683, -46.5733], 14);
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-22.0683, -46.5733], 14);
     L.control.zoom({ position: 'topright' }).addTo(map);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri World Imagery',
         maxZoom: 19
     }).addTo(map);
+
+    var locateBtn = L.control({ position: 'bottomright' });
+    locateBtn.onAdd = function() {
+        var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        div.innerHTML = '<a href="#" role="button" title="Minha localizacao" style="font-size:18px;display:flex;align-items:center;justify-content:center;width:30px;height:30px;line-height:30px;cursor:pointer;">⟐</a>';
+        div.onclick = function() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+            });
+            return false;
+        };
+        return div;
+    };
+    locateBtn.addTo(map);
+
     setTimeout(() => map.invalidateSize(), 300);
     renderMapMarkers();
 }
@@ -597,6 +612,13 @@ function editTree(id) {
     if (t.mesPoda) { var r8 = document.querySelector('input[name="mesPoda"][value="' + t.mesPoda + '"]'); if (r8) r8.checked = true; }
     document.getElementById('dataUltimaPoda').value = t.dataUltimaPoda || '';
     document.getElementById('observacoes').value = t.observacoes || '';
+
+    if (t.fotos) {
+        for (var i = 1; i <= 5; i++) {
+            var p = document.getElementById('preview' + i);
+            if (p && t.fotos[i - 1]) { p.src = t.fotos[i - 1]; p.classList.remove('hidden'); p.classList.add('block'); }
+        }
+    }
 
     var fotos = t.fotos || [];
     for (var i = 1; i <= 5; i++) {
