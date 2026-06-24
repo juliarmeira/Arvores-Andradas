@@ -244,12 +244,16 @@ function renderMapMarkers() {
 
         var statusLabels = { saudavel: 'Saudavel', atencao: 'Atencao', critico: 'Critico' };
 
+        var popupName = esc(COMMON_NAMES[t.especie] || t.especie || 'Arvore');
+        var popupSci = COMMON_NAMES[t.especie] ? esc(t.especie || '') : '';
+        var popupAddr = esc(t.logradouro || t.referencia || 'Sem endereco');
+
         marker.bindPopup(
             '<div style="padding:12px;display:flex;flex-direction:column;gap:8px;min-width:200px;">' +
             photoHtml +
-            '<div><strong style="font-size:0.9rem;color:#1A2215;">' + (COMMON_NAMES[t.especie] || t.especie || 'Arvore') + '</strong><br>' +
-            '<small style="font-size:0.72rem;color:#6B7560;font-style:italic;">' + (COMMON_NAMES[t.especie] ? (t.especie || '') : '') + '</small>' +
-            '<small style="font-size:0.72rem;color:#6B7560;display:block;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</small></div>' +
+            '<div><strong style="font-size:0.9rem;color:#1A2215;">' + popupName + '</strong><br>' +
+            (popupSci ? '<small style="font-size:0.72rem;color:#6B7560;font-style:italic;">' + popupSci + '</small>' : '') +
+            '<small style="font-size:0.72rem;color:#6B7560;display:block;">' + popupAddr + '</small></div>' +
             '<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:50px;font-size:0.65rem;font-weight:700;background:' + color + '15;color:' + color + ';width:fit-content;">' + (statusLabels[t.status] || '-') + '</div>' +
             '<button onclick="closePopups();openModal(' + t.id + ')" style="width:100%;padding:8px;border:none;border-radius:10px;background:#4E6B2E;color:white;font-family:Nunito,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">Ver detalhes</button>' +
             '</div>',
@@ -386,8 +390,20 @@ function initSpeciesSearch() {
     });
 
     input.addEventListener('blur', function() {
-        setTimeout(function() { results.classList.remove('show'); }, 250);
-        hidden.value = input.value.trim();
+        setTimeout(function() {
+            results.classList.remove('show');
+            var val = input.value.trim().toLowerCase();
+            var match = SPECIES_DB.find(function(s) {
+                var cn = COMMON_NAMES[s] || '';
+                return s.toLowerCase() === val || cn.toLowerCase() === val;
+            });
+            if (match) {
+                input.value = COMMON_NAMES[match] || match;
+                hidden.value = match;
+            } else if (!hidden.value || hidden.value === input.value.trim()) {
+                hidden.value = input.value.trim();
+            }
+        }, 250);
     });
 }
 
@@ -406,7 +422,7 @@ function openModal(id) {
     var probLabels = { inclinacao: 'Inclinacao', rachaduras: 'Rachaduras', fungos: 'Fungos', pragas: 'Pragas', broca: 'Broca', galhos_secos: 'Galhos secos', galhos_quebrados: 'Galhos quebrados', ervas: 'Erva-de-passarinho', calcada: 'Danos a calcada', estrangulamento: 'Estrangulamento' };
     var interfLabels = { eletrica: 'Rede eletrica', iluminacao: 'Iluminacao', muros: 'Muros/telhados', acessibilidade: 'Acessibilidade' };
 
-    var date = new Date(t.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    var date = t.timestamp ? new Date(t.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Data nao informada';
 
     var photos = t.fotos || [];
     var photosHtml = '';
@@ -428,27 +444,27 @@ function openModal(id) {
     var nomeCientificoModal = t.especie || '';
     var nomeExibicaoModal = nomePopularModal || nomeCientificoModal || 'Arvore sem nome';
 
-    var html = '<div style="font-family:Playfair Display,serif;font-size:1.3rem;color:#4E6B2E;font-weight:700;margin-bottom:2px;padding-right:40px;">' + nomeExibicaoModal + '</div>' +
-        (nomePopularModal ? '<div style="font-family:Playfair Display,serif;font-style:italic;font-size:0.82rem;color:#7A9444;margin-bottom:6px;">' + nomeCientificoModal + '</div>' : '') +
-        '<div style="font-size:0.76rem;color:#6B7560;margin-bottom:14px;">' + (t.logradouro || t.referencia || 'Sem endereco') + ' &middot; ' + date + '</div>' +
+    var html = '<div style="font-family:Playfair Display,serif;font-size:1.3rem;color:#4E6B2E;font-weight:700;margin-bottom:2px;padding-right:40px;">' + esc(nomeExibicaoModal) + '</div>' +
+        (nomePopularModal ? '<div style="font-family:Playfair Display,serif;font-style:italic;font-size:0.82rem;color:#7A9444;margin-bottom:6px;">' + esc(nomeCientificoModal) + '</div>' : '') +
+        '<div style="font-size:0.76rem;color:#6B7560;margin-bottom:14px;">' + esc(t.logradouro || t.referencia || 'Sem endereco') + ' &middot; ' + date + '</div>' +
         '<div style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:50px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:16px;background:' + color + '15;color:' + color + ';">' + (statusLabels[t.status] || t.status) + '</div>';
 
     html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
         '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Localizacao</div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Logradouro</span><span style="font-weight:700;text-align:right;">' + (t.logradouro || '-') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Rua</span><span style="font-weight:700;text-align:right;">' + (t.rua || '-') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Bairro</span><span style="font-weight:700;text-align:right;">' + (t.bairro || '-') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Referencia</span><span style="font-weight:700;text-align:right;">' + (t.referencia || '-') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Local</span><span style="font-weight:700;text-align:right;">' + (localLabels[t.localPlantio] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Logradouro</span><span style="font-weight:700;text-align:right;">' + esc(t.logradouro || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Rua</span><span style="font-weight:700;text-align:right;">' + esc(t.rua || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Bairro</span><span style="font-weight:700;text-align:right;">' + esc(t.bairro || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Referencia</span><span style="font-weight:700;text-align:right;">' + esc(t.referencia || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Local</span><span style="font-weight:700;text-align:right;">' + esc(localLabels[t.localPlantio] || '-') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">GPS</span><span style="font-weight:700;text-align:right;">' + (t.latitude ? parseFloat(t.latitude).toFixed(4) + ', ' + parseFloat(t.longitude).toFixed(4) : 'Nao capturado') + '</span></div>' +
         '</div>';
 
     html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
         '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Especie</div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Popular</span><span style="font-weight:700;text-align:right;">' + (nomePopularModal || 'Nao identificado') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Cientifico</span><span style="font-weight:700;font-style:italic;text-align:right;">' + (nomeCientificoModal || 'Nao identificado') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Porte</span><span style="font-weight:700;text-align:right;">' + (porteLabels[t.porte] || '-') + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">Tronco</span><span style="font-weight:700;text-align:right;">' + (troncoLabels[t.tronco] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Popular</span><span style="font-weight:700;text-align:right;">' + esc(nomePopularModal || 'Nao identificado') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome Cientifico</span><span style="font-weight:700;font-style:italic;text-align:right;">' + esc(nomeCientificoModal || 'Nao identificado') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Porte</span><span style="font-weight:700;text-align:right;">' + esc(porteLabels[t.porte] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">Tronco</span><span style="font-weight:700;text-align:right;">' + esc(troncoLabels[t.tronco] || '-') + '</span></div>' +
         '</div>';
 
     html += photosHtml;
@@ -463,7 +479,7 @@ function openModal(id) {
         '</div>';
 
     if (t.observacoes) {
-        html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);"><div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Observacoes</div><div style="font-size:0.82rem;color:#3D4A35;line-height:1.6;">' + t.observacoes + '</div></div>';
+        html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);"><div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Observacoes</div><div style="font-size:0.82rem;color:#3D4A35;line-height:1.6;">' + esc(t.observacoes) + '</div></div>';
     }
 
     html += '<div style="display:flex;gap:10px;margin-top:16px;">' +
@@ -473,14 +489,13 @@ function openModal(id) {
 
     document.getElementById('modalBody').innerHTML = html;
     var modal = document.getElementById('treeModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    modal.classList.add('show');
+    lucide.createIcons();
 }
 
 function closeModal() {
     var modal = document.getElementById('treeModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+    modal.classList.remove('show');
 }
 
 var treeModal = document.getElementById('treeModal');
@@ -553,11 +568,11 @@ function syncToSheets(data, action) {
         action: action,
         id: data.id,
         data: Object.assign({}, data, {
-            foto1: (data.fotos && data.fotos[0]) ? 'Sim' : 'Nao',
-            foto2: (data.fotos && data.fotos[1]) ? 'Sim' : 'Nao',
-            foto3: (data.fotos && data.fotos[2]) ? 'Sim' : 'Nao',
-            foto4: (data.fotos && data.fotos[3]) ? 'Sim' : 'Nao',
-            foto5: (data.fotos && data.fotos[4]) ? 'Sim' : 'Nao',
+            foto1: (data.fotos && data.fotos[0]) || '',
+            foto2: (data.fotos && data.fotos[1]) || '',
+            foto3: (data.fotos && data.fotos[2]) || '',
+            foto4: (data.fotos && data.fotos[3]) || '',
+            foto5: (data.fotos && data.fotos[4]) || '',
             fotos: undefined
         })
     };
@@ -584,10 +599,9 @@ function showToast(msg) {
     if (!t || !m) return;
     m.textContent = msg;
     t.classList.remove('hidden');
-    t.classList.add('block');
+    t.classList.add('show');
     setTimeout(function() {
-        t.classList.add('hidden');
-        t.classList.remove('block');
+        t.classList.remove('show');
     }, 3500);
 }
 
@@ -880,8 +894,8 @@ function renderRecent() {
         return '<div class="list-card rc" data-id="' + t.id + '">' +
             '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
             '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + nomeExibicao + '</div>' +
-            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + subtitulo + '</div>' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(nomeExibicao) + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + esc(subtitulo) + '</div>' +
             '</div>' +
             '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
             '</div>';
@@ -957,8 +971,8 @@ function renderCatalog() {
         return '<div class="list-card cc" data-id="' + t.id + '">' +
             '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
             '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + nomeExibicao + '</div>' +
-            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + subtitulo + '</div>' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(nomeExibicao) + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic;">' + esc(subtitulo) + '</div>' +
             '</div>' +
             '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
             '</div>';
@@ -990,14 +1004,14 @@ function populateLocationFilters() {
     if (bairroSelect) {
         var currentBairro = bairroSelect.value;
         bairroSelect.innerHTML = '<option value="">Todos os bairros</option>' +
-            bairros.map(function(b) { return '<option value="' + b + '"' + (b === currentBairro ? ' selected' : '') + '>' + b + '</option>'; }).join('');
+            bairros.map(function(b) { return '<option value="' + esc(b) + '"' + (b === currentBairro ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('');
     }
 
     var ruaSelect = document.getElementById('filterRua');
     if (ruaSelect) {
         var currentRua = ruaSelect.value;
         ruaSelect.innerHTML = '<option value="">Todas as ruas</option>' +
-            ruas.map(function(r) { return '<option value="' + r + '"' + (r === currentRua ? ' selected' : '') + '>' + r + '</option>'; }).join('');
+            ruas.map(function(r) { return '<option value="' + esc(r) + '"' + (r === currentRua ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('');
     }
 }
 
