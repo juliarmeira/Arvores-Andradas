@@ -4,611 +4,696 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Inventário Arbóreo - Andradas</title>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: { DEFAULT: '#FAF6F0', light: '#FFFDF9', dark: '#EDE5D8' },
+                        terra: { DEFAULT: '#C0693A', light: '#D88A5C', dark: '#A0522D' },
+                        leaf: { DEFAULT: '#7A9444', light: '#9BB862', pale: '#B5C4A1' },
+                        palm: { DEFAULT: '#4E6B2E', dark: '#3A5120', deeper: '#2D3F18' },
+                        blush: { DEFAULT: '#E8C4B8', light: '#F5E6DF' },
+                        sage: { DEFAULT: '#B5C4A1', light: '#D4DFC7' },
+                    },
+                    fontFamily: {
+                        sans: ['Quicksand', 'sans-serif'],
+                        display: ['Lora', 'serif'],
+                    },
+                    borderRadius: {
+                        'organic': '20px',
+                        'organic-xl': '28px',
+                        'organic-2xl': '36px',
+                    },
+                    boxShadow: {
+                        'petal': '0 4px 24px rgba(122, 148, 68, 0.06)',
+                        'bloom': '0 8px 32px rgba(192, 105, 58, 0.08)',
+                        'soft': '0 2px 16px rgba(26, 34, 21, 0.04)',
+                        'card': '0 1px 8px rgba(26, 34, 21, 0.03)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 16px; scroll-behavior: smooth; }
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: #FAF6F0;
+            color: #1A2215;
+            min-height: 100dvh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Page transitions */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* Floating leaves */
+        .floating-leaves { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .leaf { position: absolute; opacity: 0; animation: leafFloat linear infinite; }
+        .leaf-1 { left: 5%; animation-duration: 22s; animation-delay: 0s; }
+        .leaf-2 { left: 28%; animation-duration: 26s; animation-delay: 4s; }
+        .leaf-3 { left: 55%; animation-duration: 24s; animation-delay: 8s; }
+        .leaf-4 { left: 78%; animation-duration: 28s; animation-delay: 2s; }
+        .leaf-5 { left: 92%; animation-duration: 20s; animation-delay: 6s; }
+        @keyframes leafFloat {
+            0% { transform: translateY(110vh) rotate(0deg); opacity: 0; }
+            8% { opacity: 0.6; }
+            92% { opacity: 0.6; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+        }
+
+        /* Section labels */
+        .section-label {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: rgba(26,34,21,0.4);
+        }
+        .section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(to right, rgba(122,148,68,0.12), transparent);
+        }
+
+        /* Form cards */
+        .form-card {
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(8px);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(122,148,68,0.06);
+        }
+        .form-label {
+            display: block; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            color: rgba(26,34,21,0.45); margin-bottom: 8px;
+        }
+
+        /* GPS button */
+        .gps-btn {
+            display: flex; align-items: center; gap: 14px; width: 100%;
+            padding: 14px; background: rgba(250,246,240,0.6);
+            border: 1.5px dashed rgba(78,107,46,0.2); border-radius: 16px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .gps-btn:active { transform: scale(0.98); background: rgba(78,107,46,0.04); }
+
+        /* Progress */
+        .progress-track {
+            height: 4px; background: rgba(122,148,68,0.1);
+            border-radius: 99px; margin-bottom: 8px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #4E6B2E, #7A9444);
+            border-radius: 99px; transition: width 0.4s ease;
+        }
+
+        /* Bottom nav */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 100%; max-width: 480px;
+            display: flex; align-items: center; justify-content: space-around;
+            padding: 8px 16px 20px;
+            background: rgba(255,253,249,0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(122,148,68,0.06);
+            z-index: 100;
+        }
+        .bnav-item {
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+            background: none; border: none; cursor: pointer;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 10px; font-weight: 600;
+            color: rgba(26,34,21,0.35); transition: color 0.2s;
+        }
+        .bnav-item.active { color: #4E6B2E; }
+        .bnav-center { position: relative; top: -14px; }
+        .bnav-circle {
+            width: 52px; height: 52px; border-radius: 50%;
+            background: linear-gradient(135deg, #4E6B2E, #3A5120);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 20px rgba(78,107,46,0.25);
+            transition: transform 0.2s;
+        }
+        .bnav-center:active .bnav-circle { transform: scale(0.93); }
+
+        /* Stat cards */
+        .stat-card { transition: transform 0.15s; }
+        .stat-card:active { transform: scale(0.96); }
+
+        /* List cards */
+        .list-card {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255,255,255,0.75);
+            backdrop-filter: blur(6px);
+            border-radius: 18px; padding: 12px 14px;
+            border: 1px solid rgba(122,148,68,0.05);
+            cursor: pointer; transition: transform 0.15s;
+        }
+        .list-card:active { transform: scale(0.98); }
+        .list-card-icon {
+            width: 42px; height: 42px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; overflow: hidden;
+        }
+
+        /* Search dropdown */
+        .search-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(26,34,21,0.1);
+            max-height: 200px; overflow-y: auto; z-index: 50;
+            margin-top: 4px;
+        }
+        .search-dropdown.show { display: block; }
+        .search-dropdown div {
+            padding: 10px 14px; font-size: 13px; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .search-dropdown div:hover { background: rgba(122,148,68,0.06); }
+
+        /* Filter pills */
+        .filter { transition: all 0.2s; }
+        .filter.active {
+            background: linear-gradient(135deg, #4E6B2E, #3A5120);
+            color: white; border-color: transparent;
+        }
+
+        /* Map filters */
+        .map-filter { transition: all 0.2s; }
+        .map-filter.active {
+            background: linear-gradient(135deg, #4E6B2E, #3A5120);
+            color: white; border-color: transparent;
+        }
+
+        /* Photo preview */
+        .photo-preview { max-height: 140px; object-fit: cover; }
+
+        /* Modal */
+        .modal-sheet {
+            position: fixed; inset: 0;
+            background: rgba(26,34,21,0.4);
+            display: none; align-items: flex-end; justify-content: center;
+            z-index: 200;
+        }
+        .modal-sheet.show { display: flex; }
+        .modal-content {
+            background: #FAF6F0; width: 100%; max-width: 480px;
+            max-height: 85vh; overflow-y: auto;
+            border-radius: 28px 28px 0 0; padding: 24px;
+            animation: sheetUp 0.3s ease;
+        }
+        @keyframes sheetUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, #4E6B2E, #3A5120);
+            color: white; padding: 12px 24px; border-radius: 16px;
+            font-size: 13px; font-weight: 700; z-index: 300;
+            box-shadow: 0 4px 20px rgba(78,107,46,0.25);
+            transition: transform 0.3s ease;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(122,148,68,0.15); border-radius: 99px; }
+
+        /* Hero card */
+        .hero-card { position: relative; overflow: hidden; }
+        .hero-card img {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%; object-fit: cover;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-cream text-palm-dark">
 
-    <div class="app">
-        <main class="main">
+    <!-- Floating Leaves -->
+    <div class="floating-leaves" aria-hidden="true">
+        <svg class="leaf leaf-1" viewBox="0 0 60 80" width="36" height="48">
+            <path d="M30 75V35" stroke="#7A9444" stroke-width="0.8" stroke-linecap="round" opacity="0.1"/>
+            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#7A9444" fill-opacity="0.03" stroke="#7A9444" stroke-width="0.6" opacity="0.12"/>
+        </svg>
+        <svg class="leaf leaf-2" viewBox="0 0 60 80" width="28" height="37">
+            <path d="M30 75V35" stroke="#C0693A" stroke-width="0.8" stroke-linecap="round" opacity="0.07"/>
+            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#C0693A" fill-opacity="0.025" stroke="#C0693A" stroke-width="0.6" opacity="0.08"/>
+        </svg>
+        <svg class="leaf leaf-3" viewBox="0 0 60 80" width="24" height="32">
+            <path d="M30 75V35" stroke="#4E6B2E" stroke-width="0.8" stroke-linecap="round" opacity="0.08"/>
+            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#4E6B2E" fill-opacity="0.025" stroke="#4E6B2E" stroke-width="0.6" opacity="0.1"/>
+        </svg>
+        <svg class="leaf leaf-4" viewBox="0 0 60 80" width="32" height="43">
+            <path d="M30 75V35" stroke="#7A9444" stroke-width="0.8" stroke-linecap="round" opacity="0.06"/>
+            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#7A9444" fill-opacity="0.02" stroke="#7A9444" stroke-width="0.6" opacity="0.07"/>
+        </svg>
+        <svg class="leaf leaf-5" viewBox="0 0 60 80" width="22" height="29">
+            <path d="M30 75V35" stroke="#C0693A" stroke-width="0.8" stroke-linecap="round" opacity="0.05"/>
+            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#C0693A" fill-opacity="0.015" stroke="#C0693A" stroke-width="0.6" opacity="0.06"/>
+        </svg>
+    </div>
 
-            <!-- ========== PAGE 1: DASHBOARD ========== -->
-            <section class="page active" id="pageDashboard">
+    <div class="max-w-[480px] mx-auto min-h-dvh relative z-10">
+        <main class="pb-28">
+
+            <!-- ========== DASHBOARD ========== -->
+            <section class="page active px-5 pt-5 pb-6" id="pageDashboard">
 
                 <!-- Hero -->
-                <div class="hero">
-                    <img class="hero-bg" src="Referencias/bf579783102d4cd8b0c155a8cf6c3661.jpg" alt="">
-                    <div class="hero-overlay"></div>
-                    <div class="hero-content">
-                        <h2 class="hero-title">Inventário<br>Arbóreo Urbano</h2>
-                        <p class="hero-desc">Gestão ambiental do município de Andradas</p>
+                <div class="hero-card rounded-3xl overflow-hidden mb-5 shadow-petal">
+                    <img src="Referencias/4782ef7660a1e5511ce778895693fc88.jpg" alt="" onerror="this.style.display='none'">
+                    <div class="absolute inset-0" style="background:linear-gradient(160deg,rgba(45,63,24,0.85) 0%,rgba(78,107,46,0.65) 50%,rgba(122,148,68,0.45) 100%);"></div>
+                    <div class="relative z-10 p-6 pb-7">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-7 h-7 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                                <i data-lucide="leaf" class="w-3.5 h-3.5 text-white/80"></i>
+                            </div>
+                            <span class="text-white/60 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
+                        </div>
+                        <h1 class="font-display italic text-white text-[1.9rem] font-semibold leading-[1.08] mb-1.5" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Inventário<br>Arbóreo Urbano</h1>
+                        <p class="text-white/60 text-xs font-light leading-relaxed" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Gestão ambiental sustentável<br>do município de Andradas</p>
                     </div>
                 </div>
 
                 <!-- Stats -->
-                <div class="stats">
-                    <div class="st st-total">
-                        <div class="st-ico">
-                            <!-- Arvore inteira = total -->
-                            <svg viewBox="0 0 24 28" width="26" height="30" fill="none">
-                                <path d="M12 26V16" stroke="#4E6B2E" stroke-width="2" stroke-linecap="round"/>
-                                <path d="M12 16C12 12 9 8 6 9C9 9 12 5 12 2C12 5 15 9 18 9C15 8 12 12 12 16Z" fill="#7A9444" stroke="#4E6B2E" stroke-width="1.5"/>
-                                <path d="M6 9C4.5 7 3.5 7.5 3 8.5" stroke="#7A9444" stroke-width="1" opacity="0.5"/>
-                                <path d="M18 9C19.5 7 20.5 7.5 21 8.5" stroke="#7A9444" stroke-width="1" opacity="0.5"/>
-                            </svg>
+                <div class="grid grid-cols-3 gap-2 mb-5" id="statsGrid">
+                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-leaf/8">
+                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-leaf/8 flex items-center justify-center">
+                            <i data-lucide="trees" class="w-4 h-4 text-palm"></i>
                         </div>
-                        <div class="st-n" id="totalTrees">0</div>
-                        <div class="st-l">Total de Árvores</div>
+                        <div class="font-display text-[1.25rem] font-semibold text-palm-dark leading-none" id="totalTrees">0</div>
+                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Total de Árvores</div>
                     </div>
-                    <div class="st st-ok">
-                        <div class="st-ico">
-                            <!-- Arvore saudavel = folhas cheias + check -->
-                            <svg viewBox="0 0 24 28" width="26" height="30" fill="none">
-                                <path d="M12 26V16" stroke="#4E6B2E" stroke-width="2" stroke-linecap="round"/>
-                                <path d="M12 16C12 12 9 8 6 9C9 9 12 5 12 2C12 5 15 9 18 9C15 8 12 12 12 16Z" fill="#7A9444" stroke="#4E6B2E" stroke-width="1.5"/>
-                                <path d="M9 11l2 2 4-4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-red-100/40">
+                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-red-50 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
                         </div>
-                        <div class="st-n" id="statSaudavel">0</div>
-                        <div class="st-l">Saudáveis</div>
+                        <div class="font-display text-[1.25rem] font-semibold text-red-400 leading-none" id="statRisco">0</div>
+                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Risco de Queda</div>
                     </div>
-                    <div class="st st-warn">
-                        <div class="st-ico">
-                            <!-- Arvore com alerta = copa reduzida + exclamacao -->
-                            <svg viewBox="0 0 24 28" width="26" height="30" fill="none">
-                                <path d="M12 26V16" stroke="#C0693A" stroke-width="2" stroke-linecap="round"/>
-                                <path d="M12 16C12 12 9 9 7 10C9 10 12 7 12 5C12 7 15 10 17 10C15 9 12 12 12 16Z" fill="#C0693A" fill-opacity="0.4" stroke="#C0693A" stroke-width="1.5"/>
-                                <path d="M12 19v1.5" stroke="#C0693A" stroke-width="1.5" stroke-linecap="round"/>
-                                <circle cx="12" cy="23" r="0.8" fill="#C0693A"/>
-                            </svg>
+                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-terra/8">
+                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-terra/8 flex items-center justify-center">
+                            <i data-lucide="scissors" class="w-4 h-4 text-terra"></i>
                         </div>
-                        <div class="st-n" id="statAtencao">0</div>
-                        <div class="st-l">Atenção</div>
+                        <div class="font-display text-[1.25rem] font-semibold text-terra leading-none" id="statPoda">0</div>
+                        <div class="text-[9px] font-semibold text-palm-dark/45 mt-1 tracking-wide">Poda Próxima</div>
                     </div>
                 </div>
 
-                <!-- Alerts -->
-                <div id="alertArea"></div>
+                <!-- Alertas de Poda -->
+                <div id="alertArea" class="mb-5"></div>
 
-                <!-- Map -->
-                <div class="section-head">
-                    <svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 20s-7-5.5-7-10.5C4 6 7 3 11 3s7 3 7 6.5c0 5-7 10.5-7 10.5z" fill="#7A9444" fill-opacity="0.15" stroke="#4E6B2E" stroke-width="1.3"/>
-                        <circle cx="11" cy="9.5" r="2.5" stroke="#4E6B2E" stroke-width="1.2" fill="none"/>
-                        <circle cx="11" cy="9.5" r="0.8" fill="#7A9444" fill-opacity="0.5"/>
-                    </svg>
+                <!-- Mapa -->
+                <div class="section-label mb-3">
+                    <i data-lucide="map-pin" class="w-3 h-3"></i>
                     <span>Mapa de Localização</span>
                 </div>
-                <div class="map-wrap">
-                    <div id="map"></div>
-                    <button class="fab" id="fabAdd" aria-label="Nova árvore">
-                        <svg viewBox="0 0 28 28" width="24" height="24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 24V14" stroke="white" stroke-width="2"/>
-                            <path d="M14 14C14 11 11.5 8 8.5 9C11.5 9 14 6 14 3.5C14 6 16.5 9 19.5 9C16.5 8 14 11 14 14Z" fill="white" fill-opacity="0.3" stroke="white" stroke-width="1.5"/>
-                            <path d="M8.5 9C7 7 5.5 7.5 4.5 8.5" stroke="white" stroke-width="1" opacity="0.5"/>
-                            <path d="M19.5 9C21 7 22.5 7.5 23.5 8.5" stroke="white" stroke-width="1" opacity="0.5"/>
-                        </svg>
-                    </button>
+                <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="mapFilters">
+                    <button class="map-filter active px-3 py-1.5 rounded-full text-[10px] font-bold border border-leaf/15 whitespace-nowrap" data-map-filter="all">Todas</button>
+                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-leaf/10 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="saudavel"><i data-lucide="heart" class="w-3 h-3 inline"></i> Saudáveis</button>
+                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-terra/10 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="atencao"><i data-lucide="scissors" class="w-3 h-3 inline"></i> Poda</button>
+                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-red-200/15 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="critico"><i data-lucide="alert-triangle" class="w-3 h-3 inline"></i> Risco</button>
+                </div>
+                <div class="relative rounded-organic-2xl overflow-hidden mb-5 shadow-petal border border-leaf/5">
+                    <div id="map" class="h-44 w-full bg-cream-dark"></div>
                 </div>
 
-                <!-- Recent -->
-                <div class="section-head">
-                    <svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8" stroke="#4E6B2E" stroke-width="1.3" fill="none"/>
-                        <path d="M11 6v6l3 3" stroke="#4E6B2E" stroke-width="1.2"/>
-                        <path d="M11 3v1M18 11h1M11 19v1M4 11h1" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                        <circle cx="11" cy="11" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                    </svg>
+                <!-- Cadastros Recentes -->
+                <div class="section-label mb-3">
+                    <i data-lucide="clock" class="w-3 h-3"></i>
                     <span>Cadastros Recentes</span>
                 </div>
-                <div class="recent" id="recentList">
-                    <div class="empty-state">
-                        <svg viewBox="0 0 40 50" width="40" height="50" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 46V30" stroke="#7A9444" stroke-width="1.5" opacity="0.3"/>
-                            <path d="M20 30C20 24 16 18 12 19.5C16 19.5 20 14 20 10C20 14 24 19.5 28 19.5C24 18 20 24 20 30Z" fill="#7A9444" fill-opacity="0.1" stroke="#7A9444" stroke-width="1" opacity="0.3"/>
-                            <path d="M12 19.5C10 17 9 17.5 8 18.5" stroke="#7A9444" stroke-width="0.8" opacity="0.2"/>
-                            <path d="M28 19.5C30 17 31 17.5 32 18.5" stroke="#7A9444" stroke-width="0.8" opacity="0.2"/>
-                            <circle cx="20" cy="10" r="1.5" fill="#7A9444" fill-opacity="0.2" stroke="#7A9444" stroke-width="0.6" opacity="0.3"/>
-                        </svg>
-                        <p class="empty-title">Nenhum cadastro ainda</p>
-                        <p class="empty-desc">Toque em + para cadastrar a primeira árvore</p>
+                <div class="flex flex-col gap-2" id="recentList">
+                    <div class="flex flex-col items-center py-10 text-center">
+                        <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
+                            <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
+                        </div>
+                        <p class="font-display italic text-sm text-palm-dark/35">Nenhum cadastro ainda</p>
+                        <p class="text-[10px] text-palm-dark/20 mt-1">Toque em cadastrar para começar</p>
                     </div>
                 </div>
 
             </section>
 
-            <!-- ========== PAGE 2: FORMULARIO ========== -->
-            <section class="page" id="pageForm">
-                <div class="form-header">
-                    <h2 class="form-title">Novo Cadastro</h2>
-                    <p class="form-desc">Preencha os dados da arvore encontrada</p>
+            <!-- ========== FORMULARIO ========== -->
+            <section class="page px-5 pt-5 pb-6" id="pageForm">
+                <div class="mb-5">
+                    <h2 class="font-display italic text-[1.35rem] font-semibold text-palm-dark">Novo Cadastro</h2>
+                    <p class="text-xs text-palm-dark/40 mt-0.5">Preencha os dados da árvore encontrada</p>
                 </div>
 
-                <!-- Progress dots -->
-                <div class="progress">
-                    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
-                    <div class="prog-dots">
-                        <span class="pdot active" data-s="1"><span class="pdot-num">1</span></span>
-                        <span class="pdot" data-s="2"><span class="pdot-num">2</span></span>
-                        <span class="pdot" data-s="3"><span class="pdot-num">3</span></span>
-                        <span class="pdot" data-s="4"><span class="pdot-num">4</span></span>
-                        <span class="pdot" data-s="5"><span class="pdot-num">5</span></span>
-                        <span class="pdot" data-s="6"><span class="pdot-num">6</span></span>
-                    </div>
-                    <div class="prog-labels">
-                        <span class="plbl active" data-s="1">Local</span>
-                        <span class="plbl" data-s="2">Especie</span>
-                        <span class="plbl" data-s="3">Fotos</span>
-                        <span class="plbl" data-s="4">Dimensoes</span>
-                        <span class="plbl" data-s="5">Saude</span>
-                        <span class="plbl" data-s="6">Poda</span>
+                <div class="mb-6">
+                    <div class="progress-track"><div class="progress-fill" id="progFill" style="width:20%"></div></div>
+                    <div class="flex justify-between px-0.5">
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm" data-s="1">Local</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="2">Espécie</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="3">Fotos</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="4">Saúde</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-palm-dark/25" data-s="5">Poda</span>
                     </div>
                 </div>
 
                 <form id="treeForm">
 
-                    <!-- STEP 1: LOCALIZACAO -->
+                    <!-- STEP 1: LOCALIZAÇÃO -->
                     <div class="fs active" id="step1">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 20s-7-5.5-7-10.5C4 6 7 3 11 3s7 3 7 6.5c0 5-7 10.5-7 10.5z" fill="#7A9444" fill-opacity="0.15" stroke="#4E6B2E" stroke-width="1.3"/>
-                                <circle cx="11" cy="9.5" r="2.5" stroke="#4E6B2E" stroke-width="1.2" fill="none"/>
-                                <circle cx="11" cy="9.5" r="0.8" fill="#7A9444" fill-opacity="0.5"/>
-                            </svg>
-                            Dados de Localização
-                        </div>
+                        <div class="section-label mb-3"><i data-lucide="map-pin" class="w-3 h-3"></i><span>Dados de Localização</span></div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Coordenadas GPS</div>
+                        <div class="form-card">
+                            <label class="form-label">Coordenadas GPS</label>
                             <button type="button" class="gps-btn" id="captureGps">
-                                <div class="gps-pulse"></div>
-                                <div class="gps-icon">
-                                    <svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="3" fill="#7A9444" fill-opacity="0.3" stroke="#4E6B2E" stroke-width="1.3"/>
-                                <path d="M11 1v3M11 18v3M1 11h3M18 11h3" stroke="#4E6B2E" stroke-width="1.2"/>
-                                <path d="M4.2 4.2l1.8 1.8M16 16l1.8 1.8M4.2 17.8l1.8-1.8M16 6l1.8-1.8" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                            </svg>
-                                </div>
-                                <div class="gps-info">
-                                    <strong>Capturar coordenadas GPS</strong>
-                                    <small id="gpsStatus">Toque para localizar</small>
+                                <div class="w-9 h-9 rounded-full bg-palm/8 flex items-center justify-center"><i data-lucide="crosshair" class="w-4.5 h-4.5 text-palm"></i></div>
+                                <div class="text-left">
+                                    <strong class="text-sm text-palm-dark block">Capturar coordenadas GPS</strong>
+                                    <small class="text-xs text-palm-dark/35" id="gpsStatus">Toque para localizar</small>
                                 </div>
                             </button>
                             <input type="hidden" id="latitude">
                             <input type="hidden" id="longitude">
                         </div>
 
-                        <div class="fcard">
-                            <label class="fcard-label" for="logradouro">Logradouro / Endereco</label>
-                            <input type="text" id="logradouro" class="finp" placeholder="Preenchido automaticamente pelo GPS...">
+                        <div class="form-card">
+                            <label class="form-label" for="logradouro">Logradouro / Endereço</label>
+                            <input type="text" id="logradouro" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/20" placeholder="Preenchido automaticamente...">
                         </div>
 
-                        <div class="fcard">
-                            <label class="fcard-label" for="referencia">Ponto de Referencia</label>
-                            <input type="text" id="referencia" class="finp" placeholder="Ex: em frente ao mercado, proximo a escola...">
+                        <div class="form-card">
+                            <label class="form-label" for="referencia">Ponto de Referência</label>
+                            <input type="text" id="referencia" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none placeholder:text-palm-dark/20" placeholder="Ex: em frente ao mercado...">
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Local de Plantio</div>
-                            <div class="chips">
-                                <label class="chip"><input type="radio" name="localPlantio" value="calcada"><span class="chip-body"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="6" width="12" height="8" rx="1.5"/><path d="M5 6V4M8 6V3M11 6V4"/></svg> Calcada</span></label>
-                                <label class="chip"><input type="radio" name="localPlantio" value="praca"><span class="chip-body"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5"/><path d="M8 3v10M3 8h10"/></svg> Praca / Parque</span></label>
-                                <label class="chip"><input type="radio" name="localPlantio" value="canteiro"><span class="chip-body"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="8" width="14" height="6" rx="1"/><path d="M4 8V6M8 8V5M12 8V6"/></svg> Canteiro Central</span></label>
-                                <label class="chip"><input type="radio" name="localPlantio" value="privada"><span class="chip-body"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 8l5-5 5 5"/><path d="M5 7v6h6V7"/></svg> Propriedade Privada</span></label>
-                                <label class="chip"><input type="radio" name="localPlantio" value="verde"><span class="chip-body"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 14V6"/><path d="M8 6C8 4 6 2 4 3C6 3 8 1 8 1C8 1 10 3 12 3C10 2 8 4 8 6Z"/></svg> Area Verde</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Local de Plantio</label>
+                            <div class="flex flex-wrap gap-2.5">
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="calcada" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="footprints" class="w-4 h-4"></i> Calçada</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="praca" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="trees" class="w-4 h-4"></i> Praça</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="canteiro" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="flower-2" class="w-4 h-4"></i> Canteiro</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="privada" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="home" class="w-4 h-4"></i> Privada</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="localPlantio" value="verde" class="hidden peer"><span class="peer-checked:bg-palm peer-checked:text-white peer-checked:border-palm inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold border border-leaf/10 text-palm-dark bg-cream/50 transition-all"><i data-lucide="leaf" class="w-4 h-4"></i> Área Verde</span></label>
                             </div>
                         </div>
 
-                        <button type="button" class="btn-primary" onclick="goStep(2)">Proximo passo</button>
+                        <button type="button" class="w-full py-3 bg-gradient-to-r from-palm to-palm-dark text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform" onclick="goStep(2)">Próximo passo</button>
                     </div>
 
-                    <!-- STEP 2: ESPECIE -->
+                    <!-- STEP 2: ESPÉCIE -->
                     <div class="fs" id="step2">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 20V10" stroke="#4E6B2E" stroke-width="1.5"/>
-                                <path d="M11 10C11 7 8.5 4 6 4.5C8.5 4.5 11 2 11 1C11 2 13.5 4.5 16 4.5C13.5 4 11 7 11 10Z" fill="#7A9444" fill-opacity="0.25" stroke="#4E6B2E" stroke-width="1.2"/>
-                                <path d="M6 4.5C4.5 3 3.5 3.5 2.5 4.5" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                                <path d="M16 4.5C17.5 3 18.5 3.5 19.5 4.5" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                                <circle cx="11" cy="1" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                            </svg>
-                            Identificação da Espécie
-                        </div>
+                        <div class="section-label mb-3"><i data-lucide="leaf" class="w-3 h-3"></i><span>Identificação da Espécie</span></div>
 
-                        <div class="fcard fcard-highlight">
-                            <label class="fcard-label" for="especieSearch">Especie (Nome Popular)</label>
-                            <div class="search-wrap">
-                                <svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="10" cy="10" r="6.5" stroke="#4E6B2E" stroke-width="1.3" fill="none"/>
-                                    <path d="M15 15l4 4" stroke="#4E6B2E" stroke-width="1.5"/>
-                                    <path d="M8 10h4M10 8v4" stroke="#7A9444" stroke-width="1" opacity="0.5"/>
-                                </svg>
-                                <input type="text" id="especieSearch" class="finp finp-search" placeholder="Ex: Ipê-amarelo, Mangueira, Tipuana..." autocomplete="off">
-                                <div class="search-dropdown" id="especieResults"></div>
+                        <div class="form-card relative">
+                            <label class="form-label" for="especieSearch">Espécie (Nome Popular)</label>
+                            <div class="flex items-center gap-2 bg-cream/50 rounded-2xl px-3.5 py-2.5 relative">
+                                <i data-lucide="search" class="w-4 h-4 text-palm-dark/20"></i>
+                                <input type="text" id="especieSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/20" placeholder="Buscar espécie...">
+                                <div id="especieResults" class="search-dropdown"></div>
                             </div>
                             <input type="hidden" id="especie">
-                            <small class="finp-hint">Comece a digitar para buscar na lista de especies de Andradas, ou digite um nome novo</small>
-                            <div class="species-tags" id="speciesTags">
-                                <span class="sp-tag" onclick="selectSpecies('Tipuana tipu')">Tipuana</span>
-                                <span class="sp-tag" onclick="selectSpecies('Mangifera indica')">Mangueira</span>
-                                <span class="sp-tag" onclick="selectSpecies('Handroanthus albus')">Ipê-amarelo</span>
-                                <span class="sp-tag" onclick="selectSpecies('Jacaranda mimosifolia')">Jacaranda</span>
-                                <span class="sp-tag" onclick="selectSpecies('Syagrus romanzoffiana')">Coqueiro</span>
-                                <span class="sp-tag" onclick="selectSpecies('Ficus benjamina')">Ficus</span>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 mb-4" id="speciesChips">
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Tipuana tipu')">Tipuana</span>
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Mangifera indica')">Mangueira</span>
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Handroanthus albus')">Ipê-amarelo</span>
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Jacaranda mimosifolia')">Jacarandá</span>
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Syagrus romanzoffiana')">Coqueiro</span>
+                            <span class="px-3 py-1.5 bg-leaf/6 text-palm text-[11px] font-semibold rounded-full border border-leaf/10 cursor-pointer active:bg-palm active:text-white transition-all" onclick="selectSpecies('Ficus benjamina')">Ficus</span>
+                        </div>
+
+                        <div class="form-card">
+                            <label class="form-label">Certeza da Identificação</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="certeza" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="check-circle" class="w-3 h-3"></i> Certeza</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="palpite" class="hidden peer"><span class="peer-checked:bg-terra peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-terra/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="help-circle" class="w-3 h-3"></i> Palpite</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="nao_sei" class="hidden peer"><span class="peer-checked:bg-red-400 peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-red-200/15 text-palm-dark bg-cream/50 transition-all"><i data-lucide="x-circle" class="w-3 h-3"></i> Não sei</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Nivel de Certeza</div>
-                            <div class="opts-col">
-                                <label class="opt-leaf"><input type="radio" name="certeza" value="certeza"><span class="opt-body opt-green"><svg viewBox="0 0 18 18" width="16" height="16" fill="none"><path d="M9 16C9 16 2 12 2 7C2 4 5 1.5 9 1.5C13 1.5 16 4 16 7C16 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.2" stroke="#657F38" stroke-width="1.2"/><path d="M9 14V7" stroke="#657F38" stroke-width="0.8" stroke-linecap="round"/><path d="M9 9C7.5 8 6 8.5 5.5 9" stroke="#657F38" stroke-width="0.6" stroke-linecap="round"/></svg> Tenho certeza</span></label>
-                                <label class="opt-leaf"><input type="radio" name="certeza" value="palpite"><span class="opt-body opt-warm"><svg viewBox="0 0 18 18" width="16" height="16" fill="none"><path d="M9 16C9 16 2 12 2 7C2 4 5 1.5 9 1.5C13 1.5 16 4 16 7C16 12 9 16 9 16Z" fill="#D57640" fill-opacity="0.15" stroke="#D57640" stroke-width="1.2"/><path d="M9 14V7" stroke="#D57640" stroke-width="0.8" stroke-linecap="round"/><circle cx="9" cy="5" r="1" fill="#D57640" fill-opacity="0.4"/></svg> E apenas um palpite</span></label>
-                                <label class="opt-leaf"><input type="radio" name="certeza" value="nao_sei"><span class="opt-body opt-muted"><svg viewBox="0 0 18 18" width="16" height="16" fill="none"><circle cx="9" cy="9" r="6" fill="#C04A3A" fill-opacity="0.08" stroke="#C04A3A" stroke-width="1.1"/><path d="M7.5 7.5l3 3M10.5 7.5l-3 3" stroke="#C04A3A" stroke-width="1" stroke-linecap="round"/></svg> Nao sei identificar</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Porte / Altura</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="porte" value="pequeno" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="sprout" class="w-3 h-3"></i> Pequeno</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="porte" value="medio" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="tree-palm" class="w-3 h-3"></i> Médio</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="porte" value="grande" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="trees" class="w-3 h-3"></i> Grande</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Porte / Altura</div>
-                            <div class="opts-col">
-                                <label class="opt-leaf"><input type="radio" name="porte" value="pequeno"><span class="opt-body"><strong class="opt-letter">P</strong> Ate 4 metros</span></label>
-                                <label class="opt-leaf"><input type="radio" name="porte" value="medio"><span class="opt-body"><strong class="opt-letter">M</strong> 4 a 10 metros</span></label>
-                                <label class="opt-leaf"><input type="radio" name="porte" value="grande"><span class="opt-body"><strong class="opt-letter">G</strong> Acima de 10 metros</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Diâmetro do Tronco</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="tronco" value="fino" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all">Até 30cm</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="tronco" value="medio" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all">30–60cm</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="tronco" value="grosso" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all">Acima 60cm</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Espessura do Tronco</div>
-                            <div class="opts-col">
-                                <label class="opt-leaf"><input type="radio" name="tronco" value="fino"><span class="opt-body"><strong class="opt-letter">F</strong> Fecha as maos ao redor</span></label>
-                                <label class="opt-leaf"><input type="radio" name="tronco" value="medio"><span class="opt-body"><strong class="opt-letter">M</strong> E possivel abracar</span></label>
-                                <label class="opt-leaf"><input type="radio" name="tronco" value="grosso"><span class="opt-body"><strong class="opt-letter">G</strong> Nao e possivel abracar</span></label>
-                            </div>
-                        </div>
-
-                        <div class="btn-row">
-                            <button type="button" class="btn-secondary" onclick="goStep(1)">Voltar</button>
-                            <button type="button" class="btn-primary" onclick="goStep(3)">Proximo</button>
+                        <div class="flex gap-3 mt-1">
+                            <button type="button" class="flex-1 py-3 bg-white/60 text-palm-dark rounded-2xl font-bold text-sm border border-leaf/10 active:scale-[0.98] transition-transform" onclick="goStep(1)">Voltar</button>
+                            <button type="button" class="flex-1 py-3 bg-gradient-to-r from-palm to-palm-dark text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform" onclick="goStep(3)">Próximo</button>
                         </div>
                     </div>
 
                     <!-- STEP 3: FOTOS -->
                     <div class="fs" id="step3">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="5" width="18" height="13" rx="3" stroke="#4E6B2E" stroke-width="1.3" fill="none"/>
-                                <circle cx="8" cy="11" r="3" stroke="#4E6B2E" stroke-width="1.2" fill="none"/>
-                                <circle cx="8" cy="11" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                                <path d="M14 11l4-3v7l-4-3z" fill="#7A9444" fill-opacity="0.2" stroke="#4E6B2E" stroke-width="1"/>
-                                <circle cx="16" cy="8" r="1" fill="#7A9444" fill-opacity="0.3"/>
-                            </svg>
-                            Registros Fotográficos
-                        </div>
+                        <div class="section-label mb-3"><i data-lucide="camera" class="w-3 h-3"></i><span>Registros Fotográficos</span></div>
 
-                        <div class="photo-grid">
-                            <div class="photo-slot">
+                        <div class="grid grid-cols-2 gap-3 mb-5">
+                            <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(1)">
                                 <input type="file" id="photo1" accept="image/*" hidden>
-                                <div class="photo-box" onclick="upPhoto(1)">
-                                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="#9EAB57" stroke-width="1.2" stroke-linecap="round" opacity="0.5"><path d="M16 26V16"/><path d="M16 16C16 12.5 13 10 10 10.5C13 10.5 16 8 16 6C16 8 19 10.5 22 10.5C19 10 16 12.5 16 16Z"/></svg>
-                                    <span>Arvore inteira</span>
-                                </div>
-                                <img class="photo-preview" id="preview1">
+                                <i data-lucide="tree-palm" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
+                                <span class="text-[10px] font-bold text-palm-dark/35">Árvore inteira</span>
+                                <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview1">
                             </div>
-                            <div class="photo-slot">
+                            <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(2)">
                                 <input type="file" id="photo2" accept="image/*" hidden>
-                                <div class="photo-box" onclick="upPhoto(2)">
-                                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="#9EAB57" stroke-width="1.2" stroke-linecap="round" opacity="0.5"><path d="M16 26V12"/><path d="M11 12h10"/><path d="M13 17h6"/></svg>
-                                    <span>Tronco e base</span>
-                                </div>
-                                <img class="photo-preview" id="preview2">
+                                <i data-lucide="circle-dot" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
+                                <span class="text-[10px] font-bold text-palm-dark/35">Tronco</span>
+                                <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview2">
                             </div>
-                            <div class="photo-slot">
+                            <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(3)">
                                 <input type="file" id="photo3" accept="image/*" hidden>
-                                <div class="photo-box" onclick="upPhoto(3)">
-                                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="#9EAB57" stroke-width="1.2" stroke-linecap="round" opacity="0.5"><path d="M16 4C16 4 8 8 8 15C8 19 11 22 16 22C21 22 24 19 24 15C24 8 16 4 16 4Z" fill="#9EAB57" fill-opacity="0.08"/><path d="M16 22v6"/></svg>
-                                    <span>Folhas</span>
-                                </div>
-                                <img class="photo-preview" id="preview3">
+                                <i data-lucide="leaf" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
+                                <span class="text-[10px] font-bold text-palm-dark/35">Folhas</span>
+                                <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview3">
                             </div>
-                            <div class="photo-slot">
+                            <div class="form-card text-center cursor-pointer active:scale-[0.97] transition-transform" onclick="upPhoto(4)">
                                 <input type="file" id="photo4" accept="image/*" hidden>
-                                <div class="photo-box" onclick="upPhoto(4)">
-                                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="#D57640" stroke-width="1.2" stroke-linecap="round" opacity="0.5"><circle cx="16" cy="14" r="4" fill="#D57640" fill-opacity="0.08"/><path d="M16 18v8"/><path d="M12 22h8"/></svg>
-                                    <span>Flores / Frutos</span>
-                                </div>
-                                <img class="photo-preview" id="preview4">
+                                <i data-lucide="flower" class="w-7 h-7 text-leaf/20 mx-auto mb-1"></i>
+                                <span class="text-[10px] font-bold text-palm-dark/35">Flores / Frutos</span>
+                                <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview4">
                             </div>
-                            <div class="photo-slot photo-wide">
+                            <div class="form-card text-center cursor-pointer col-span-2 active:scale-[0.97] transition-transform" onclick="upPhoto(5)">
                                 <input type="file" id="photo5" accept="image/*" hidden>
-                                <div class="photo-box" onclick="upPhoto(5)">
-                                    <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="#C04A3A" stroke-width="1.2" stroke-linecap="round" opacity="0.5"><path d="M16 4L6 28h20L16 4z" fill="#C04A3A" fill-opacity="0.05"/><path d="M16 14v6"/><circle cx="16" cy="24" r="0.8" fill="#C04A3A" opacity="0.5"/></svg>
-                                    <span>Danos ou pragas (opcional)</span>
-                                </div>
-                                <img class="photo-preview" id="preview5">
+                                <i data-lucide="alert-triangle" class="w-7 h-7 text-terra/20 mx-auto mb-1"></i>
+                                <span class="text-[10px] font-bold text-palm-dark/35">Danos ou pragas (opcional)</span>
+                                <img class="photo-preview mt-2 rounded-2xl w-full hidden" id="preview5">
                             </div>
                         </div>
 
-                        <div class="btn-row">
-                            <button type="button" class="btn-secondary" onclick="goStep(2)">Voltar</button>
-                            <button type="button" class="btn-primary" onclick="goStep(4)">Proximo</button>
+                        <div class="flex gap-3">
+                            <button type="button" class="flex-1 py-3 bg-white/60 text-palm-dark rounded-2xl font-bold text-sm border border-leaf/10 active:scale-[0.98] transition-transform" onclick="goStep(2)">Voltar</button>
+                            <button type="button" class="flex-1 py-3 bg-gradient-to-r from-palm to-palm-dark text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform" onclick="goStep(4)">Próximo</button>
                         </div>
                     </div>
 
-                    <!-- STEP 4: DIMENSOES -->
+                    <!-- STEP 4: CONDIÇÃO -->
                     <div class="fs" id="step4">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 19V3h16" stroke="#4E6B2E" stroke-width="1.3"/>
-                                <path d="M3 19l4-5 3 3 4-6 3 4" stroke="#7A9444" stroke-width="1.2"/>
-                                <circle cx="7" cy="14" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                                <circle cx="10" cy="17" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                                <circle cx="14" cy="11" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                                <circle cx="17" cy="15" r="1" fill="#7A9444" fill-opacity="0.4"/>
-                            </svg>
-                            Dimensões Estimadas
-                        </div>
+                        <div class="section-label mb-3"><i data-lucide="heart-pulse" class="w-3 h-3"></i><span>Condição da Árvore</span></div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Altura / Porte</div>
-                            <div class="opts-col">
-                                <label class="opt-leaf"><input type="radio" name="porte2" value="pequeno"><span class="opt-body"><strong class="opt-letter">P</strong> Ate 4m — nao atinge fiação</span></label>
-                                <label class="opt-leaf"><input type="radio" name="porte2" value="medio"><span class="opt-body"><strong class="opt-letter">M</strong> Alcanca fiação ou telhado</span></label>
-                                <label class="opt-leaf"><input type="radio" name="porte2" value="grande"><span class="opt-body"><strong class="opt-letter">G</strong> Ultrapassa telhados ou fiação</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Problemas Detectados</label>
+                            <div class="flex flex-col gap-2.5">
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="inclinacao" class="w-4 h-4 rounded accent-leaf"><span class="text-xs text-palm-dark">Inclinação acentuada</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="rachaduras" class="w-4 h-4 rounded accent-leaf"><span class="text-xs text-palm-dark">Rachaduras ou buracos no tronco</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="fungos" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Fungos ou cogumelos na madeira</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="pragas" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Pragas na base (cupins, formigas)</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="broca" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Furos com pó de serra (broca)</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="galhos_secos" class="w-4 h-4 rounded accent-leaf"><span class="text-xs text-palm-dark">Galhos secos ou mortos</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="galhos_quebrados" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Galhos grandes quebrados e pendurados</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="ervas" class="w-4 h-4 rounded accent-leaf"><span class="text-xs text-palm-dark">Erva-de-passarinho ou parasitas</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Espessura do Tronco</div>
-                            <div class="opts-col">
-                                <label class="opt-leaf"><input type="radio" name="tronco2" value="fino"><span class="opt-body"><strong class="opt-letter">F</strong> Fecha as maos ao redor</span></label>
-                                <label class="opt-leaf"><input type="radio" name="tronco2" value="medio"><span class="opt-body"><strong class="opt-letter">M</strong> E possivel abracar</span></label>
-                                <label class="opt-leaf"><input type="radio" name="tronco2" value="grosso"><span class="opt-body"><strong class="opt-letter">G</strong> Nao e possivel abracar</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Raízes</label>
+                            <div class="flex flex-col gap-2.5">
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="calcada" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Raízes danificando calçamento</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="problemas" value="estrangulamento" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Raízes estrangulando o tronco</span></label>
                             </div>
                         </div>
 
-                        <div class="btn-row">
-                            <button type="button" class="btn-secondary" onclick="goStep(3)">Voltar</button>
-                            <button type="button" class="btn-primary" onclick="goStep(5)">Proximo</button>
+                        <div class="form-card">
+                            <label class="form-label">Interferências Urbanas</label>
+                            <div class="flex flex-col gap-2.5">
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="interferencia" value="eletrica" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Copa em conflito com rede elétrica</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="interferencia" value="iluminacao" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Obstruindo iluminação ou sinalização</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="interferencia" value="muros" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Danificando muros ou telhados</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" name="interferencia" value="acessibilidade" class="w-4 h-4 rounded accent-terra"><span class="text-xs text-palm-dark">Atrapalhando acessibilidade na calçada</span></label>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 mt-1">
+                            <button type="button" class="flex-1 py-3 bg-white/60 text-palm-dark rounded-2xl font-bold text-sm border border-leaf/10 active:scale-[0.98] transition-transform" onclick="goStep(3)">Voltar</button>
+                            <button type="button" class="flex-1 py-3 bg-gradient-to-r from-palm to-palm-dark text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform" onclick="goStep(5)">Próximo</button>
                         </div>
                     </div>
 
-                    <!-- STEP 5: CONDICAO -->
+                    <!-- STEP 5: PODA -->
                     <div class="fs" id="step5">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 20C11 20 4 15 4 9.5C4 5.5 7 2.5 11 2.5C15 2.5 18 5.5 18 9.5C18 15 11 20 11 20Z" fill="#7A9444" fill-opacity="0.12" stroke="#4E6B2E" stroke-width="1.3"/>
-                                <path d="M11 17V8" stroke="#4E6B2E" stroke-width="1.2"/>
-                                <path d="M11 10C9 9 7.5 9.5 7 10.5" stroke="#4E6B2E" stroke-width="1"/>
-                                <path d="M11 12C13 11 14.5 11.5 15 12.5" stroke="#4E6B2E" stroke-width="0.8" opacity="0.6"/>
-                            </svg>
-                            Condição da Árvore Sanitaria e Riscos
-                        </div>
+                        <div class="section-label mb-3"><i data-lucide="scissors" class="w-3 h-3"></i><span>Gestão e Calendário de Poda</span></div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Tronco e Base</div>
-                            <div class="checks">
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="inclinacao"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M9 14V7" stroke-width="0.8"/><path d="M9 9C7.5 8 6 8.5 5.5 9" stroke-width="0.6"/></svg></span><span class="ck-text">Inclinacao acentuada</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="rachaduras"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M9 14V7" stroke-width="0.8"/><path d="M7 10l2-2 2 2" stroke-width="0.8"/></svg></span><span class="ck-text">Rachaduras ou buracos no tronco</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="fungos"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><circle cx="8" cy="9" r="1.2" fill="#D57640" fill-opacity="0.4"/><circle cx="11" cy="10" r="0.8" fill="#D57640" fill-opacity="0.3"/></svg></span><span class="ck-text">Fungos ou cogumelos na madeira</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="pragas"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><circle cx="9" cy="9" r="1" stroke="#C04A3A" fill="#C04A3A" fill-opacity="0.3"/><path d="M7 7l4 4M11 7l-4 4" stroke="#C04A3A" stroke-width="0.6"/></svg></span><span class="ck-text">Pragas na base (cupins, formigas)</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="broca"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><circle cx="8" cy="10" r="0.7" fill="#C04A3A" fill-opacity="0.5"/><circle cx="10.5" cy="8.5" r="0.5" fill="#C04A3A" fill-opacity="0.4"/></svg></span><span class="ck-text">Furos com po de serra (broca)</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Necessidade de intervenção</label>
+                            <div class="flex flex-col gap-2.5">
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="radio" name="intervencao" value="nenhuma" class="w-4 h-4 accent-leaf"><span class="text-xs text-palm-dark">Nenhuma</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="radio" name="intervencao" value="limpeza" class="w-4 h-4 accent-leaf"><span class="text-xs text-palm-dark">Poda de Limpeza</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="radio" name="intervencao" value="adequacao" class="w-4 h-4 accent-leaf"><span class="text-xs text-palm-dark">Poda de Adequação</span></label>
+                                <label class="flex items-center gap-2.5 cursor-pointer"><input type="radio" name="intervencao" value="urgente" class="w-4 h-4 accent-red-500"><span class="text-xs text-palm-dark">Risco de Queda</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Copa e Galhos</div>
-                            <div class="checks">
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="galhos_secos"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M6 10l2-3M12 10l-2-3" stroke="#D57640" stroke-width="0.7" stroke-dasharray="1.5 1"/></svg></span><span class="ck-text">Galhos secos ou mortos</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="galhos_quebrados"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M7 8l2 2-1.5 2" stroke="#C04A3A" stroke-width="0.7"/></svg></span><span class="ck-text">Galhos grandes quebrados e pendurados</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="ervas"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M7 7c1 1 3 1 4 0" stroke="#D57640" stroke-width="0.7"/><circle cx="9" cy="7" r="0.5" fill="#D57640" fill-opacity="0.4"/></svg></span><span class="ck-text">Erva-de-passarinho ou plantas parasitas</span></label>
+                        <div class="form-card">
+                            <label class="form-label">Mês ideal para poda</label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="1" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jan</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="2" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Fev</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="3" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Mar</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="4" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Abr</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="5" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Mai</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="6" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jun</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="7" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jul</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="8" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Ago</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="9" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Set</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="10" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Out</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="11" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Nov</span></label>
+                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="12" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Dez</span></label>
                             </div>
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Raizes</div>
-                            <div class="checks">
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="calcada"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><path d="M6 13c1-1 2-2 3-1s2 0 3 1" stroke="#C04A3A" stroke-width="0.7"/></svg></span><span class="ck-text">Raizes danificando calcamento ou asfalto</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="problemas" value="estrangulamento"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#657F38" stroke-width="1.2" stroke-linecap="round"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.15"/><ellipse cx="9" cy="11" rx="3" ry="1.5" stroke="#C04A3A" stroke-width="0.7" fill="none"/></svg></span><span class="ck-text">Raizes estrangulando o proprio tronco</span></label>
-                            </div>
+                        <div class="form-card">
+                            <label class="form-label">Data da última poda</label>
+                            <input type="date" id="dataUltimaPoda" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none">
                         </div>
 
-                        <div class="fcard">
-                            <div class="fcard-label">Interferencias Urbanas</div>
-                            <div class="checks">
-                                <label class="ck-leaf"><input type="checkbox" name="interferencia" value="eletrica"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#D57640" stroke-width="1.2" stroke-linecap="round"><circle cx="9" cy="9" r="6" fill="#D57640" fill-opacity="0.08"/><path d="M10 5l-2 4h3l-2 4" stroke-width="1"/></svg></span><span class="ck-text">Copa em conflito com rede eletrica</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="interferencia" value="iluminacao"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#D57640" stroke-width="1.2" stroke-linecap="round"><circle cx="9" cy="9" r="6" fill="#D57640" fill-opacity="0.08"/><circle cx="9" cy="9" r="2" fill="#D57640" fill-opacity="0.2"/><path d="M9 3v1M9 14v1M3 9h1M14 9h1" stroke-width="0.8"/></svg></span><span class="ck-text">Obstruindo iluminacao ou sinalizacao</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="interferencia" value="muros"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#D57640" stroke-width="1.2" stroke-linecap="round"><circle cx="9" cy="9" r="6" fill="#D57640" fill-opacity="0.08"/><rect x="6" y="7" width="6" height="5" rx="0.5" stroke-width="0.8"/></svg></span><span class="ck-text">Danificando muros ou telhados de terceiros</span></label>
-                                <label class="ck-leaf"><input type="checkbox" name="interferencia" value="acessibilidade"><span class="ck-box"><svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="#D57640" stroke-width="1.2" stroke-linecap="round"><circle cx="9" cy="9" r="6" fill="#D57640" fill-opacity="0.08"/><circle cx="9" cy="6" r="1.5" stroke-width="0.8"/><path d="M7.5 8.5v3l-1.5 2M10.5 8.5v3l1.5 2" stroke-width="0.8"/></svg></span><span class="ck-text">Atrapalhando acessibilidade na calcada</span></label>
-                            </div>
+                        <div class="form-card">
+                            <label class="form-label">Observações</label>
+                            <textarea id="observacoes" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none resize-none h-20 placeholder:text-palm-dark/20" placeholder="Alguma observação adicional..."></textarea>
                         </div>
 
-                        <div class="btn-row">
-                            <button type="button" class="btn-secondary" onclick="goStep(4)">Voltar</button>
-                            <button type="button" class="btn-primary" onclick="goStep(6)">Proximo</button>
+                        <div class="flex gap-3 mt-1">
+                            <button type="button" class="flex-1 py-3 bg-white/60 text-palm-dark rounded-2xl font-bold text-sm border border-leaf/10 active:scale-[0.98] transition-transform" onclick="goStep(4)">Voltar</button>
+                            <button type="submit" class="flex-1 py-3 bg-gradient-to-r from-leaf to-leaf-light text-white rounded-2xl font-bold text-sm shadow-petal active:scale-[0.98] transition-transform flex items-center justify-center gap-2"><i data-lucide="check" class="w-4 h-4"></i> Salvar</button>
                         </div>
                     </div>
 
-                    <!-- STEP 6: PODA E OBSERVACOES -->
-                    <div class="fs" id="step6">
-                        <div class="step-label">
-                            <svg viewBox="0 0 22 22" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 2v5" stroke="#4E6B2E" stroke-width="1.5"/>
-                                <path d="M11 7c-3.5 0-6 2.5-6 6 0 3.5 2.5 6 6 8 3.5-2 6-4.5 6-8 0-3.5-2.5-6-6-6z" fill="#7A9444" fill-opacity="0.12" stroke="#4E6B2E" stroke-width="1.3"/>
-                                <path d="M8 11h6M11 8v6" stroke="#4E6B2E" stroke-width="0.8" opacity="0.5"/>
-                                <circle cx="11" cy="7" r="0.8" fill="#7A9444" fill-opacity="0.5"/>
-                            </svg>
-                            Gestão e Calendário de Poda
-                        </div>
-
-                        <div class="fcard">
-                            <div class="fcard-label">Necessidade de intervencao</div>
-                            <div class="opts-grid">
-                                <label class="opt-leaf"><input type="radio" name="intervencao" value="nenhuma"><span class="opt-body opt-green"><svg viewBox="0 0 18 18" width="14" height="14" fill="none"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#9EAB57" fill-opacity="0.2" stroke="#657F38" stroke-width="1.2"/><path d="M9 14V7" stroke="#657F38" stroke-width="0.8" stroke-linecap="round"/></svg> Nenhuma</span></label>
-                                <label class="opt-leaf"><input type="radio" name="intervencao" value="limpeza"><span class="opt-body opt-warm"><svg viewBox="0 0 18 18" width="14" height="14" fill="none"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#D57640" fill-opacity="0.15" stroke="#D57640" stroke-width="1.2"/><path d="M6 9l2 2 4-4" stroke="#D57640" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg> Poda de Limpeza</span></label>
-                                <label class="opt-leaf"><input type="radio" name="intervencao" value="adequacao"><span class="opt-body opt-blue"><svg viewBox="0 0 18 18" width="14" height="14" fill="none"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#657F38" fill-opacity="0.15" stroke="#657F38" stroke-width="1.2"/><path d="M7 8h4M7 11h3" stroke="#657F38" stroke-width="0.8" stroke-linecap="round"/></svg> Poda de Adequacao</span></label>
-                                <label class="opt-leaf"><input type="radio" name="intervencao" value="urgente"><span class="opt-body opt-red"><svg viewBox="0 0 18 18" width="14" height="14" fill="none"><path d="M9 16C9 16 3 12 3 8C3 5 5.5 3 9 3C12.5 3 15 5 15 8C15 12 9 16 9 16Z" fill="#C04A3A" fill-opacity="0.12" stroke="#C04A3A" stroke-width="1.2"/><path d="M9 6v4M9 12v0.5" stroke="#C04A3A" stroke-width="1" stroke-linecap="round"/></svg> Risco de Queda</span></label>
-                            </div>
-                        </div>
-
-                        <div class="fcard">
-                            <label class="fcard-label" for="mesPoda">Mes sugerido para proxima poda</label>
-                            <select id="mesPoda" class="finp finp-select">
-                                <option value="">Selecione...</option>
-                                <option value="jan">Janeiro</option>
-                                <option value="fev">Fevereiro</option>
-                                <option value="mar">Marco</option>
-                                <option value="abr">Abril</option>
-                                <option value="mai">Maio</option>
-                                <option value="jun">Junho</option>
-                                <option value="jul">Julho</option>
-                                <option value="ago">Agosto</option>
-                                <option value="set">Setembro</option>
-                                <option value="out">Outubro</option>
-                                <option value="nov">Novembro</option>
-                                <option value="dez">Dezembro</option>
-                            </select>
-                        </div>
-
-                        <div class="fcard">
-                            <label class="fcard-label" for="dataUltimaPoda">Data da ultima poda</label>
-                            <input type="date" id="dataUltimaPoda" class="finp finp-date">
-                        </div>
-
-                        <div class="fcard">
-                            <label class="fcard-label" for="historicoPoda">Historico de podas</label>
-                            <input type="text" id="historicoPoda" class="finp" placeholder="Ex: Podas drasticas anteriores...">
-                        </div>
-
-                        <div class="fcard">
-                            <label class="fcard-label" for="observacoes">Observacoes Finais</label>
-                            <textarea id="observacoes" class="finp finp-textarea" rows="3" placeholder="Relatos da comunidade ou detalhes adicionais..."></textarea>
-                        </div>
-
-                        <!-- Summary -->
-                        <div class="summary-card">
-                            <div class="summary-title">
-                                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#D57640" stroke-width="1.3" stroke-linecap="round"><path d="M10 18C10 18 3 14 3 9C3 5 5.5 3 10 3C14.5 3 17 5 17 9C17 14 10 18 10 18Z" fill="#D57640" fill-opacity="0.1"/><path d="M10 15V8" stroke-width="0.8"/><path d="M10 10C8.5 9 7 9.5 6.5 10" stroke-width="0.6"/></svg>
-                                Resumo do Levantamento
-                            </div>
-                            <div id="summaryContent"></div>
-                        </div>
-
-                        <div class="btn-row">
-                            <button type="button" class="btn-secondary" onclick="goStep(5)">Voltar</button>
-                            <button type="button" class="btn-save" onclick="submitForm()">
-                                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"><path d="M16 5l-7 7-3-3"/></svg>
-                                Salvar Registro
-                            </button>
-                        </div>
-                    </div>
                 </form>
             </section>
 
-            <!-- ========== PAGE 3: CATALOGO ========== -->
-            <section class="page" id="pageCatalog">
-                <div class="catalog-header">
-                    <h2 class="catalog-title">Catálogo de Árvores</h2>
-                    <p class="catalog-desc">Todas as árvores cadastradas em Andradas</p>
+            <!-- ========== CATÁLOGO ========== -->
+            <section class="page px-5 pt-5 pb-6" id="pageCatalog">
+                <div class="mb-5">
+                    <h2 class="font-display italic text-[1.35rem] font-semibold text-palm-dark">Catálogo de Árvores</h2>
+                    <p class="text-xs text-palm-dark/40 mt-0.5">Todas as árvores cadastradas em Andradas</p>
                 </div>
 
-                <div class="search-bar">
-                    <svg viewBox="0 0 22 22" width="16" height="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="10" cy="10" r="6.5" stroke="#4E6B2E" stroke-width="1.3" fill="none"/>
-                        <path d="M15 15l4 4" stroke="#4E6B2E" stroke-width="1.5"/>
-                        <path d="M8 10h4M10 8v4" stroke="#7A9444" stroke-width="1" opacity="0.5"/>
-                    </svg>
-                    <input type="text" id="catalogSearch" placeholder="Buscar por espécie ou endereço...">
+                <div class="flex items-center gap-2.5 bg-white/70 backdrop-blur-sm rounded-full px-4 py-2.5 mb-4 border border-leaf/8 shadow-soft">
+                    <i data-lucide="search" class="w-4 h-4 text-palm-dark/20"></i>
+                    <input type="text" id="catalogSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/20" placeholder="Buscar por espécie ou endereço...">
                 </div>
 
-                <div class="filter-row">
-                    <button class="filter active" data-filter="all">Todas</button>
-                    <button class="filter" data-filter="saudavel">
-                        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="7" cy="7" r="5.5" stroke="#4E6B2E" stroke-width="1.2" fill="none"/>
-                            <path d="M5 7l1.5 1.5 3-3" stroke="#4E6B2E" stroke-width="1.2"/>
-                        </svg>
-                        Saudáveis
-                    </button>
-                    <button class="filter" data-filter="atencao">
-                        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="7" cy="7" r="5.5" stroke="#C0693A" stroke-width="1.2" fill="none"/>
-                            <path d="M7 4.5v3" stroke="#C0693A" stroke-width="1.2"/>
-                            <circle cx="7" cy="9.5" r="0.6" fill="#C0693A"/>
-                        </svg>
-                        Atenção
-                    </button>
-                    <button class="filter" data-filter="critico">
-                        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="7" cy="7" r="5.5" stroke="#B84433" stroke-width="1.2" fill="none"/>
-                            <path d="M7 4.5v3" stroke="#B84433" stroke-width="1.2"/>
-                            <circle cx="7" cy="9.5" r="0.6" fill="#B84433"/>
-                        </svg>
-                        Críticos
-                    </button>
+                <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+                    <button class="filter active px-4 py-1.5 rounded-full text-[10px] font-bold border border-leaf/15 whitespace-nowrap" data-filter="all">Todas</button>
+                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-leaf/10 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="saudavel"><i data-lucide="heart" class="w-3 h-3 inline"></i> Saudáveis</button>
+                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-terra/10 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="atencao"><i data-lucide="scissors" class="w-3 h-3 inline"></i> Atenção</button>
+                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-red-200/15 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="critico"><i data-lucide="alert-circle" class="w-3 h-3 inline"></i> Críticos</button>
                 </div>
 
-                <div class="catalog-list" id="catalogList">
-                    <div class="empty-state">
-                        <svg viewBox="0 0 40 50" width="40" height="50" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 46V30" stroke="#7A9444" stroke-width="1.5" opacity="0.3"/>
-                            <path d="M20 30C20 24 16 18 12 19.5C16 19.5 20 14 20 10C20 14 24 19.5 28 19.5C24 18 20 24 20 30Z" fill="#7A9444" fill-opacity="0.1" stroke="#7A9444" stroke-width="1" opacity="0.3"/>
-                            <path d="M12 19.5C10 17 9 17.5 8 18.5" stroke="#7A9444" stroke-width="0.8" opacity="0.2"/>
-                            <path d="M28 19.5C30 17 31 17.5 32 18.5" stroke="#7A9444" stroke-width="0.8" opacity="0.2"/>
-                            <circle cx="20" cy="10" r="1.5" fill="#7A9444" fill-opacity="0.2" stroke="#7A9444" stroke-width="0.6" opacity="0.3"/>
-                        </svg>
-                        <p class="empty-title">Nenhuma árvore ainda</p>
-                        <p class="empty-desc">Cadastre a primeira árvore pelo formulário</p>
+                <div class="flex flex-col gap-2" id="catalogList">
+                    <div class="flex flex-col items-center py-10 text-center">
+                        <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
+                            <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
+                        </div>
+                        <p class="font-display italic text-sm text-palm-dark/35">Nenhuma árvore ainda</p>
+                        <p class="text-[10px] text-palm-dark/20 mt-1">Cadastre a primeira árvore pelo formulário</p>
                     </div>
                 </div>
             </section>
+
         </main>
 
-        <!-- ========== BOTTOM NAV ========== -->
-        <nav class="bnav">
+        <!-- Bottom Nav -->
+        <nav class="bottom-nav">
             <button class="bnav-item active" data-page="pageDashboard">
-                <!-- Casa = ver dashboard -->
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                    <path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                </svg>
+                <i data-lucide="home" class="w-5 h-5"></i>
                 <span>Início</span>
             </button>
             <button class="bnav-item bnav-center" data-page="pageForm">
-                <div class="bnav-circle">
-                    <!-- + = cadastrar arvore -->
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
-                        <path d="M12 5v14M5 12h14" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-                    </svg>
-                </div>
-                <span>Cadastrar</span>
+                <div class="bnav-circle"><i data-lucide="plus" class="w-6 h-6 text-white"></i></div>
+                <span class="mt-1">Cadastrar</span>
             </button>
             <button class="bnav-item" data-page="pageCatalog">
-                <!-- Grade = ver catalogo -->
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                    <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                    <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                </svg>
+                <i data-lucide="layout-grid" class="w-5 h-5"></i>
                 <span>Catálogo</span>
             </button>
         </nav>
     </div>
 
-    <!-- ========== MODAL ========== -->
-    <div class="modal-overlay" id="treeModal">
-        <div class="modal-sheet">
-            <div class="modal-handle"></div>
-            <button class="modal-close" onclick="closeModal()">
-                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>
+    <!-- Modal -->
+    <div class="modal-sheet" id="treeModal">
+        <div class="modal-content">
+            <div class="w-10 h-1 bg-palm-dark/10 rounded-full mx-auto mb-4"></div>
+            <button class="absolute top-4 right-4 w-8 h-8 rounded-full bg-cream-dark/60 flex items-center justify-center" onclick="closeModal()">
+                <i data-lucide="x" class="w-4 h-4 text-palm-dark/60"></i>
             </button>
             <div id="modalBody"></div>
         </div>
     </div>
 
-    <!-- ========== TOAST ========== -->
+    <!-- Toast -->
     <div class="toast" id="toast"><span id="toastMsg"></span></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
+    <script>
+        lucide.createIcons();
+
+        // Anime.js entrance animations
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate stat cards on load
+            anime({
+                targets: '.stat-card',
+                translateY: [20, 0],
+                opacity: [0, 1],
+                duration: 600,
+                delay: anime.stagger(100, {start: 200}),
+                easing: 'easeOutCubic'
+            });
+
+            // Animate hero card
+            anime({
+                targets: '.hero-card',
+                translateY: [30, 0],
+                opacity: [0, 1],
+                duration: 700,
+                easing: 'easeOutCubic'
+            });
+        });
+    </script>
 </body>
 </html>

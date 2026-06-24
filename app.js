@@ -1,12 +1,20 @@
-/* ============================================================
-   INVENTÁRIO ARBÓREO — ANDRADAS, MG
-   App JavaScript v3
-   ============================================================ */
-
-const DB_KEY = 'arbore_andradas_v3';
-
-// Google Sheets Web App URL — cole a URL do seu Apps Script publicado
+const DB_KEY = 'arbore_andradas_v4';
 const SHEETS_URL = '';
+
+const TREE_ICONS_POOL = [
+    'tree-pine',
+    'tree-deciduous',
+    'tree-palm',
+    'flower-2',
+    'leaf',
+    'sprout',
+    'trees'
+];
+
+function getTreeIcon(id) {
+    var idx = parseInt(id) % TREE_ICONS_POOL.length;
+    return TREE_ICONS_POOL[idx];
+}
 
 const SPECIES_DB = [
     'Abarema idiopoda','Abutilon fruticosum','Acacia mangium','Acnistus arborescens',
@@ -18,35 +26,35 @@ const SPECIES_DB = [
     'Cariniana legalis','Casuarina equisetifolia','Cedrela fissilis','Celtis iguanaea',
     'Chaetachme aristata','Chorisia speciosa','Cinnamomum glaucescens','Citrus sinensis',
     'Citharexylum myrianthum','Clitoria ternatea','Cochlospermum regium','Commersonia fraseri',
-    'Cosonimum camphor','Croton floribundus','Cupania vernalis','Cyathea delgadii',
+    'Croton floribundus','Cupania vernalis','Cyathea delgadii',
     'Cymbopogon citratus','Daphnopsis fasciculata','Dendrocalamus asper','Dipteryx alata',
     'Dyssochroma viridiflorum','Eriobotrya japonica','Erythrina speciosa','Eschweilera ovata',
     'Eugenia uniflora','Eugenia pyriformis','Eugenia involucrata','Eugenia javanica',
     'Ficus benjamina','Ficus elastica','Ficus microcarpa','Ficus obtusifolia',
     'Fraxinus uhdei','Garcinia gardneriana','Gleditsia amorphoides','Gochnatia polymorpha',
-    'Grevea mexicana','Guarea trichilioides','Guarea guidonia','Guazuma ulmifolia',
-    'Handroanthus chrysotrichus','Handroanthus impetiginosus','Hymenaea courbaril',
+    'Guarea trichilioides','Guarea guidonia','Guazuma ulmifolia',
+    'Handroanthus chrysotrichus','Handroanthus impetiginosus','Handroanthus albus','Hymenaea courbaril',
     'Inga vera','Jacaranda mimosifolia','Lafoensia glyptocarpa','Lagerstroemia indica',
-    'Leonotis leonurus','Libidibia ferrea','Ligustrum lucidum',
+    'Libidibia ferrea','Ligustrum lucidum',
     'Lithraea molleoides','Luehea candicans','Maackia amurensis','Mangifera indica',
     'Maytenus evonymoides','Melia azedarach','Metrodorea nigra','Mimosa bimucronata',
     'Mimusops communis','Mollinedia schottiana','Monteverdia gonoclada','Myracrodruon urundeuva',
-    'Myrciaria dubia','Nectandra megapotamica','Nectandra oppositifolia','Nephrolepis exaltata',
+    'Nectandra megapotamica','Nectandra oppositifolia',
     'Ocimum gratissimum','Ocotea pulchella','Ocotea puberula','Olea europaea',
     'Parapiptadenia rigida','Peltogyne paivaeana','Peltophorum dubium','Pera glabrata',
     'Phoenix canariensis','Phyllanthus tenellus','Piper aduncum','Plathymenia reticulata',
-    'Platanus hispanica','Poincianella pluviosa','Pontidendron pinnatum','Portea karlasinskyana',
+    'Platanus hispanica','Poincianella pluviosa','Pontidendron pinnatum',
     'Pouteria torta','Psidium cattleyanum','Psidium guajava','Psidium guineense',
-    'Psiguria pedata','Pterocarpus macrocarpus','Pterogyne nitens','Qualea grandiflora',
-    'Quercus robur','Rauvolfia sellowii','Retiniphyllum concolor','Rhamnidium elaeocarpum',
+    'Pterocarpus macrocarpus','Pterogyne nitens','Qualea grandiflora',
+    'Rauvolfia sellowii','Retiniphyllum concolor','Rhamnidium elaeocarpum',
     'Richeria grandis','Ricinus communis','Robinia pseudoacacia','Rollinia mucosa',
-    'Rosmarinus officinalis','Ruprechtia laxiflora','Salix humboldtiana','Schinus terebinthifolia',
+    'Ruprechtia laxiflora','Salix humboldtiana','Schinus terebinthifolia',
     'Schizolobium parahyba','Senna multijuga','Sideroxylon obtusifolium','Simarouba amara',
-    'Solanum lycocarpum','Spathodea campanulata','Stenocalyx surinamensis','Syagrus romanzoffiana',
+    'Solanum lycocarpum','Spathodea campanulata','Syagrus romanzoffiana',
     'Tabebuia alba','Tabebuia roseoalba','Tabebuia vellosoi','Tabernaemontana catharinensis',
-    'Tibouchina granulosa','Trema micrantha','Trichilia elegans','Trichilia pallida',
-    'Triplochiton scleroxylon','Trophis racemosa','Uapaca kirkiana','Urera baccifera',
-    'Uruana glomerata','Vernonia ferruginea','Viburnum nudum','Vitex polyneura',
+    'Tipuana tipu','Tibouchina granulosa','Trema micrantha','Trichilia elegans','Trichilia pallida',
+    'Trophis racemosa','Urera baccifera',
+    'Vernonia ferruginea','Viburnum nudum','Vitex polyneura',
     'Vochysia magnifica','Vochysia tucanorum','Xylosma ciliatifolia',
     'Zanthoxylum rhoifolium','Zeyheria tuberculosa','Zingiber officinale','Zollernia ilicifolia'
 ];
@@ -57,7 +65,7 @@ const COMMON_NAMES = {
     'Handroanthus albus': 'Ipê-amarelo',
     'Handroanthus impetiginosus': 'Ipê-roxo',
     'Handroanthus chrysotrichus': 'Ipê-amarelo',
-    'Jacaranda mimosifolia': 'Jacaranda',
+    'Jacaranda mimosifolia': 'Jacarandá',
     'Syagrus romanzoffiana': 'Coqueiro-queen',
     'Ficus benjamina': 'Ficus',
     'Ficus microcarpa': 'Ficus',
@@ -77,7 +85,7 @@ const COMMON_NAMES = {
     'Caesalpinia pluviosa': 'Sibipiruna',
     'Celtis iguanaea': 'Juá',
     'Citharexylum myrianthum': 'Murta',
-    'Croton floribundus': 'Sangue-de-drago',
+    'Croton floribundus': 'Sangue-de-dragão',
     'Erythrina speciosa': 'Mulungu',
     'Inga vera': 'Ingá',
     'Luehea candicans': 'Açoita-cavalo',
@@ -92,7 +100,7 @@ const COMMON_NAMES = {
     'Annona reticulata': 'Ata',
     'Citrus sinensis': 'Laranjeira',
     'Eriobotrya japonica': 'Macieira-japonesa',
-    'Mangifera indica': 'Mangueira'
+    'Albizia lebbek': 'Sicomoro'
 };
 
 let trees = JSON.parse(localStorage.getItem(DB_KEY)) || [];
@@ -100,46 +108,64 @@ let map = null;
 let markers = {};
 let currentStep = 1;
 let editingId = null;
+let mapFilter = 'all';
 
-// ============================================================
-// INIT
-// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initMap();
     initGPS();
     initSpeciesSearch();
+    initPhotoInputs();
     initCatalogSearch();
     initFilters();
+    initMapFilters();
+    initFormSubmit();
+    loadMockData();
+    trees = JSON.parse(localStorage.getItem(DB_KEY)) || [];
     renderAll();
+    lucide.createIcons();
 });
 
-// ============================================================
-// NAVIGATION
-// ============================================================
 function initNavigation() {
     document.querySelectorAll('.bnav-item').forEach(btn => {
-        btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+        btn.addEventListener('click', () => {
+            const pageId = btn.dataset.page;
+            if (pageId) navigateTo(pageId);
+        });
     });
 }
 
 function navigateTo(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(pageId)?.classList.add('active');
+    const target = document.getElementById(pageId);
+    if (target) target.classList.add('active');
 
-    document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
-    document.querySelector(`.bnav-item[data-page="${pageId}"]`)?.classList.add('active');
+    document.querySelectorAll('.bnav-item').forEach(b => {
+        b.classList.remove('active');
+        b.querySelectorAll('i, span').forEach(el => el.style.color = '');
+    });
 
-    if (pageId === 'pageDashboard' && map) setTimeout(() => map.invalidateSize(), 120);
+    const activeBtn = document.querySelector(`.bnav-item[data-page="${pageId}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.querySelectorAll('i, span').forEach(el => el.style.color = '');
+        const icon = activeBtn.querySelector('i');
+        if (icon && !activeBtn.classList.contains('bnav-center')) icon.style.color = '#4E6B2E';
+        const span = activeBtn.querySelector('span');
+        if (span && !activeBtn.classList.contains('bnav-center')) span.style.color = '#4E6B2E';
+    }
+
+    if (pageId === 'pageDashboard' && map) setTimeout(() => map.invalidateSize(), 150);
     if (pageId === 'pageCatalog') renderCatalog();
-    if (pageId === 'pageForm') { currentStep = 1; showStep(1); }
+    if (pageId === 'pageForm') {
+        if (!editingId) { currentStep = 1; }
+        showStep(currentStep);
+    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => lucide.createIcons(), 50);
 }
 
-// ============================================================
-// MAP
-// ============================================================
 function initMap() {
     map = L.map('map', { zoomControl: false }).setView([-22.0683, -46.5733], 14);
     L.control.zoom({ position: 'topright' }).addTo(map);
@@ -151,6 +177,16 @@ function initMap() {
     renderMapMarkers();
 }
 
+function createTreeIcon(color) {
+    return L.divIcon({
+        className: '',
+        html: '<div style="width:10px;height:10px;background:' + color + ';border-radius:50%;border:1.5px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+        popupAnchor: [0, -8]
+    });
+}
+
 function renderMapMarkers() {
     if (!map) return;
     Object.values(markers).forEach(m => map.removeLayer(m));
@@ -159,44 +195,31 @@ function renderMapMarkers() {
     trees.forEach(t => {
         if (!t.latitude || !t.longitude) return;
 
-        const colors = { saudavel: '#7A9444', atencao: '#C0693A', critico: '#B84433' };
-        const color = colors[t.status] || '#7A9444';
+        if (mapFilter !== 'all' && t.status !== mapFilter) return;
 
-        const icon = L.divIcon({
-            className: 'tree-marker',
-            html: `<div class="tree-marker-pin" style="--c:${color}">
-                <svg viewBox="0 0 24 36" width="22" height="33" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 34V22" stroke="${color}" stroke-width="2"/>
-                    <path d="M12 22C12 17 8.5 12 5 13C8.5 13 12 8 12 4C12 8 15.5 13 19 13C15.5 12 12 17 12 22Z" fill="${color}" fill-opacity="0.3" stroke="${color}" stroke-width="1.5"/>
-                    <path d="M5 13C3 10.5 2 11 1 12" stroke="${color}" stroke-width="1" opacity="0.5"/>
-                    <path d="M19 13C21 10.5 22 11 23 12" stroke="${color}" stroke-width="1" opacity="0.5"/>
-                    <path d="M9 26c-1.2-0.6-2.5-0.2-3 0.3" stroke="${color}" stroke-width="0.8" opacity="0.5"/>
-                    <path d="M15 28c1.2-0.6 2.5-0.2 3 0.3" stroke="${color}" stroke-width="0.8" opacity="0.5"/>
-                    <circle cx="12" cy="4" r="1.2" fill="${color}" fill-opacity="0.4"/>
-                </svg>
-            </div>`,
-            iconSize: [22, 33],
-            iconAnchor: [11, 33],
-            popupAnchor: [0, -31]
-        });
+        var colors = { saudavel: '#7A9444', atencao: '#C0693A', critico: '#B84433' };
+        var color = colors[t.status] || '#7A9444';
+        var icon = createTreeIcon(color);
 
-        const marker = L.marker([t.latitude, t.longitude], { icon }).addTo(map);
+        var marker = L.marker([parseFloat(t.latitude), parseFloat(t.longitude)], { icon: icon }).addTo(map);
 
-        const photo = t.fotos?.[0] || t.foto1 || '';
-        const photoHtml = photo
-            ? `<img src="${photo}" class="popup-photo" alt="${t.especie || ''}">`
-            : `<div class="popup-photo popup-photo-placeholder"><svg viewBox="0 0 28 36" width="22" height="28" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 34V22" stroke="#7A9444" stroke-width="1.5"/><path d="M14 22C14 17 10.5 12 7 13C10.5 13 14 8 14 4C14 8 17.5 13 21 13C17.5 12 14 17 14 22Z" fill="#7A9444" fill-opacity="0.2" stroke="#7A9444" stroke-width="1.2"/><path d="M7 13C5 10.5 4 11 3 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/><path d="M21 13C23 10.5 24 11 25 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/><circle cx="14" cy="4" r="1" fill="#7A9444" fill-opacity="0.4"/></svg></div>`;
+        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var photoHtml = photo
+            ? '<img src="' + photo + '" style="width:100%;height:80px;object-fit:cover;border-radius:10px;" alt="">'
+            : '';
 
-        marker.bindPopup(`
-            <div class="map-popup">
-                ${photoHtml}
-                <div class="popup-info">
-                    <strong>${t.especie || 'Árvore'}</strong>
-                    <small>${t.logradouro || t.referencia || 'Sem endereço'}</small>
-                </div>
-                <button class="popup-btn" onclick="closePopups();openModal(${t.id})">Ver detalhes</button>
-            </div>
-        `, { closeButton: false, className: 'tree-popup', maxWidth: 240 });
+        var statusLabels = { saudavel: 'Saudavel', atencao: 'Atencao', critico: 'Critico' };
+
+        marker.bindPopup(
+            '<div style="padding:12px;display:flex;flex-direction:column;gap:8px;min-width:200px;">' +
+            photoHtml +
+            '<div><strong style="font-family:Playfair Display,serif;font-style:italic;font-size:0.9rem;color:#1A2215;">' + (t.especie || 'Arvore') + '</strong><br>' +
+            '<small style="font-size:0.72rem;color:#6B7560;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</small></div>' +
+            '<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:50px;font-size:0.65rem;font-weight:700;background:' + color + '15;color:' + color + ';width:fit-content;">' + (statusLabels[t.status] || '-') + '</div>' +
+            '<button onclick="closePopups();openModal(' + t.id + ')" style="width:100%;padding:8px;border:none;border-radius:10px;background:#4E6B2E;color:white;font-family:Nunito,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">Ver detalhes</button>' +
+            '</div>',
+            { closeButton: false, maxWidth: 260 }
+        );
 
         markers[t.id] = marker;
     });
@@ -204,254 +227,410 @@ function renderMapMarkers() {
 
 function closePopups() { if (map) map.closePopup(); }
 
-// ============================================================
-// GPS
-// ============================================================
 function initGPS() {
-    const btn = document.getElementById('captureGps');
+    var btn = document.getElementById('captureGps');
     if (!btn) return;
 
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', function() {
         if (!navigator.geolocation) {
-            document.getElementById('gpsStatus').textContent = 'GPS não disponível';
+            document.getElementById('gpsStatus').textContent = 'GPS nao disponivel';
             return;
         }
-        btn.classList.add('active');
-        document.getElementById('gpsStatus').textContent = 'Obtendo localização...';
+        btn.style.borderColor = '#4E6B2E';
+        btn.style.borderStyle = 'solid';
+        document.getElementById('gpsStatus').textContent = 'Obtendo localizacao...';
 
         navigator.geolocation.getCurrentPosition(
-            async pos => {
-                const lat = pos.coords.latitude, lng = pos.coords.longitude;
+            function(pos) {
+                var lat = pos.coords.latitude;
+                var lng = pos.coords.longitude;
                 document.getElementById('latitude').value = lat.toFixed(6);
                 document.getElementById('longitude').value = lng.toFixed(6);
-                document.getElementById('gpsStatus').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-                btn.classList.remove('active');
-                btn.classList.add('done');
+                document.getElementById('gpsStatus').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+                btn.style.borderColor = '#7A9444';
+                btn.style.background = 'rgba(122,148,68,0.06)';
 
-                try {
-                    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=pt`);
-                    const d = await r.json();
-                    if (d.address) {
-                        const a = d.address;
-                        document.getElementById('logradouro').value = [a.road, a.neighbourhood, a.suburb, a.city || a.town, a.state].filter(Boolean).join(', ');
-                    }
-                } catch (e) { /* ignore */ }
+                fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&addressdetails=1&accept-language=pt')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d.address) {
+                            var a = d.address;
+                            var parts = [a.road, a.neighbourhood, a.suburb, a.city || a.town, a.state].filter(Boolean);
+                            document.getElementById('logradouro').value = parts.join(', ');
+                        }
+                    })
+                    .catch(function() {});
 
                 if (map) map.setView([lat, lng], 16);
             },
-            () => {
-                document.getElementById('gpsStatus').textContent = 'Erro ao obter localização';
-                btn.classList.remove('active');
+            function() {
+                document.getElementById('gpsStatus').textContent = 'Erro ao obter localizacao';
+                btn.style.borderColor = '#C0693A';
             },
             { enableHighAccuracy: true, timeout: 15000 }
         );
     });
 }
 
-// ============================================================
-// SPECIES SEARCH
-// ============================================================
 function initSpeciesSearch() {
-    const input = document.getElementById('especieSearch');
-    const results = document.getElementById('especieResults');
-    const hidden = document.getElementById('especie');
-    if (!input) return;
+    var input = document.getElementById('especieSearch');
+    var results = document.getElementById('especieResults');
+    var hidden = document.getElementById('especie');
+    if (!input || !results) return;
 
-    input.addEventListener('input', () => {
-        const val = input.value.trim().toLowerCase();
-        if (val.length < 2) { results.classList.remove('show'); return; }
+    input.addEventListener('input', function() {
+        var val = input.value.trim().toLowerCase();
+        if (val.length < 2) { results.classList.remove('show'); results.innerHTML = ''; return; }
 
-        const matches = SPECIES_DB.filter(s => {
-            const cn = COMMON_NAMES[s] || '';
-            return s.toLowerCase().includes(val) || cn.toLowerCase().includes(val);
+        var matches = SPECIES_DB.filter(function(s) {
+            var cn = COMMON_NAMES[s] || '';
+            return s.toLowerCase().indexOf(val) !== -1 || cn.toLowerCase().indexOf(val) !== -1;
         }).slice(0, 6);
 
-        let html = matches.length === 0 && val.length >= 3
-            ? `<div class="sdo" data-val="${esc(input.value.trim())}"><strong>"${esc(input.value.trim())}"</strong><small> — cadastrar nova espécie</small></div>`
-            : matches.map(m => {
-                const cn = COMMON_NAMES[m];
-                return `<div class="sdo" data-val="${esc(m)}"><strong>${esc(cn || m)}</strong>${cn ? `<small> ${m}</small>` : ''}</div>`;
+        var html = '';
+        if (matches.length === 0 && val.length >= 3) {
+            html = '<div class="sdo" data-val="' + esc(input.value.trim()) + '"><strong>' + esc(input.value.trim()) + '</strong> <small>cadastrar nova especie</small></div>';
+        } else {
+            html = matches.map(function(m) {
+                var cn = COMMON_NAMES[m];
+                return '<div class="sdo" data-val="' + esc(m) + '"><strong>' + esc(cn || m) + '</strong>' + (cn ? ' <small>' + m + '</small>' : '') + '</div>';
             }).join('');
+        }
 
         results.innerHTML = html;
         results.classList.add('show');
 
-        results.querySelectorAll('.sdo').forEach(d => {
-            d.addEventListener('click', () => {
-                const v = d.dataset.val;
+        results.querySelectorAll('.sdo').forEach(function(d) {
+            d.addEventListener('click', function() {
+                var v = d.dataset.val;
                 input.value = COMMON_NAMES[v] || v;
                 hidden.value = v;
                 results.classList.remove('show');
-            });
-        });
+    });
+});
+
+function openModal(id) {
+    var t = trees.find(function(x) { return x.id === id; });
+    if (!t) return;
+
+    var statusLabels = { saudavel: 'Saudavel', atencao: 'Atencao', critico: 'Critico' };
+    var statusColors = { saudavel: '#4E6B2E', atencao: '#C0693A', critico: '#B84433' };
+    var color = statusColors[t.status] || '#4E6B2E';
+    var localLabels = { calcada: 'Calcada', praca: 'Praca/Parque', canteiro: 'Canteiro Central', privada: 'Propriedade Privada', verde: 'Area Verde' };
+    var porteLabels = { pequeno: 'Pequeno (P)', medio: 'Medio (M)', grande: 'Grande (G)' };
+    var troncoLabels = { fino: 'Fino (F)', medio: 'Medio (M)', grosso: 'Grosso (G)' };
+    var intervLabels = { nenhuma: 'Nenhuma', limpeza: 'Poda de Limpeza', adequacao: 'Poda de Adequacao', urgente: 'Risco de Queda' };
+    var mesLabels = { '1': 'Janeiro', '2': 'Fevereiro', '3': 'Marco', '4': 'Abril', '5': 'Maio', '6': 'Junho', '7': 'Julho', '8': 'Agosto', '9': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro' };
+    var probLabels = { inclinacao: 'Inclinacao', rachaduras: 'Rachaduras', fungos: 'Fungos', pragas: 'Pragas', broca: 'Broca', galhos_secos: 'Galhos secos', galhos_quebrados: 'Galhos quebrados', ervas: 'Erva-de-passarinho', calcada: 'Danos a calcada', estrangulamento: 'Estrangulamento' };
+    var interfLabels = { eletrica: 'Rede eletrica', iluminacao: 'Iluminacao', muros: 'Muros/telhados', acessibilidade: 'Acessibilidade' };
+
+    var date = new Date(t.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    var photos = t.fotos || [];
+    var photosHtml = '';
+    if (photos.some(function(p) { return p; })) {
+        var labels = ['Arvore inteira', 'Tronco', 'Folhas', 'Flores', 'Danos'];
+        photosHtml = '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
+            '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Fotos</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">' +
+            photos.map(function(p, i) {
+                if (!p) return '';
+                return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">' +
+                    '<img src="' + p + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1.5px solid rgba(122,148,68,0.1);" alt="">' +
+                    '<span style="font-size:0.58rem;font-weight:600;color:#6B7560;text-transform:uppercase;">' + (labels[i] || '') + '</span></div>';
+            }).join('') +
+            '</div></div>';
+    }
+
+    var html = '<div style="font-family:Playfair Display,serif;font-style:italic;font-size:1.3rem;color:#4E6B2E;font-weight:700;margin-bottom:4px;padding-right:40px;">' + (t.especie || 'Arvore sem nome') + '</div>' +
+        '<div style="font-size:0.76rem;color:#6B7560;margin-bottom:14px;">' + (t.logradouro || t.referencia || 'Sem endereco') + ' &middot; ' + date + '</div>' +
+        '<div style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:50px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:16px;background:' + color + '15;color:' + color + ';">' + (statusLabels[t.status] || t.status) + '</div>';
+
+    html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
+        '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Localizacao</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Logradouro</span><span style="font-weight:700;text-align:right;">' + (t.logradouro || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Referencia</span><span style="font-weight:700;text-align:right;">' + (t.referencia || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Local</span><span style="font-weight:700;text-align:right;">' + (localLabels[t.localPlantio] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">GPS</span><span style="font-weight:700;text-align:right;">' + (t.latitude ? parseFloat(t.latitude).toFixed(4) + ', ' + parseFloat(t.longitude).toFixed(4) : 'Nao capturado') + '</span></div>' +
+        '</div>';
+
+    html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
+        '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Especie</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Nome</span><span style="font-weight:700;text-align:right;">' + (t.especie || 'Nao identificada') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Porte</span><span style="font-weight:700;text-align:right;">' + (porteLabels[t.porte] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">Tronco</span><span style="font-weight:700;text-align:right;">' + (troncoLabels[t.tronco] || '-') + '</span></div>' +
+        '</div>';
+
+    html += photosHtml;
+
+    html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
+        '<div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Condicao</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Problemas</span><span style="font-weight:700;text-align:right;">' + (t.problemas && t.problemas.length ? t.problemas.map(function(p) { return probLabels[p] || p; }).join(', ') : 'Nenhum') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Interferencias</span><span style="font-weight:700;text-align:right;">' + (t.interferencia && t.interferencia.length ? t.interferencia.map(function(i) { return interfLabels[i] || i; }).join(', ') : 'Nenhuma') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Intervencao</span><span style="font-weight:700;text-align:right;">' + (intervLabels[t.intervencao] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;border-bottom:1px solid rgba(158,171,87,0.06);"><span style="color:#6B7560;">Proxima Poda</span><span style="font-weight:700;text-align:right;">' + (mesLabels[t.mesPoda] || '-') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.78rem;"><span style="color:#6B7560;">Ultima Poda</span><span style="font-weight:700;text-align:right;">' + (t.dataUltimaPoda || '-') + '</span></div>' +
+        '</div>';
+
+    if (t.observacoes) {
+        html += '<div style="background:white;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 24px rgba(26,34,21,0.06);"><div style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#7A9444;margin-bottom:8px;">Observacoes</div><div style="font-size:0.82rem;color:#3D4A35;line-height:1.6;">' + t.observacoes + '</div></div>';
+    }
+
+    html += '<div style="display:flex;gap:10px;margin-top:16px;">' +
+        '<button onclick="editTree(' + t.id + ')" style="flex:1;padding:14px 24px;border:1.5px solid rgba(158,171,87,0.2);border-radius:50px;background:white;color:#4E6B2E;font-family:Nunito,sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">Editar</button>' +
+        '<button onclick="deleteTree(' + t.id + ')" style="flex:0 0 auto;padding:14px 20px;background:rgba(192,74,58,0.06);color:#B84433;border:1.5px solid rgba(192,74,58,0.15);border-radius:50px;font-family:Nunito,sans-serif;font-size:0.88rem;font-weight:700;cursor:pointer;">Excluir</button>' +
+        '</div>';
+
+    document.getElementById('modalBody').innerHTML = html;
+    var modal = document.getElementById('treeModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeModal() {
+    var modal = document.getElementById('treeModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+var treeModal = document.getElementById('treeModal');
+if (treeModal) {
+    treeModal.addEventListener('click', function(e) {
+        if (e.target.id === 'treeModal') closeModal();
+    });
+}
+
+function editTree(id) {
+    var t = trees.find(function(x) { return x.id === id; });
+    if (!t) return;
+    closeModal();
+    editingId = id;
+
+    document.getElementById('latitude').value = t.latitude || '';
+    document.getElementById('longitude').value = t.longitude || '';
+    document.getElementById('logradouro').value = t.logradouro || '';
+    document.getElementById('referencia').value = t.referencia || '';
+
+    if (t.localPlantio) { var r = document.querySelector('input[name="localPlantio"][value="' + t.localPlantio + '"]'); if (r) r.checked = true; }
+    document.getElementById('especieSearch').value = t.especie || '';
+    document.getElementById('especie').value = t.especie || '';
+    if (t.certeza) { var r2 = document.querySelector('input[name="certeza"][value="' + t.certeza + '"]'); if (r2) r2.checked = true; }
+    if (t.porte) { var r3 = document.querySelector('input[name="porte"][value="' + t.porte + '"]'); if (r3) r3.checked = true; }
+    if (t.tronco) { var r4 = document.querySelector('input[name="tronco"][value="' + t.tronco + '"]'); if (r4) r4.checked = true; }
+    if (t.problemas) t.problemas.forEach(function(p) { var r5 = document.querySelector('input[name="problemas"][value="' + p + '"]'); if (r5) r5.checked = true; });
+    if (t.interferencia) t.interferencia.forEach(function(i) { var r6 = document.querySelector('input[name="interferencia"][value="' + i + '"]'); if (r6) r6.checked = true; });
+    if (t.intervencao) { var r7 = document.querySelector('input[name="intervencao"][value="' + t.intervencao + '"]'); if (r7) r7.checked = true; }
+    if (t.mesPoda) { var r8 = document.querySelector('input[name="mesPoda"][value="' + t.mesPoda + '"]'); if (r8) r8.checked = true; }
+    document.getElementById('dataUltimaPoda').value = t.dataUltimaPoda || '';
+    document.getElementById('observacoes').value = t.observacoes || '';
+
+    var fotos = t.fotos || [];
+    for (var i = 1; i <= 5; i++) {
+        var p = document.getElementById('preview' + i);
+        if (p && fotos[i - 1]) { p.src = fotos[i - 1]; p.classList.remove('hidden'); p.classList.add('block'); }
+    }
+
+    if (t.latitude && t.longitude) {
+        var gps = document.getElementById('captureGps');
+        if (gps) { gps.style.borderColor = '#7A9444'; gps.style.borderStyle = 'solid'; }
+        document.getElementById('gpsStatus').textContent = parseFloat(t.latitude).toFixed(5) + ', ' + parseFloat(t.longitude).toFixed(5);
+    }
+
+    navigateTo('pageForm');
+    showStep(1);
+}
+
+function deleteTree(id) {
+    if (!confirm('Tem certeza que deseja excluir este registro?')) return;
+    var tree = trees.find(function(t) { return t.id === id; });
+    trees = trees.filter(function(t) { return t.id !== id; });
+    saveData();
+    if (tree) syncToSheets(tree, 'delete');
+    closeModal();
+    renderAll();
+    showToast('Registro excluido');
+}
+
+function saveData() {
+    localStorage.setItem(DB_KEY, JSON.stringify(trees));
+}
+
+function syncToSheets(data, action) {
+    if (!SHEETS_URL) return;
+    var payload = {
+        action: action,
+        id: data.id,
+        data: Object.assign({}, data, {
+            foto1: (data.fotos && data.fotos[0]) || '',
+            foto2: (data.fotos && data.fotos[1]) || '',
+            foto3: (data.fotos && data.fotos[2]) || '',
+            foto4: (data.fotos && data.fotos[3]) || '',
+            foto5: (data.fotos && data.fotos[4]) || '',
+            fotos: undefined
+        })
+    };
+    fetch(SHEETS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).catch(function() {});
+}
+
+function showToast(msg) {
+    var t = document.getElementById('toast');
+    var m = document.getElementById('toastMsg');
+    if (!t || !m) return;
+    m.textContent = msg;
+    t.classList.remove('hidden');
+    t.classList.add('block');
+    setTimeout(function() {
+        t.classList.add('hidden');
+        t.classList.remove('block');
+    }, 2800);
+}
     });
 
-    input.addEventListener('blur', () => {
-        setTimeout(() => results.classList.remove('show'), 250);
+    input.addEventListener('blur', function() {
+        setTimeout(function() { results.classList.remove('show'); }, 250);
         hidden.value = input.value.trim();
     });
 }
 
 function selectSpecies(name) {
-    document.getElementById('especieSearch').value = COMMON_NAMES[name] || name;
-    document.getElementById('especie').value = name;
+    var searchInput = document.getElementById('especieSearch');
+    var hiddenInput = document.getElementById('especie');
+    if (searchInput) searchInput.value = COMMON_NAMES[name] || name;
+    if (hiddenInput) hiddenInput.value = name;
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
 
-// ============================================================
-// PHOTOS
-// ============================================================
-function upPhoto(n) { document.getElementById('photo' + n).click(); }
+function initPhotoInputs() {
+    document.querySelectorAll('input[type="file"][id^="photo"]').forEach(function(input) {
+        input.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var n = input.id.replace('photo', '');
+            var preview = document.getElementById('preview' + n);
 
-document.querySelectorAll('.photo-slot input[type="file"]').forEach(input => {
-    input.addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const n = input.id.replace('photo', '');
-        const preview = document.getElementById('preview' + n);
-
-        // Resize to max 600px to save localStorage space
-        const reader = new FileReader();
-        reader.onload = ev => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const max = 600;
-                let w = img.width, h = img.height;
-                if (w > max || h > max) {
-                    if (w > h) { h = Math.round(h * max / w); w = max; }
-                    else { w = Math.round(w * max / h); h = max; }
-                }
-                canvas.width = w;
-                canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                const resized = canvas.toDataURL('image/jpeg', 0.7);
-                preview.src = resized;
-                preview.classList.add('show');
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                var img = new Image();
+                img.onload = function() {
+                    var canvas = document.createElement('canvas');
+                    var max = 600;
+                    var w = img.width, h = img.height;
+                    if (w > max || h > max) {
+                        if (w > h) { h = Math.round(h * max / w); w = max; }
+                        else { w = Math.round(w * max / h); h = max; }
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    var resized = canvas.toDataURL('image/jpeg', 0.7);
+                    if (preview) {
+                        preview.src = resized;
+                        preview.classList.remove('hidden');
+                        preview.classList.add('block');
+                    }
+                };
+                img.src = ev.target.result;
             };
-            img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
+        });
     });
-});
+}
 
-// ============================================================
-// FORM STEPS
-// ============================================================
+function upPhoto(n) {
+    var input = document.getElementById('photo' + n);
+    if (input) input.click();
+}
+
 function showStep(n) {
-    document.querySelectorAll('.fs').forEach(s => s.classList.remove('active'));
-    document.getElementById('step' + n)?.classList.add('active');
+    document.querySelectorAll('.fs').forEach(function(s) { s.classList.remove('active'); });
+    var step = document.getElementById('step' + n);
+    if (step) step.classList.add('active');
 
-    document.querySelectorAll('.pdot').forEach(d => {
-        const sn = parseInt(d.dataset.s);
-        d.classList.remove('active', 'done');
-        if (sn === n) d.classList.add('active');
-        else if (sn < n) d.classList.add('done');
+    var fill = document.getElementById('progFill');
+    if (fill) fill.style.width = ((n / 5) * 100) + '%';
+
+    document.querySelectorAll('[data-s]').forEach(function(el) {
+        var sn = parseInt(el.dataset.s);
+        if (sn === n) {
+            el.style.color = '#4E6B2E';
+            el.style.fontWeight = '700';
+        } else if (sn < n) {
+            el.style.color = '#7A9444';
+            el.style.fontWeight = '600';
+        } else {
+            el.style.color = 'rgba(26,34,21,0.3)';
+            el.style.fontWeight = '700';
+        }
     });
-
-    document.querySelectorAll('.plbl').forEach(l => {
-        l.classList.toggle('active', parseInt(l.dataset.s) === n);
-    });
-
-    const fill = document.getElementById('progFill');
-    if (fill) fill.style.width = `${(n / 6) * 100}%`;
 
     currentStep = n;
-    if (n === 6) buildSummary();
 }
 
 function goStep(n) { showStep(n); }
 
-document.querySelectorAll('.pdot').forEach(d => {
-    d.addEventListener('click', () => showStep(parseInt(d.dataset.s)));
-});
-
-// ============================================================
-// FORM DATA
-// ============================================================
 function getFormData() {
-    const d = {};
+    var d = {};
     d.id = editingId || Date.now();
-    d.latitude = document.getElementById('latitude')?.value || '';
-    d.longitude = document.getElementById('longitude')?.value || '';
-    d.logradouro = document.getElementById('logradouro')?.value || '';
-    d.referencia = document.getElementById('referencia')?.value || '';
-    d.localPlantio = document.querySelector('input[name="localPlantio"]:checked')?.value || '';
-    d.especie = document.getElementById('especie')?.value || document.getElementById('especieSearch')?.value || '';
-    d.certeza = document.querySelector('input[name="certeza"]:checked')?.value || '';
-    d.porte = document.querySelector('input[name="porte"]:checked')?.value || '';
-    d.tronco = document.querySelector('input[name="tronco"]:checked')?.value || '';
-    d.porte2 = document.querySelector('input[name="porte2"]:checked')?.value || '';
-    d.tronco2 = document.querySelector('input[name="tronco2"]:checked')?.value || '';
+    d.latitude = document.getElementById('latitude') ? document.getElementById('latitude').value : '';
+    d.longitude = document.getElementById('longitude') ? document.getElementById('longitude').value : '';
+    d.logradouro = document.getElementById('logradouro') ? document.getElementById('logradouro').value : '';
+    d.referencia = document.getElementById('referencia') ? document.getElementById('referencia').value : '';
+    d.localPlantio = (document.querySelector('input[name="localPlantio"]:checked') || {}).value || '';
+    d.especie = (document.getElementById('especie') ? document.getElementById('especie').value : '') || (document.getElementById('especieSearch') ? document.getElementById('especieSearch').value : '');
+    d.certeza = (document.querySelector('input[name="certeza"]:checked') || {}).value || '';
+    d.porte = (document.querySelector('input[name="porte"]:checked') || {}).value || '';
+    d.tronco = (document.querySelector('input[name="tronco"]:checked') || {}).value || '';
 
-    // Photos
     d.fotos = [];
-    for (let i = 1; i <= 5; i++) {
-        const p = document.getElementById('preview' + i);
-        d.fotos.push((p && p.classList.contains('show')) ? p.src : '');
+    for (var i = 1; i <= 5; i++) {
+        var p = document.getElementById('preview' + i);
+        d.fotos.push((p && !p.classList.contains('hidden') && p.src) ? p.src : '');
     }
-    d.fotoCount = d.fotos.filter(f => f).length;
+    d.fotoCount = d.fotos.filter(function(f) { return f; }).length;
 
-    d.problemas = [...document.querySelectorAll('input[name="problemas"]:checked')].map(c => c.value);
-    d.interferencia = [...document.querySelectorAll('input[name="interferencia"]:checked')].map(c => c.value);
-    d.intervencao = document.querySelector('input[name="intervencao"]:checked')?.value || '';
-    d.mesPoda = document.getElementById('mesPoda')?.value || '';
-    d.dataUltimaPoda = document.getElementById('dataUltimaPoda')?.value || '';
-    d.historicoPoda = document.getElementById('historicoPoda')?.value || '';
-    d.observacoes = document.getElementById('observacoes')?.value || '';
-    d.timestamp = editingId ? (trees.find(t => t.id === editingId)?.timestamp || Date.now()) : Date.now();
+    d.problemas = Array.from(document.querySelectorAll('input[name="problemas"]:checked')).map(function(c) { return c.value; });
+    d.interferencia = Array.from(document.querySelectorAll('input[name="interferencia"]:checked')).map(function(c) { return c.value; });
+    d.intervencao = (document.querySelector('input[name="intervencao"]:checked') || {}).value || '';
+    d.mesPoda = (document.querySelector('input[name="mesPoda"]:checked') || {}).value || '';
+    d.dataUltimaPoda = document.getElementById('dataUltimaPoda') ? document.getElementById('dataUltimaPoda').value : '';
+    d.observacoes = document.getElementById('observacoes') ? document.getElementById('observacoes').value : '';
+    d.timestamp = editingId ? (trees.find(function(t) { return t.id === editingId; }) || {}).timestamp || Date.now() : Date.now();
     d.dataAtualizacao = Date.now();
 
-    const prob = d.problemas.length, inter = d.interferencia.length;
-    if (d.intervencao === 'urgente' || prob >= 3 || d.problemas.includes('fungos')) d.status = 'critico';
+    var prob = d.problemas.length;
+    var inter = d.interferencia.length;
+    if (d.intervencao === 'urgente' || prob >= 3 || d.problemas.indexOf('fungos') !== -1) d.status = 'critico';
     else if (prob >= 1 || inter >= 1 || d.intervencao === 'limpeza' || d.intervencao === 'adequacao') d.status = 'atencao';
     else d.status = 'saudavel';
 
     return d;
 }
 
-// ============================================================
-// SUMMARY
-// ============================================================
-function buildSummary() {
-    const d = getFormData();
-    const labels = {
-        local: { calcada: 'Calçada', praca: 'Praça/Parque', canteiro: 'Canteiro Central', privada: 'Propriedade Privada', verde: 'Área Verde' },
-        porte: { pequeno: 'Pequeno (P)', medio: 'Médio (M)', grande: 'Grande (G)' },
-        tronco: { fino: 'Fino (F)', medio: 'Médio (M)', grosso: 'Grosso (G)' },
-        interv: { nenhuma: 'Nenhuma', limpeza: 'Poda de Limpeza', adequacao: 'Poda de Adequação', urgente: 'Risco de Queda' },
-        mes: { jan:'Janeiro',fev:'Fevereiro',mar:'Marco',abr:'Abril',mai:'Maio',jun:'Junho',jul:'Julho',ago:'Agosto',set:'Setembro',out:'Outubro',nov:'Novembro',dez:'Dezembro' }
-    };
-
-    const rows = [
-        ['Espécie', d.especie || 'Não identificada'],
-        ['Local', labels.local[d.localPlantio] || '-'],
-        ['Porte', labels.porte[d.porte] || labels.porte[d.porte2] || '-'],
-        ['Tronco', labels.tronco[d.tronco] || labels.tronco[d.tronco2] || '-'],
-        ['Fotos', `${d.fotoCount} registrada(s)`],
-        ['Problemas', d.problemas.length ? `${d.problemas.length} item(s)` : 'Nenhum'],
-        ['Intervenções', d.interferencia.length ? `${d.interferencia.length} item(s)` : 'Nenhuma'],
-        ['Intervenção', labels.interv[d.intervencao] || '-'],
-        ['Próxima Poda', labels.mes[d.mesPoda] || '-'],
-        ['Última Poda', d.dataUltimaPoda || '-'],
-        ['GPS', d.latitude ? `${parseFloat(d.latitude).toFixed(4)}, ${parseFloat(d.longitude).toFixed(4)}` : 'Não capturado']
-    ];
-
-    const el = document.getElementById('summaryContent');
-    if (el) el.innerHTML = rows.map(([l, v]) =>
-        `<div class="sum-row"><span class="sum-l">${l}</span><span class="sum-v">${v}</span></div>`
-    ).join('');
+function initFormSubmit() {
+    var form = document.getElementById('treeForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitForm();
+        });
+    }
 }
 
-// ============================================================
-// SUBMIT
-// ============================================================
 function submitForm() {
-    const data = getFormData();
+    var data = getFormData();
 
     if (editingId) {
-        const idx = trees.findIndex(t => t.id === editingId);
+        var idx = trees.findIndex(function(t) { return t.id === editingId; });
         if (idx !== -1) trees[idx] = data;
         editingId = null;
         syncToSheets(data, 'update');
@@ -463,29 +642,33 @@ function submitForm() {
     saveData();
     resetForm();
     navigateTo('pageDashboard');
-    showToast('Árvore cadastrada com sucesso!');
+    showToast('Arvore cadastrada com sucesso!');
 }
 
 function resetForm() {
-    document.getElementById('treeForm')?.reset();
-    document.getElementById('especieSearch').value = '';
-    document.getElementById('especie').value = '';
-    document.getElementById('latitude').value = '';
-    document.getElementById('longitude').value = '';
-    document.getElementById('captureGps')?.classList.remove('active', 'done');
-    document.getElementById('gpsStatus').textContent = 'Toque para localizar';
-    document.getElementById('dataUltimaPoda').value = '';
-    for (let i = 1; i <= 5; i++) {
-        const p = document.getElementById('preview' + i);
-        if (p) { p.src = ''; p.classList.remove('show'); }
+    var form = document.getElementById('treeForm');
+    if (form) form.reset();
+    var es = document.getElementById('especieSearch');
+    if (es) es.value = '';
+    var esp = document.getElementById('especie');
+    if (esp) esp.value = '';
+    var lat = document.getElementById('latitude');
+    if (lat) lat.value = '';
+    var lng = document.getElementById('longitude');
+    if (lng) lng.value = '';
+    var gps = document.getElementById('captureGps');
+    if (gps) { gps.style.borderColor = ''; gps.style.borderStyle = ''; gps.style.background = ''; }
+    var status = document.getElementById('gpsStatus');
+    if (status) status.textContent = 'Toque para localizar';
+    for (var i = 1; i <= 5; i++) {
+        var p = document.getElementById('preview' + i);
+        if (p) { p.src = ''; p.classList.add('hidden'); p.classList.remove('block'); }
     }
     editingId = null;
+    currentStep = 1;
     showStep(1);
 }
 
-// ============================================================
-// RENDER ALL
-// ============================================================
 function renderAll() {
     renderStats();
     renderAlerts();
@@ -493,390 +676,204 @@ function renderAll() {
     renderRecent();
 }
 
-// ============================================================
-// STATS
-// ============================================================
 function renderStats() {
-    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-    set('totalTrees', trees.length);
-    set('statSaudavel', trees.filter(t => t.status === 'saudavel').length);
-    set('statAtencao', trees.filter(t => t.status === 'atencao').length);
-    set('statCritico', trees.filter(t => t.status === 'critico').length);
+    var total = trees.length;
+    var risco = trees.filter(function(t) { return t.intervencao === 'urgente' || t.status === 'critico'; }).length;
+    var poda = trees.filter(function(t) {
+        if (t.mesPoda) {
+            var now = new Date();
+            var mesAtual = now.getMonth() + 1;
+            var mesPoda = parseInt(t.mesPoda);
+            return mesPoda === mesAtual || mesPoda === mesAtual + 1 || mesPoda === mesAtual - 1;
+        }
+        return t.intervencao === 'limpeza' || t.intervencao === 'adequacao';
+    }).length;
+
+    var el1 = document.getElementById('totalTrees');
+    if (el1) el1.textContent = total;
+    var el2 = document.getElementById('statRisco');
+    if (el2) el2.textContent = risco;
+    var el3 = document.getElementById('statPoda');
+    if (el3) el3.textContent = poda;
 }
 
-// ============================================================
-// ALERTS
-// ============================================================
 function renderAlerts() {
-    const el = document.getElementById('alertArea');
+    var el = document.getElementById('alertArea');
     if (!el) return;
 
-    const criticos = trees.filter(t => t.status === 'critico');
-    const podas = trees.filter(t => t.intervencao === 'limpeza' || t.intervencao === 'adequacao');
+    var now = new Date();
+    var mesAtual = now.getMonth() + 1;
+    var podaProxima = trees.filter(function(t) {
+        if (!t.mesPoda) return false;
+        var mesPoda = parseInt(t.mesPoda);
+        return mesPoda === mesAtual || mesPoda === mesAtual + 1;
+    });
 
-    if (criticos.length === 0 && podas.length === 0) {
+    if (podaProxima.length === 0) {
         el.innerHTML = '';
         return;
     }
 
-    let html = '';
-    if (criticos.length > 0) {
-        html += `<div class="alert-card alert-red">
-            <div class="alert-ico alert-ico-red">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2L2 20h20L12 2z" fill="#C04A3A" fill-opacity="0.1" stroke="#C04A3A" stroke-width="1.5"/>
-                    <path d="M12 9v5" stroke="#C04A3A" stroke-width="1.5"/>
-                    <circle cx="12" cy="16.5" r="1" fill="#C04A3A"/>
-                    <path d="M8 6l-1.5-2M16 6l1.5-2" stroke="#C04A3A" stroke-width="1" opacity="0.5"/>
-                </svg>
-            </div>
-            <div class="alert-body">
-                <div class="alert-title">Atenção: ${criticos.length} árvore(s) com risco</div>
-                <div class="alert-desc">${criticos.length === 1 ? '1 árvore precisa de intervenção urgente' : `${criticos.length} árvores precisam de intervenção urgente`}</div>
-            </div>
-        </div>`;
-    }
-    if (podas.length > 0) {
-        html += `<div class="alert-card alert-warm">
-            <div class="alert-ico alert-ico-warm">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="4" y="5" width="16" height="15" rx="3" stroke="#A0522D" stroke-width="1.5" fill="none"/>
-                    <path d="M4 10h16" stroke="#A0522D" stroke-width="1.2"/>
-                    <path d="M9 3v4M15 3v4" stroke="#A0522D" stroke-width="1.5"/>
-                    <path d="M12 14v3" stroke="#C0693A" stroke-width="1.2"/>
-                    <path d="M10.5 15.5h3" stroke="#C0693A" stroke-width="1"/>
-                    <circle cx="12" cy="13" r="0.8" fill="#C0693A" fill-opacity="0.5"/>
-                </svg>
-            </div>
-            <div class="alert-body">
-                <div class="alert-title">Podas do mês: ${podas.length} árvore(s)</div>
-                <div class="alert-desc">${podas.length === 1 ? '1 árvore com poda agendada' : `${podas.length} árvores com poda agendada`}</div>
-            </div>
-        </div>`;
-    }
+    var mesLabels = { '1': 'Janeiro', '2': 'Fevereiro', '3': 'Marco', '4': 'Abril', '5': 'Maio', '6': 'Junho', '7': 'Julho', '8': 'Agosto', '9': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro' };
+    var mesNome = mesLabels[String(mesAtual)] || 'atual';
 
-    el.innerHTML = html;
+    el.innerHTML = '<div style="border-radius:18px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(192,105,58,0.08),rgba(192,105,58,0.03));border:1.5px solid rgba(192,105,58,0.15);box-shadow:0 4px 24px rgba(26,34,21,0.06);">' +
+        '<div style="width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(192,105,58,0.1);">' +
+        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="4" y="5" width="16" height="15" rx="3" stroke="#A0522D" stroke-width="1.5" fill="none"/>' +
+        '<path d="M4 10h16" stroke="#A0522D" stroke-width="1.2"/>' +
+        '<path d="M9 3v4M15 3v4" stroke="#A0522D" stroke-width="1.5"/>' +
+        '<path d="M12 14v3" stroke="#C0693A" stroke-width="1.2"/>' +
+        '<path d="M10.5 15.5h3" stroke="#C0693A" stroke-width="1"/>' +
+        '</svg></div>' +
+        '<div style="flex:1;">' +
+        '<div style="font-size:0.82rem;font-weight:700;color:#1A2215;">Periodo de poda: ' + mesNome + '</div>' +
+        '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;">' + podaProxima.length + ' arvore(s) com poda prevista</div>' +
+        '</div></div>';
 }
 
-// ============================================================
-// RECENT
-// ============================================================
 function renderRecent() {
-    const el = document.getElementById('recentList');
+    var el = document.getElementById('recentList');
     if (!el) return;
 
-    const sorted = [...trees].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+    var sorted = trees.slice().sort(function(a, b) { return b.timestamp - a.timestamp; }).slice(0, 5);
 
     if (sorted.length === 0) {
-        el.innerHTML = `<div class="empty-state">
-            <svg viewBox="0 0 60 80" width="48" height="64" fill="none">
-                <path d="M30 72V38" stroke="#7A9444" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
-                <path d="M30 38C30 28 20 18 12 22C20 22 30 12 30 4C30 12 40 22 48 22C40 18 30 28 30 38Z" fill="#7A9444" fill-opacity="0.06" stroke="#7A9444" stroke-width="1" opacity="0.3"/>
-                <ellipse cx="18" cy="62" rx="8" ry="4" fill="#C0693A" fill-opacity="0.05" stroke="#C0693A" stroke-width="0.7" opacity="0.2"/>
-                <ellipse cx="42" cy="66" rx="6" ry="3" fill="#C0693A" fill-opacity="0.05" stroke="#C0693A" stroke-width="0.7" opacity="0.2"/>
-            </svg>
-            <p class="empty-title">Nenhum cadastro ainda</p>
-            <p class="empty-desc">Toque em + para cadastrar a primeira árvore</p>
-        </div>`;
+        el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px 20px;text-align:center;">' +
+            '<div style="width:48px;height:48px;border-radius:50%;background:rgba(122,148,68,0.06);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><div style="width:14px;height:14px;background:rgba(122,148,68,0.2);border-radius:50%;"></div></div>' +
+            '<p style="font-family:Cormorant Garamond,serif;font-style:italic;font-size:0.95rem;color:rgba(26,34,21,0.35);">Nenhum cadastro ainda</p>' +
+            '<p style="font-size:0.7rem;color:rgba(26,34,21,0.2);margin-top:4px;">Toque em cadastrar para comecar</p>' +
+            '</div>';
         return;
     }
 
-    el.innerHTML = sorted.map(t => {
-        const statusClass = `st-${t.status}`;
-        const photo = t.fotos?.[0] || '';
-        const photoHtml = photo
-            ? `<img src="${photo}" class="rc-photo" alt="${t.especie || ''}">`
-            : `<svg viewBox="0 0 28 36" width="24" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 34V22" stroke="#7A9444" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M14 22C14 17 10.5 12 7 13C10.5 13 14 8 14 4C14 8 17.5 13 21 13C17.5 12 14 17 14 22Z" fill="#7A9444" fill-opacity="0.2" stroke="#7A9444" stroke-width="1.2"/>
-                <path d="M7 13C5 10.5 4 11 3 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                <path d="M21 13C23 10.5 24 11 25 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                <path d="M11 26c-1-0.5-2.2-0.1-2.7 0.3" stroke="#7A9444" stroke-width="0.7" opacity="0.4"/>
-                <path d="M17 28c1-0.5 2.2-0.1 2.7 0.3" stroke="#7A9444" stroke-width="0.7" opacity="0.4"/>
-                <circle cx="14" cy="4" r="1" fill="#7A9444" fill-opacity="0.4"/>
-            </svg>`;
+    var statusColors = { saudavel: '#7A9444', atencao: '#C0693A', critico: '#B84433' };
 
-        return `<div class="rc" data-id="${t.id}">
-            <div class="rc-ico ${statusClass}">${photoHtml}</div>
-            <div class="rc-body">
-                <div class="rc-name">${t.especie || 'Árvore sem nome'}</div>
-                <div class="rc-addr">${t.logradouro || t.referencia || 'Sem endereço'}</div>
-            </div>
-            <div class="rc-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg></div>
-        </div>`;
+    el.innerHTML = sorted.map(function(t) {
+        var color = statusColors[t.status] || '#7A9444';
+        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var iconName = getTreeIcon(t.id);
+
+        var iconHtml;
+        if (photo) {
+            iconHtml = '<img src="' + photo + '" style="width:44px;height:44px;border-radius:14px;object-fit:cover;" alt="">';
+        } else {
+            iconHtml = '<i data-lucide="' + iconName + '" class="w-6 h-6" style="color:' + color + ';"></i>';
+        }
+
+        return '<div class="list-card rc" data-id="' + t.id + '">' +
+            '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.especie || 'Arvore sem nome') + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</div>' +
+            '</div>' +
+            '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
+            '</div>';
     }).join('');
 
-    el.querySelectorAll('.rc').forEach(c => c.addEventListener('click', () => openModal(parseInt(c.dataset.id))));
+    lucide.createIcons();
+    el.querySelectorAll('.list-card').forEach(function(c) {
+        c.addEventListener('click', function() { openModal(parseInt(c.dataset.id)); });
+    });
 }
 
-// ============================================================
-// CATALOG
-// ============================================================
 function renderCatalog() {
-    const el = document.getElementById('catalogList');
+    var el = document.getElementById('catalogList');
     if (!el) return;
 
-    const search = document.getElementById('catalogSearch')?.value?.toLowerCase() || '';
-    const filter = document.querySelector('.filter.active')?.dataset?.filter || 'all';
-    let filtered = trees;
-    if (search) filtered = filtered.filter(t => (t.especie || '').toLowerCase().includes(search) || (t.logradouro || '').toLowerCase().includes(search));
-    if (filter !== 'all') filtered = filtered.filter(t => t.status === filter);
+    var search = (document.getElementById('catalogSearch') || {}).value || '';
+    search = search.toLowerCase();
+    var filter = (document.querySelector('.filter.active') || {}).dataset || {};
+    filter = filter.filter || 'all';
+
+    var filtered = trees;
+    if (search) {
+        filtered = filtered.filter(function(t) {
+            return (t.especie || '').toLowerCase().indexOf(search) !== -1 || (t.logradouro || '').toLowerCase().indexOf(search) !== -1;
+        });
+    }
+    if (filter !== 'all') {
+        filtered = filtered.filter(function(t) { return t.status === filter; });
+    }
 
     if (filtered.length === 0) {
-        el.innerHTML = `<div class="empty-state">
-            <svg viewBox="0 0 60 80" width="48" height="64" fill="none">
-                <path d="M30 72V38" stroke="#7A9444" stroke-width="1.2" stroke-linecap="round" opacity="0.25"/>
-                <path d="M30 38C30 28 20 18 12 22C20 22 30 12 30 4C30 12 40 22 48 22C40 18 30 28 30 38Z" fill="#7A9444" fill-opacity="0.05" stroke="#7A9444" stroke-width="0.8" opacity="0.25"/>
-            </svg>
-            <p class="empty-title">${search ? 'Nenhum resultado' : 'Nenhuma árvore ainda'}</p>
-            <p class="empty-desc">${search ? 'Tente outro termo' : 'Cadastre a primeira árvore'}</p>
-        </div>`;
+        el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:32px 20px;text-align:center;">' +
+            '<div style="width:52px;height:52px;border-radius:50%;background:rgba(122,148,68,0.06);display:flex;align-items:center;justify-content:center;margin-bottom:12px;"><div style="width:15px;height:15px;background:rgba(122,148,68,0.18);border-radius:50%;"></div></div>' +
+            '<p style="font-family:Cormorant Garamond,serif;font-style:italic;font-size:0.95rem;color:rgba(26,34,21,0.35);">' + (search ? 'Nenhum resultado' : 'Nenhuma arvore ainda') + '</p>' +
+            '<p style="font-size:0.7rem;color:rgba(26,34,21,0.2);margin-top:4px;">' + (search ? 'Tente outro termo' : 'Cadastre a primeira arvore') + '</p>' +
+            '</div>';
         return;
     }
 
-    el.innerHTML = filtered.map(t => {
-        const statusClass = `st-${t.status}`;
-        const photo = t.fotos?.[0] || '';
-        const photoHtml = photo
-            ? `<img src="${photo}" class="cc-photo" alt="${t.especie || ''}">`
-            : `<svg viewBox="0 0 28 36" width="24" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 34V22" stroke="#7A9444" stroke-width="1.5"/>
-                <path d="M14 22C14 17 10.5 12 7 13C10.5 13 14 8 14 4C14 8 17.5 13 21 13C17.5 12 14 17 14 22Z" fill="#7A9444" fill-opacity="0.2" stroke="#7A9444" stroke-width="1.2"/>
-                <path d="M7 13C5 10.5 4 11 3 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                <path d="M21 13C23 10.5 24 11 25 12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-                <path d="M11 26c-1-0.5-2.2-0.1-2.7 0.3" stroke="#7A9444" stroke-width="0.7" opacity="0.4"/>
-                <path d="M17 28c1-0.5 2.2-0.1 2.7 0.3" stroke="#7A9444" stroke-width="0.7" opacity="0.4"/>
-                <circle cx="14" cy="4" r="1" fill="#7A9444" fill-opacity="0.4"/>
-            </svg>`;
+    var statusColors = { saudavel: '#7A9444', atencao: '#C0693A', critico: '#B84433' };
 
-        return `<div class="cc" data-id="${t.id}">
-            <div class="cc-ico ${statusClass}">${photoHtml}</div>
-            <div class="cc-body">
-                <div class="cc-name">${t.especie || 'Árvore sem nome'}</div>
-                <div class="cc-addr">${t.logradouro || t.referencia || 'Sem endereço'}</div>
-            </div>
-            <div class="cc-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg></div>
-        </div>`;
+    el.innerHTML = filtered.map(function(t) {
+        var color = statusColors[t.status] || '#7A9444';
+        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var iconName = getTreeIcon(t.id);
+
+        var iconHtml;
+        if (photo) {
+            iconHtml = '<img src="' + photo + '" style="width:46px;height:46px;border-radius:var(--organic);object-fit:cover;" alt="">';
+        } else {
+            iconHtml = '<i data-lucide="' + iconName + '" class="w-6 h-6" style="color:' + color + ';"></i>';
+        }
+
+        return '<div class="list-card cc" data-id="' + t.id + '">' +
+            '<div class="list-card-icon" style="background:' + color + '10;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:700;font-size:0.88rem;color:#1A2215;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.especie || 'Arvore sem nome') + '</div>' +
+            '<div style="font-size:0.72rem;color:#6B7560;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (t.logradouro || t.referencia || 'Sem endereco') + '</div>' +
+            '</div>' +
+            '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="#EDE5D8" stroke-width="1.5" stroke-linecap="round"><path d="M7 5l5 5-5 5"/></svg>' +
+            '</div>';
     }).join('');
 
-    el.querySelectorAll('.cc').forEach(c => c.addEventListener('click', () => openModal(parseInt(c.dataset.id))));
+    lucide.createIcons();
+
+    el.querySelectorAll('.list-card').forEach(function(c) {
+        c.addEventListener('click', function() { openModal(parseInt(c.dataset.id)); });
+    });
 }
 
-function initCatalogSearch() { document.getElementById('catalogSearch')?.addEventListener('input', renderCatalog); }
+function initCatalogSearch() {
+    var el = document.getElementById('catalogSearch');
+    if (el) el.addEventListener('input', renderCatalog);
+}
+
 function initFilters() {
-    document.querySelectorAll('.filter').forEach(f => f.addEventListener('click', () => {
-        document.querySelectorAll('.filter').forEach(x => x.classList.remove('active'));
-        f.classList.add('active');
-        renderCatalog();
-    }));
-}
-
-// ============================================================
-// MODAL
-// ============================================================
-function openModal(id) {
-    const t = trees.find(x => x.id === id);
-    if (!t) return;
-
-    const statusLabels = { saudavel: 'Saudável', atencao: 'Atenção', crítico: 'Crítico', critico: 'Crítico' };
-    const statusClass = `st-${t.status}`;
-    const localLabels = { calcada:'Calçada', praca:'Praça/Parque', canteiro:'Canteiro Central', privada:'Propriedade Privada', verde:'Área Verde' };
-    const porteLabels = { pequeno:'Pequeno (P)', medio:'Médio (M)', grande:'Grande (G)' };
-    const troncoLabels = { fino:'Fino (F)', medio:'Médio (M)', grosso:'Grosso (G)' };
-    const intervLabels = { nenhuma:'Nenhuma', limpeza:'Poda de Limpeza', adequacao:'Poda de Adequação', urgente:'Risco de Queda' };
-    const mesLabels = { jan:'Janeiro',fev:'Fevereiro',mar:'Março',abr:'Abril',mai:'Maio',jun:'Junho',jul:'Julho',ago:'Agosto',set:'Setembro',out:'Outubro',nov:'Novembro',dez:'Dezembro' };
-    const probLabels = { inclinacao:'Inclinação', rachaduras:'Rachaduras', fungos:'Fungos', pragas:'Pragas', broca:'Broca', galhos_secos:'Galhos secos', galhos_quebrados:'Galhos quebrados', ervas:'Erva-de-passarinho', calcada:'Danos à calçada', estrangulamento:'Estrangulamento' };
-    const interfLabels = { eletrica:'Rede elétrica', iluminacao:'Iluminação', muros:'Muros/telhados', acessibilidade:'Acessibilidade' };
-
-    const date = new Date(t.timestamp).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
-
-    // Photos
-    const photos = t.fotos || [];
-    let photosHtml = '';
-    if (photos.some(p => p)) {
-        photosHtml = `<div class="modal-section">
-            <div class="modal-section-title">Fotos</div>
-            <div class="modal-photos">
-                ${photos.map((p, i) => p ? `<div class="modal-photo-slot"><img src="${p}" class="modal-photo" alt="Foto ${i+1}"><span class="modal-photo-label">${['Árvore inteira','Tronco','Folhas','Flores','Danos'][i] || ''}</span></div>` : '').join('')}
-            </div>
-        </div>`;
-    }
-
-    let html = `
-        <div class="modal-title">${t.especie || 'Árvore sem nome'}</div>
-        <div class="modal-sub">${t.logradouro || t.referencia || 'Sem endereço'} · ${date}</div>
-        <div class="modal-status ${statusClass}">
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                ${t.status === 'saudavel' 
-                    ? '<circle cx="8" cy="8" r="6" stroke="#4E6B2E" stroke-width="1.2" fill="none"/><path d="M5 8l2 2 4-4" stroke="#4E6B2E" stroke-width="1.2"/>' 
-                    : t.status === 'atencao' 
-                        ? '<circle cx="8" cy="8" r="6" stroke="#C0693A" stroke-width="1.2" fill="none"/><path d="M8 5v3.5" stroke="#C0693A" stroke-width="1.2"/><circle cx="8" cy="11" r="0.7" fill="#C0693A"/>' 
-                        : '<circle cx="8" cy="8" r="6" stroke="#B84433" stroke-width="1.2" fill="none"/><path d="M8 5v3.5" stroke="#B84433" stroke-width="1.2"/><circle cx="8" cy="11" r="0.7" fill="#B84433"/>'}
-            </svg>
-            ${statusLabels[t.status] || t.status}
-        </div>
-
-        <div class="modal-section">
-            <div class="modal-section-title">Localização</div>
-            <div class="modal-row"><span class="ml">Logradouro</span><span class="mv">${t.logradouro || '-'}</span></div>
-            <div class="modal-row"><span class="ml">Referência</span><span class="mv">${t.referencia || '-'}</span></div>
-            <div class="modal-row"><span class="ml">Local</span><span class="mv">${localLabels[t.localPlantio] || '-'}</span></div>
-            <div class="modal-row"><span class="ml">GPS</span><span class="mv">${t.latitude ? `${parseFloat(t.latitude).toFixed(4)}, ${parseFloat(t.longitude).toFixed(4)}` : 'Não capturado'}</span></div>
-        </div>
-
-        <div class="modal-section">
-            <div class="modal-section-title">Espécie</div>
-            <div class="modal-row"><span class="ml">Nome</span><span class="mv">${t.especie || 'Não identificada'}</span></div>
-            <div class="modal-row"><span class="ml">Certeza</span><span class="mv">${t.certeza === 'certeza' ? 'Tenho certeza' : t.certeza === 'palpite' ? 'Palpite' : t.certeza === 'nao_sei' ? 'Não sei' : '-'}</span></div>
-            <div class="modal-row"><span class="ml">Porte</span><span class="mv">${porteLabels[t.porte] || porteLabels[t.porte2] || '-'}</span></div>
-            <div class="modal-row"><span class="ml">Tronco</span><span class="mv">${troncoLabels[t.tronco] || troncoLabels[t.tronco2] || '-'}</span></div>
-        </div>
-
-        ${photosHtml}
-
-        <div class="modal-section">
-            <div class="modal-section-title">Condição</div>
-            <div class="modal-row"><span class="ml">Problemas</span><span class="mv">${t.problemas?.length ? t.problemas.map(p => probLabels[p] || p).join(', ') : 'Nenhum'}</span></div>
-            <div class="modal-row"><span class="ml">Intervenções</span><span class="mv">${t.interferencia?.length ? t.interferencia.map(i => interfLabels[i] || i).join(', ') : 'Nenhuma'}</span></div>
-            <div class="modal-row"><span class="ml">Intervenção</span><span class="mv">${intervLabels[t.intervencao] || '-'}</span></div>
-            <div class="modal-row"><span class="ml">Próxima Poda</span><span class="mv">${mesLabels[t.mesPoda] || '-'}</span></div>
-            <div class="modal-row"><span class="ml">Última Poda</span><span class="mv">${t.dataUltimaPoda || '-'}</span></div>
-        </div>
-    `;
-
-    if (t.observacoes) {
-        html += `<div class="modal-section"><div class="modal-section-title">Observações</div><div style="font-size:0.82rem;color:#3D4A35;line-height:1.6">${t.observacoes}</div></div>`;
-    }
-
-    html += `<div class="modal-actions">
-        <button class="btn-secondary" onclick="editTree(${t.id})">
-            <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2l3 3-10 10H3v-3L13 2z" stroke="#4E6B2E" stroke-width="1.3"/>
-                <path d="M11 4l3 3" stroke="#4E6B2E" stroke-width="1"/>
-                <path d="M3 15h12" stroke="#7A9444" stroke-width="0.8" opacity="0.5"/>
-            </svg>
-            Editar
-        </button>
-        <button class="btn-danger" onclick="deleteTree(${t.id})">
-            <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 5h10" stroke="#C04A3A" stroke-width="1.3"/>
-                <path d="M7 5V3.5h4V5" stroke="#C04A3A" stroke-width="1.2"/>
-                <path d="M5 5v10h8V5" stroke="#C04A3A" stroke-width="1.2"/>
-                <path d="M8 8v5M10 8v5" stroke="#C04A3A" stroke-width="0.8" opacity="0.7"/>
-            </svg>
-            Excluir
-        </button>
-    </div>`;
-
-    document.getElementById('modalBody').innerHTML = html;
-    document.getElementById('treeModal').classList.add('show');
-}
-
-function closeModal() { document.getElementById('treeModal').classList.remove('show'); }
-document.getElementById('treeModal')?.addEventListener('click', e => { if (e.target.id === 'treeModal') closeModal(); });
-
-// ============================================================
-// EDIT
-// ============================================================
-function editTree(id) {
-    const t = trees.find(x => x.id === id);
-    if (!t) return;
-    closeModal();
-    editingId = id;
-
-    document.getElementById('latitude').value = t.latitude || '';
-    document.getElementById('longitude').value = t.longitude || '';
-    document.getElementById('logradouro').value = t.logradouro || '';
-    document.getElementById('referencia').value = t.referencia || '';
-
-    if (t.localPlantio) { const r = document.querySelector(`input[name="localPlantio"][value="${t.localPlantio}"]`); if (r) r.checked = true; }
-    document.getElementById('especieSearch').value = t.especie || '';
-    document.getElementById('especie').value = t.especie || '';
-    if (t.certeza) { const r = document.querySelector(`input[name="certeza"][value="${t.certeza}"]`); if (r) r.checked = true; }
-    if (t.porte) { const r = document.querySelector(`input[name="porte"][value="${t.porte}"]`); if (r) r.checked = true; }
-    if (t.tronco) { const r = document.querySelector(`input[name="tronco"][value="${t.tronco}"]`); if (r) r.checked = true; }
-    if (t.porte2) { const r = document.querySelector(`input[name="porte2"][value="${t.porte2}"]`); if (r) r.checked = true; }
-    if (t.tronco2) { const r = document.querySelector(`input[name="tronco2"][value="${t.tronco2}"]`); if (r) r.checked = true; }
-    if (t.problemas) t.problemas.forEach(p => { const r = document.querySelector(`input[name="problemas"][value="${p}"]`); if (r) r.checked = true; });
-    if (t.interferencia) t.interferencia.forEach(i => { const r = document.querySelector(`input[name="interferencia"][value="${i}"]`); if (r) r.checked = true; });
-    if (t.intervencao) { const r = document.querySelector(`input[name="intervencao"][value="${t.intervencao}"]`); if (r) r.checked = true; }
-    document.getElementById('mesPoda').value = t.mesPoda || '';
-    document.getElementById('dataUltimaPoda').value = t.dataUltimaPoda || '';
-    document.getElementById('historicoPoda').value = t.historicoPoda || '';
-    document.getElementById('observacoes').value = t.observacoes || '';
-
-    // Restore photos
-    const fotos = t.fotos || [];
-    for (let i = 1; i <= 5; i++) {
-        const p = document.getElementById('preview' + i);
-        if (p && fotos[i-1]) { p.src = fotos[i-1]; p.classList.add('show'); }
-    }
-
-    if (t.latitude && t.longitude) {
-        document.getElementById('captureGps')?.classList.add('done');
-        document.getElementById('gpsStatus').textContent = `${parseFloat(t.latitude).toFixed(5)}, ${parseFloat(t.longitude).toFixed(5)}`;
-    }
-
-    navigateTo('pageForm');
-    showStep(1);
-}
-
-// ============================================================
-// DELETE
-// ============================================================
-function deleteTree(id) {
-    if (!confirm('Tem certeza que deseja excluir este registro?')) return;
-    const tree = trees.find(t => t.id === id);
-    trees = trees.filter(t => t.id !== id);
-    saveData();
-    if (tree) syncToSheets(tree, 'delete');
-    closeModal();
-    renderAll();
-    showToast('Registro excluído');
-}
-
-// ============================================================
-// STORAGE
-// ============================================================
-function saveData() { localStorage.setItem(DB_KEY, JSON.stringify(trees)); }
-
-// ============================================================
-// GOOGLE SHEETS SYNC
-// ============================================================
-async function syncToSheets(data, action) {
-    if (!SHEETS_URL) return;
-    const payload = {
-        action,
-        id: data.id,
-        data: {
-            ...data,
-            foto1: data.fotos?.[0] || '',
-            foto2: data.fotos?.[1] || '',
-            foto3: data.fotos?.[2] || '',
-            foto4: data.fotos?.[3] || '',
-            foto5: data.fotos?.[4] || '',
-            fotos: undefined
-        }
-    };
-    try {
-        await fetch(SHEETS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+    document.querySelectorAll('.filter').forEach(function(f) {
+        f.addEventListener('click', function() {
+            document.querySelectorAll('.filter').forEach(function(x) {
+                x.classList.remove('active');
+                x.style.background = '';
+                x.style.color = '';
+                x.style.borderColor = '';
+            });
+            f.classList.add('active');
+            f.style.background = '#4E6B2E';
+            f.style.color = 'white';
+            f.style.borderColor = '#4E6B2E';
+            renderCatalog();
         });
-    } catch (e) { /* ok */ }
+    });
 }
 
-// ============================================================
-// TOAST
-// ============================================================
-function showToast(msg) {
-    const t = document.getElementById('toast'), m = document.getElementById('toastMsg');
-    if (!t || !m) return;
-    m.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2800);
+function initMapFilters() {
+    document.querySelectorAll('.map-filter').forEach(function(f) {
+        f.addEventListener('click', function() {
+            document.querySelectorAll('.map-filter').forEach(function(x) {
+                x.classList.remove('active');
+                x.style.background = '';
+                x.style.color = '';
+                x.style.borderColor = '';
+            });
+            f.classList.add('active');
+            f.style.background = '#4E6B2E';
+            f.style.color = 'white';
+            f.style.borderColor = '#4E6B2E';
+            mapFilter = f.dataset.mapFilter || 'all';
+            renderMapMarkers();
+        });
+    });
 }
-
-document.getElementById('fabAdd')?.addEventListener('click', () => navigateTo('pageForm'));
