@@ -1,5 +1,6 @@
 const DB_KEY = 'arbore_andradas_v4';
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzas_Z2hDLxFxfXEA8JEQEY9UTC-HKZWv_W5c2b3hUrkZ5ZFE8Y6EWWCFgj3nzsNiHX/exec';
+const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/edit?gid=1119417971#gid=1119417971';
 
 const TREE_ICONS_POOL = [
     'tree-pine',
@@ -355,12 +356,10 @@ function reverseGeocode(lat, lng) {
             var neighbourhood = a.neighbourhood || a.suburb || a.quarter || '';
             var city = a.city || a.town || a.village || '';
             var state = a.state || '';
-            document.getElementById('logradouro').value = [fullRoad, neighbourhood, city, state].filter(Boolean).join(', ');
             document.getElementById('rua').value = road;
             document.getElementById('bairro').value = neighbourhood;
             document.getElementById('gpsStatus').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5) + ' - ' + (road || neighbourhood || 'Endereco encontrado');
         } else if (d.display_name) {
-            document.getElementById('logradouro').value = d.display_name;
             var parts = d.display_name.split(',').map(function(s) { return s.trim(); });
             document.getElementById('rua').value = parts[0] || '';
             document.getElementById('bairro').value = parts[1] || '';
@@ -595,7 +594,6 @@ function editTree(id) {
 
     document.getElementById('latitude').value = t.latitude || '';
     document.getElementById('longitude').value = t.longitude || '';
-    document.getElementById('logradouro').value = t.logradouro || '';
     document.getElementById('rua').value = t.rua || '';
     document.getElementById('bairro').value = t.bairro || '';
     document.getElementById('referencia').value = t.referencia || '';
@@ -618,12 +616,6 @@ function editTree(id) {
             var p = document.getElementById('preview' + i);
             if (p && t.fotos[i - 1]) { p.src = t.fotos[i - 1]; p.classList.remove('hidden'); p.classList.add('block'); }
         }
-    }
-
-    var fotos = t.fotos || [];
-    for (var i = 1; i <= 5; i++) {
-        var p = document.getElementById('preview' + i);
-        if (p && fotos[i - 1]) { p.src = fotos[i - 1]; p.classList.remove('hidden'); p.classList.add('block'); }
     }
 
     if (t.latitude && t.longitude) {
@@ -820,21 +812,14 @@ function goStep(n) {
 function getFormData() {
     var d = {};
     d.id = editingId || Date.now();
-    d.latitude = document.getElementById('latitude') ? document.getElementById('latitude').value : '';
-    d.longitude = document.getElementById('longitude') ? document.getElementById('longitude').value : '';
-    d.logradouro = document.getElementById('logradouro') ? document.getElementById('logradouro').value : '';
-    d.rua = document.getElementById('rua') ? document.getElementById('rua').value : '';
-    d.bairro = document.getElementById('bairro') ? document.getElementById('bairro').value : '';
-    if (!d.rua && !d.bairro && d.logradouro) {
-        var parts = d.logradouro.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-        if (parts.length >= 2) {
-            d.rua = parts[0];
-            d.bairro = parts[1];
-        }
-    }
-    d.referencia = document.getElementById('referencia') ? document.getElementById('referencia').value : '';
+    d.latitude = (document.getElementById('latitude') || {}).value || '';
+    d.longitude = (document.getElementById('longitude') || {}).value || '';
+    d.rua = (document.getElementById('rua') || {}).value || '';
+    d.bairro = (document.getElementById('bairro') || {}).value || '';
+    d.logradouro = [d.rua, d.bairro].filter(Boolean).join(', ');
+    d.referencia = (document.getElementById('referencia') || {}).value || '';
     d.localPlantio = (document.querySelector('input[name="localPlantio"]:checked') || {}).value || '';
-    d.especie = (document.getElementById('especie') ? document.getElementById('especie').value : '') || (document.getElementById('especieSearch') ? document.getElementById('especieSearch').value : '');
+    d.especie = (document.getElementById('especie') || {}).value || (document.getElementById('especieSearch') || {}).value || '';
     d.certeza = (document.querySelector('input[name="certeza"]:checked') || {}).value || '';
     d.porte = (document.querySelector('input[name="porte"]:checked') || {}).value || '';
     d.tronco = (document.querySelector('input[name="tronco"]:checked') || {}).value || '';
@@ -850,8 +835,8 @@ function getFormData() {
     d.interferencia = Array.from(document.querySelectorAll('input[name="interferencia"]:checked')).map(function(c) { return c.value; });
     d.intervencao = (document.querySelector('input[name="intervencao"]:checked') || {}).value || '';
     d.mesPoda = (document.querySelector('input[name="mesPoda"]:checked') || {}).value || '';
-    d.dataUltimaPoda = document.getElementById('dataUltimaPoda') ? document.getElementById('dataUltimaPoda').value : '';
-    d.observacoes = document.getElementById('observacoes') ? document.getElementById('observacoes').value : '';
+    d.dataUltimaPoda = (document.getElementById('dataUltimaPoda') || {}).value || '';
+    d.observacoes = (document.getElementById('observacoes') || {}).value || '';
     d.timestamp = editingId ? (trees.find(function(t) { return t.id === editingId; }) || {}).timestamp || Date.now() : Date.now();
     d.dataAtualizacao = Date.now();
 

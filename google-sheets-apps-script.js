@@ -67,7 +67,7 @@ function getSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
     // Cabeçalho
     sheet.appendRow([
-      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Logradouro',
+      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Rua', 'Bairro', 'Logradouro',
       'Referencia', 'Local Plantio', 'Especie', 'Certeza', 'Porte',
       'Tronco', 'Fotos (qtd)', 'Problemas', 'Interferencias',
       'Intervencao', 'Mes Poda', 'Ultima Poda', 'Historico Poda',
@@ -75,7 +75,7 @@ function getSheet() {
       'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5'
     ]);
     // Formata cabeçalho
-    const headerRange = sheet.getRange(1, 1, 1, 26);
+    const headerRange = sheet.getRange(1, 1, 1, 28);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#4E6B2E');
     headerRange.setFontColor('#FFFFFF');
@@ -83,8 +83,9 @@ function getSheet() {
     // Largura das colunas
     sheet.setColumnWidth(1, 120); // ID
     sheet.setColumnWidth(2, 140); // Data
-    sheet.setColumnWidth(5, 200); // Logradouro
-    sheet.setColumnWidth(8, 160); // Especie
+    sheet.setColumnWidth(5, 160); // Rua
+    sheet.setColumnWidth(6, 140); // Bairro
+    sheet.setColumnWidth(10, 160); // Especie
   }
 
   return sheet;
@@ -113,6 +114,8 @@ function createTree(data) {
     formatDate(new Date(data.timestamp)),
     data.latitude || '',
     data.longitude || '',
+    data.rua || '',
+    data.bairro || '',
     data.logradouro || '',
     data.referencia || '',
     data.localPlantio || '',
@@ -155,28 +158,30 @@ function updateTree(id, data) {
       const rowNum = i + 1;
       sheet.getRange(rowNum, 3).setValue(data.latitude || '');
       sheet.getRange(rowNum, 4).setValue(data.longitude || '');
-      sheet.getRange(rowNum, 5).setValue(data.logradouro || '');
-      sheet.getRange(rowNum, 6).setValue(data.referencia || '');
-      sheet.getRange(rowNum, 7).setValue(data.localPlantio || '');
-      sheet.getRange(rowNum, 8).setValue(data.especie || '');
-      sheet.getRange(rowNum, 9).setValue(data.certeza || '');
-      sheet.getRange(rowNum, 10).setValue(data.porte || data.porte2 || '');
-      sheet.getRange(rowNum, 11).setValue(data.tronco || data.tronco2 || '');
-      sheet.getRange(rowNum, 12).setValue(data.fotos || 0);
-      sheet.getRange(rowNum, 13).setValue((data.problemas || []).join(', '));
-      sheet.getRange(rowNum, 14).setValue((data.interferencia || []).join(', '));
-      sheet.getRange(rowNum, 15).setValue(data.intervencao || '');
-      sheet.getRange(rowNum, 16).setValue(data.mesPoda || '');
-      sheet.getRange(rowNum, 17).setValue(data.dataUltimaPoda || '');
-      sheet.getRange(rowNum, 18).setValue(data.historicoPoda || '');
-      sheet.getRange(rowNum, 19).setValue(data.observacoes || '');
-      sheet.getRange(rowNum, 20).setValue(data.status || '');
-      sheet.getRange(rowNum, 21).setValue(formatDate(new Date(data.dataAtualizacao)));
-      if (data.foto1) sheet.getRange(rowNum, 22).setValue(data.foto1);
-      if (data.foto2) sheet.getRange(rowNum, 23).setValue(data.foto2);
-      if (data.foto3) sheet.getRange(rowNum, 24).setValue(data.foto3);
-      if (data.foto4) sheet.getRange(rowNum, 25).setValue(data.foto4);
-      if (data.foto5) sheet.getRange(rowNum, 26).setValue(data.foto5);
+      sheet.getRange(rowNum, 5).setValue(data.rua || '');
+      sheet.getRange(rowNum, 6).setValue(data.bairro || '');
+      sheet.getRange(rowNum, 7).setValue(data.logradouro || '');
+      sheet.getRange(rowNum, 8).setValue(data.referencia || '');
+      sheet.getRange(rowNum, 9).setValue(data.localPlantio || '');
+      sheet.getRange(rowNum, 10).setValue(data.especie || '');
+      sheet.getRange(rowNum, 11).setValue(data.certeza || '');
+      sheet.getRange(rowNum, 12).setValue(data.porte || data.porte2 || '');
+      sheet.getRange(rowNum, 13).setValue(data.tronco || data.tronco2 || '');
+      sheet.getRange(rowNum, 14).setValue(data.fotos || 0);
+      sheet.getRange(rowNum, 15).setValue((data.problemas || []).join(', '));
+      sheet.getRange(rowNum, 16).setValue((data.interferencia || []).join(', '));
+      sheet.getRange(rowNum, 17).setValue(data.intervencao || '');
+      sheet.getRange(rowNum, 18).setValue(data.mesPoda || '');
+      sheet.getRange(rowNum, 19).setValue(data.dataUltimaPoda || '');
+      sheet.getRange(rowNum, 20).setValue(data.historicoPoda || '');
+      sheet.getRange(rowNum, 21).setValue(data.observacoes || '');
+      sheet.getRange(rowNum, 22).setValue(data.status || '');
+      sheet.getRange(rowNum, 23).setValue(formatDate(new Date(data.dataAtualizacao)));
+      if (data.foto1) sheet.getRange(rowNum, 24).setValue(data.foto1);
+      if (data.foto2) sheet.getRange(rowNum, 25).setValue(data.foto2);
+      if (data.foto3) sheet.getRange(rowNum, 26).setValue(data.foto3);
+      if (data.foto4) sheet.getRange(rowNum, 27).setValue(data.foto4);
+      if (data.foto5) sheet.getRange(rowNum, 28).setValue(data.foto5);
 
       return jsonResponse({
         status: 'ok',
