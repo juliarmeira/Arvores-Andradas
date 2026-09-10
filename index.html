@@ -2,447 +2,162 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Inventário Arbóreo Urbano de Andradas - MG. Gestão e monitoramento sustentável do patrimônio verde do município.">
     <title>Inventário Arbóreo - Andradas</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="index.css" />
 
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        cream: { DEFAULT: '#FAF6F0', light: '#FFFDF9', dark: '#EDE5D8' },
-                        terra: { DEFAULT: '#C0693A', light: '#D88A5C', dark: '#A0522D' },
-                        leaf: { DEFAULT: '#7A9444', light: '#9BB862', pale: '#B5C4A1' },
-                        palm: { DEFAULT: '#4E6B2E', dark: '#3A5120', deeper: '#2D3F18' },
+                        /* Legado (mantido para compatibilidade de classes) */
+                        cream: { DEFAULT: '#FAFAFA', light: '#FFFFFF', dark: '#F4F4F5' },
+                        terra: { DEFAULT: '#F59E0B', light: '#FCD34D', dark: '#D97706' },
+                        leaf: { DEFAULT: '#10B981', light: '#34D399', pale: '#A7F3D0' },
+                        palm: { DEFAULT: '#059669', dark: '#047857', deeper: '#065F46' },
                     },
                     fontFamily: {
-                        sans: ['Quicksand', 'sans-serif'],
-                        display: ['Lora', 'serif'],
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['JetBrains Mono', 'monospace'],
+                        mono: ['JetBrains Mono', 'monospace'],
                     },
                     borderRadius: {
-                        'organic': '20px',
-                        'organic-2xl': '36px',
+                        'organic': '12px',
+                        'organic-2xl': '20px',
                     },
                     boxShadow: {
-                        'petal': '0 4px 24px rgba(122, 148, 68, 0.06)',
-                        'soft': '0 2px 16px rgba(26, 34, 21, 0.04)',
-                        'card': '0 1px 8px rgba(26, 34, 21, 0.03)',
+                        'petal': '0 8px 24px rgba(16, 185, 129, 0.15)',
+                        'soft': '0 4px 16px rgba(0,0,0,0.04)',
+                        'card': '0 2px 8px rgba(0,0,0,0.03)',
                     }
                 }
             }
         }
     </script>
-
-    <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-        html { font-size: 16px; scroll-behavior: smooth; }
-        body {
-            font-family: 'Quicksand', sans-serif;
-            background: linear-gradient(180deg, #F5F0E8 0%, #FAF6F0 40%, #EDE5D8 100%);
-            color: #1A2215;
-            min-height: 100dvh;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        /* Form page background */
-        #pageForm {
-            position: relative;
-        }
-        #pageForm::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(180deg, rgba(78,107,46,0.03) 0%, rgba(122,148,68,0.02) 100%);
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        /* Input fields (form only, excludes catalog filter selects) */
-        input, textarea {
-            background: rgba(255,255,255,0.8) !important;
-            color: #1A2215 !important;
-            border: 1.5px solid rgba(78,107,46,0.12) !important;
-            border-radius: 14px !important;
-            padding: 12px 16px !important;
-            font-size: 15px !important;
-            font-family: 'Quicksand', sans-serif !important;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        #formPage select, .form-step select {
-            background: rgba(255,255,255,0.8) !important;
-            color: #1A2215 !important;
-            border: 1.5px solid rgba(78,107,46,0.12) !important;
-            border-radius: 14px !important;
-            padding: 12px 16px !important;
-            font-size: 15px !important;
-            font-family: 'Quicksand', sans-serif !important;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        input:focus, textarea:focus {
-            border-color: rgba(78,107,46,0.35) !important;
-            box-shadow: 0 0 0 3px rgba(78,107,46,0.08) !important;
-            outline: none !important;
-        }
-
-        /* Page transitions */
-        .page { display: none; }
-        .page.active { display: block; }
-
-        /* Floating leaves */
-        .floating-leaves { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-        .leaf { position: absolute; opacity: 0; animation: leafFloat linear infinite; }
-        .leaf-1 { left: 5%; animation-duration: 22s; animation-delay: 0s; }
-        .leaf-2 { left: 28%; animation-duration: 26s; animation-delay: 4s; }
-        .leaf-3 { left: 55%; animation-duration: 24s; animation-delay: 8s; }
-        .leaf-4 { left: 78%; animation-duration: 28s; animation-delay: 2s; }
-        .leaf-5 { left: 92%; animation-duration: 20s; animation-delay: 6s; }
-        @keyframes leafFloat {
-            0% { transform: translateY(110vh) rotate(0deg); opacity: 0; }
-            8% { opacity: 0.6; }
-            92% { opacity: 0.6; }
-            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
-        }
-
-        /* Section labels */
-        .section-label {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 12px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.06em; color: #3A5120;
-        }
-        .section-label i { color: #4E6B2E; }
-        .section-label::after {
-            content: ''; flex: 1; height: 1px;
-            background: linear-gradient(to right, rgba(78,107,46,0.2), transparent);
-        }
-
-        /* Form cards */
-        .form-card {
-            background: rgba(255,255,255,0.88);
-            backdrop-filter: blur(12px);
-            border-radius: 20px;
-            padding: 16px;
-            margin-bottom: 12px;
-            border: 1px solid rgba(78,107,46,0.15);
-            box-shadow: 0 2px 12px rgba(78,107,46,0.06);
-        }
-        .form-card:focus-within {
-            border-color: rgba(78,107,46,0.3);
-            box-shadow: 0 2px 16px rgba(78,107,46,0.1);
-        }
-        .form-label {
-            display: block; font-size: 12px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.06em;
-            color: #3A5120; margin-bottom: 8px;
-        }
-
-        /* GPS button */
-        .gps-btn {
-            display: flex; align-items: center; gap: 14px; width: 100%;
-            padding: 14px; background: rgba(78,107,46,0.06);
-            border: 1.5px dashed rgba(78,107,46,0.25); border-radius: 16px;
-            cursor: pointer; transition: all 0.2s;
-        }
-        .gps-btn:hover { background: rgba(78,107,46,0.1); }
-        .gps-btn:active { transform: scale(0.98); background: rgba(78,107,46,0.12); }
-
-        /* Progress */
-        .progress-track {
-            height: 4px; background: rgba(122,148,68,0.1);
-            border-radius: 99px; margin-bottom: 8px; overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%; background: linear-gradient(90deg, #4E6B2E, #7A9444);
-            border-radius: 99px; transition: width 0.4s ease;
-        }
-
-        /* Bottom nav */
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-            width: 100%; max-width: 480px;
-            display: flex; align-items: center; justify-content: space-around;
-            padding: 8px 16px 20px;
-            background: rgba(255,253,249,0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-top: 1px solid rgba(122,148,68,0.06);
-            z-index: 9999;
-        }
-        .bnav-item {
-            display: flex; flex-direction: column; align-items: center; gap: 3px;
-            background: none; border: none; cursor: pointer;
-            font-family: 'Quicksand', sans-serif;
-            font-size: 10px; font-weight: 600;
-            color: rgba(26,34,21,0.50); transition: color 0.2s;
-        }
-        .bnav-item.active { color: #4E6B2E; }
-        .bnav-center { position: relative; top: -14px; }
-        .bnav-circle {
-            width: 52px; height: 52px; border-radius: 50%;
-            background: linear-gradient(135deg, #4E6B2E, #3A5120);
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 20px rgba(78,107,46,0.25);
-            transition: transform 0.2s;
-        }
-        .bnav-center:active .bnav-circle { transform: scale(0.93); }
-
-        /* Stat cards */
-        .stat-card { transition: transform 0.15s; }
-        .stat-card:active { transform: scale(0.96); }
-
-        /* List cards */
-        .list-card {
-            display: flex; align-items: center; gap: 12px;
-            background: rgba(255,255,255,0.75);
-            backdrop-filter: blur(6px);
-            border-radius: 18px; padding: 12px 14px;
-            border: 1px solid rgba(122,148,68,0.05);
-            cursor: pointer; transition: transform 0.15s;
-        }
-        .list-card:active { transform: scale(0.98); }
-        .list-card-icon {
-            width: 42px; height: 42px; border-radius: 14px;
-            display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; overflow: hidden;
-        }
-
-        /* Search dropdown */
-        .search-dropdown {
-            display: none; position: absolute; top: 100%; left: 0; right: 0;
-            background: white; border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(26,34,21,0.1);
-            max-height: 240px; overflow-y: auto; z-index: 50;
-            margin-top: 4px;
-        }
-        .search-dropdown.show { display: block; }
-        .search-dropdown div {
-            padding: 10px 14px; font-size: 14px; cursor: pointer;
-            transition: background 0.15s;
-        }
-        .search-dropdown div:hover { background: rgba(122,148,68,0.06); }
-        .sdo { display: flex; flex-direction: column; gap: 1px; }
-        .sdo .sdo-popular { font-size: 14px; font-weight: 700; color: #1A2215; }
-        .sdo .sdo-cientifico { font-size: 11px; font-style: italic; color: #7A9444; }
-        .sdo .sdo-nova { font-size: 12px; color: #C0693A; font-weight: 600; }
-
-        /* Filter pills */
-        .filter { transition: all 0.2s; }
-        .filter.active {
-            background: linear-gradient(135deg, #4E6B2E, #3A5120);
-            color: white; border-color: transparent;
-        }
-
-        /* Map filters */
-        .map-filter { transition: all 0.2s; }
-        .map-filter.active {
-            background: linear-gradient(135deg, #4E6B2E, #3A5120);
-            color: white; border-color: transparent;
-        }
-
-        /* Photo preview */
-        .photo-preview { max-height: 140px; object-fit: cover; }
-
-        /* Modal */
-        .modal-sheet {
-            position: fixed; inset: 0;
-            background: rgba(26,34,21,0.4);
-            display: none; align-items: flex-end; justify-content: center;
-            z-index: 200;
-        }
-        .modal-sheet.show { display: flex; }
-        .modal-content {
-            background: #FAF6F0; width: 100%; max-width: 480px;
-            max-height: 85vh; overflow-y: auto;
-            border-radius: 28px 28px 0 0; padding: 24px;
-            animation: sheetUp 0.3s ease;
-        }
-        @keyframes sheetUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        /* Toast */
-        .toast {
-            position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-100px);
-            background: linear-gradient(135deg, #4E6B2E, #3A5120);
-            color: white; padding: 12px 24px; border-radius: 16px;
-            font-size: 14px; font-weight: 700; z-index: 300;
-            box-shadow: 0 4px 20px rgba(78,107,46,0.25);
-            transition: transform 0.3s ease;
-        }
-        .toast.show { transform: translateX(-50%) translateY(0); }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(122,148,68,0.15); border-radius: 99px; }
-
-        /* Hero card */
-        .hero-card { position: relative; overflow: hidden; }
-        .hero-card img {
-            position: absolute; inset: 0;
-            width: 100%; height: 100%; object-fit: cover;
-        }
-
-        /* Page / Step navigation */
-        .page { display: none; }
-        .page.active { display: block; animation: pageIn 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
-        @keyframes pageIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        .fs { display: none; }
-        .fs.active { display: block; animation: stepIn 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
-        @keyframes stepIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
-    </style>
 </head>
-<body class="bg-cream text-palm-dark">
+<body>
 
-    <!-- Floating Leaves -->
-    <div class="floating-leaves" aria-hidden="true">
-        <svg class="leaf leaf-1" viewBox="0 0 60 80" width="36" height="48">
-            <path d="M30 75V35" stroke="#7A9444" stroke-width="0.8" stroke-linecap="round" opacity="0.1"/>
-            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#7A9444" fill-opacity="0.03" stroke="#7A9444" stroke-width="0.6" opacity="0.12"/>
-        </svg>
-        <svg class="leaf leaf-2" viewBox="0 0 60 80" width="28" height="37">
-            <path d="M30 75V35" stroke="#C0693A" stroke-width="0.8" stroke-linecap="round" opacity="0.07"/>
-            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#C0693A" fill-opacity="0.025" stroke="#C0693A" stroke-width="0.6" opacity="0.08"/>
-        </svg>
-        <svg class="leaf leaf-3" viewBox="0 0 60 80" width="24" height="32">
-            <path d="M30 75V35" stroke="#4E6B2E" stroke-width="0.8" stroke-linecap="round" opacity="0.08"/>
-            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#4E6B2E" fill-opacity="0.025" stroke="#4E6B2E" stroke-width="0.6" opacity="0.1"/>
-        </svg>
-        <svg class="leaf leaf-4" viewBox="0 0 60 80" width="32" height="43">
-            <path d="M30 75V35" stroke="#7A9444" stroke-width="0.8" stroke-linecap="round" opacity="0.06"/>
-            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#7A9444" fill-opacity="0.02" stroke="#7A9444" stroke-width="0.6" opacity="0.07"/>
-        </svg>
-        <svg class="leaf leaf-5" viewBox="0 0 60 80" width="22" height="29">
-            <path d="M30 75V35" stroke="#C0693A" stroke-width="0.8" stroke-linecap="round" opacity="0.05"/>
-            <path d="M30 35C30 25 18 15 10 20C18 20 30 10 30 2C30 10 42 20 50 20C42 15 30 25 30 35Z" fill="#C0693A" fill-opacity="0.015" stroke="#C0693A" stroke-width="0.6" opacity="0.06"/>
-        </svg>
-    </div>
+
 
     <div class="max-w-[480px] mx-auto min-h-dvh relative z-10">
-        <main class="pb-28">
+        <!-- Dark Mode Toggle Switch (usado em páginas que não são o mapa) -->
+        <button class="dark-mode-toggle shadow-soft hidden" id="themeToggleGlobal" aria-label="Alterar tema" type="button">
+            <i data-lucide="moon" class="w-5 h-5"></i>
+        </button>
+        <main class="pb-24">
 
-            <!-- ========== DASHBOARD ========== -->
-            <section class="page active pt-0 pb-6" id="pageDashboard">
+            <!-- ========== MAPA EM TELA CHEIA (PÁGINA PRINCIPAL) ========== -->
+            <section class="page active" id="pageDashboard">
+                <div id="map"></div>
 
-                <!-- Hero -->
-                <div class="hero-card rounded-b-3xl overflow-hidden mb-5 min-h-[130px]">
-                    <img src="Referencias/4782ef7660a1e5511ce778895693fc88.jpg" alt="" onerror="this.style.display='none'">
-                    <div class="absolute inset-0" style="background:linear-gradient(160deg,rgba(45,63,24,0.85) 0%,rgba(78,107,46,0.65) 50%,rgba(122,148,68,0.45) 100%);"></div>
-                    <div class="relative z-10 px-6 pt-5 pb-5">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                                <i data-lucide="leaf" class="w-3 h-3 text-white/80"></i>
-                            </div>
-                            <span class="text-white/70 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
+                <!-- Painel Superior Flutuante Compacto e Expansível -->
+                <div class="map-floating-header">
+                    <!-- Barra de Topo Compacta -->
+                    <div class="map-header-bar">
+                        <div class="map-street-badge" id="currentStreetBadge">
+                            <i data-lucide="navigation" class="w-3.5 h-3.5 text-palm flex-shrink-0"></i>
+                            <span id="currentStreetText" class="truncate">Localizando GPS...</span>
                         </div>
-                        <h2 class="font-display italic text-white text-[1.55rem] font-semibold leading-[1.1] mb-1" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Inventário Arbóreo Urbano</h2>
-                        <p class="text-white/65 text-[12px] font-light" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Gestão ambiental sustentável do município de Andradas</p>
+
+                        <!-- Ações Compactas do Topo -->
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <!-- Botão de Alternar Painel de Ferramentas / Filtros -->
+                            <button class="map-icon-btn" id="btnToggleMapTools" type="button" title="Ferramentas e Filtros do Mapa" aria-expanded="false">
+                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+                                <span class="map-active-dot hidden" id="mapFilterDot"></span>
+                            </button>
+
+                            <!-- Botão Tema Rápido -->
+                            <button class="map-icon-btn" id="themeToggle" type="button" title="Alternar tema">
+                                <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Gaveta Expansível de Ferramentas e Filtros do Mapa (recolhida por padrão) -->
+                    <div class="map-tools-drawer" id="mapToolsDrawer">
+                        <!-- Linha de Ações: Satélite x Ruas & Rastrear Percurso -->
+                        <div class="map-top-actions">
+                            <button class="map-tool-btn" id="btnLayerSwitch" type="button" title="Alternar Satélite / Ruas">
+                                <i data-lucide="layers" class="w-3.5 h-3.5 text-palm"></i>
+                                <span id="layerLabel">Satélite</span>
+                            </button>
+
+                            <button class="map-tool-btn" id="btnTrackRoute" type="button" title="Acompanhar ruas percorridas">
+                                <i data-lucide="footprints" class="w-3.5 h-3.5"></i>
+                                <span id="trackLabel">Rastrear Percurso</span>
+                            </button>
+                        </div>
+
+                        <!-- Filtros Rápidos por Status de Saúde -->
+                        <div class="map-quick-filters" id="mapFilters">
+                            <button class="map-filter-chip active" data-map-filter="all">
+                                <i data-lucide="trees" class="w-3 h-3"></i> Todas (<span id="mapCountAll">0</span>)
+                            </button>
+                            <button class="map-filter-chip" data-map-filter="saudavel">
+                                <i data-lucide="heart" class="w-3 h-3 text-emerald-500"></i> Saudáveis (<span id="mapCountSaudavel">0</span>)
+                            </button>
+                            <button class="map-filter-chip" data-map-filter="atencao">
+                                <i data-lucide="scissors" class="w-3 h-3 text-amber-500"></i> Poda (<span id="mapCountAtencao">0</span>)
+                            </button>
+                            <button class="map-filter-chip" data-map-filter="critico">
+                                <i data-lucide="alert-triangle" class="w-3 h-3 text-rose-500"></i> Risco (<span id="mapCountCritico">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Banner de Gravação de Percurso / Ruas Percorridas -->
+                    <div class="tracking-banner" id="trackingBanner">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span>Percurso: <strong id="trackingDistance">0 m</strong></span>
+                        </div>
+                        <button type="button" id="btnClearTrack" class="text-[10px] uppercase font-bold text-white/90 hover:text-white underline">Limpar Rastro</button>
                     </div>
                 </div>
 
-                <div class="px-5">
-
-                <!-- Stats -->
-                <div class="grid grid-cols-3 gap-2 mb-5" id="statsGrid">
-                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-leaf/8">
-                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-leaf/8 flex items-center justify-center">
-                            <i data-lucide="trees" class="w-4 h-4 text-palm"></i>
-                        </div>
-                        <div class="font-display text-[1.25rem] font-semibold text-palm-dark leading-none" id="totalTrees">0</div>
-                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Total de Árvores</div>
-                    </div>
-                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-red-100/40">
-                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-red-50 flex items-center justify-center">
-                            <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
-                        </div>
-                        <div class="font-display text-[1.25rem] font-semibold text-red-400 leading-none" id="statRisco">0</div>
-                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Risco de Queda</div>
-                    </div>
-                    <div class="stat-card bg-white/80 backdrop-blur-sm rounded-2xl p-3 text-center shadow-card border border-terra/8">
-                        <div class="w-8 h-8 mx-auto mb-1.5 rounded-full bg-terra/8 flex items-center justify-center">
-                            <i data-lucide="scissors" class="w-4 h-4 text-terra"></i>
-                        </div>
-                        <div class="font-display text-[1.25rem] font-semibold text-terra leading-none" id="statPoda">0</div>
-                        <div class="text-[10px] font-semibold text-palm-dark/55 mt-1 tracking-wide">Poda Urgente</div>
-                    </div>
+                <!-- Controles Flutuantes Inferiores (Acima da barra de navegação) -->
+                <div class="map-floating-bottom-controls" style="justify-content: flex-end;">
+                    <!-- Botão de Centralizar no Usuário -->
+                    <button class="map-circle-btn shadow-soft" id="btnCenterUserGps" type="button" title="Centralizar na minha posição">
+                        <i data-lucide="crosshair" class="w-5 h-5 text-palm"></i>
+                    </button>
                 </div>
-
-                <button onclick="if(SHEET_LINK)window.open(SHEET_LINK,'_blank')" class="w-full flex items-center justify-center gap-1.5 py-2 mb-5 rounded-xl bg-white/50 border border-leaf/10 text-[10px] font-semibold text-palm-dark/40 active:scale-[0.97] transition-transform" id="btnSheet">
-                    <i data-lucide="table" class="w-3 h-3"></i> Abrir planilha
-                </button>
-
-                <!-- Alertas de Poda -->
-                <div id="alertArea" class="mb-5"></div>
-
-                <!-- Mapa -->
-                <div class="section-label mb-3">
-                    <i data-lucide="map-pin" class="w-3 h-3"></i>
-                    <span>Mapa de Localização</span>
-                </div>
-                <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="mapFilters">
-                    <button class="map-filter active px-3 py-1.5 rounded-full text-[10px] font-bold border border-leaf/15 whitespace-nowrap" data-map-filter="all">Todas</button>
-                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-leaf/10 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="saudavel"><i data-lucide="heart" class="w-3 h-3 inline"></i> Saudáveis</button>
-                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-terra/10 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="atencao"><i data-lucide="scissors" class="w-3 h-3 inline"></i> Poda</button>
-                    <button class="map-filter px-3 py-1.5 rounded-full text-[10px] font-bold border border-red-200/15 bg-white/50 text-palm-dark whitespace-nowrap" data-map-filter="critico"><i data-lucide="alert-triangle" class="w-3 h-3 inline"></i> Risco</button>
-                </div>
-                <div class="relative rounded-organic-2xl overflow-hidden mb-5 shadow-petal border border-leaf/5">
-                    <div id="map" class="h-44 w-full bg-cream-dark"></div>
-                </div>
-
-                <!-- Cadastros Recentes -->
-                <div class="section-label mb-3">
-                    <i data-lucide="clock" class="w-3 h-3"></i>
-                    <span>Cadastros Recentes</span>
-                </div>
-                <div class="flex flex-col gap-2" id="recentList">
-                    <div class="flex flex-col items-center py-10 text-center">
-                        <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
-                            <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
-                        </div>
-                        <p class="font-display italic text-sm text-palm-dark/50">Nenhum cadastro ainda</p>
-                        <p class="text-[11px] text-palm-dark/40 mt-1">Toque em cadastrar para começar</p>
-                    </div>
-                </div>
-                </div>
-
             </section>
 
             <!-- ========== FORMULARIO ========== -->
             <section class="page pt-0 pb-6" id="pageForm">
-                <div class="hero-card rounded-b-3xl overflow-hidden mb-5 min-h-[130px]">
-                    <img src="Referencias/4782ef7660a1e5511ce778895693fc88.jpg" alt="" onerror="this.style.display='none'">
-                    <div class="absolute inset-0" style="background:linear-gradient(160deg,rgba(45,63,24,0.85) 0%,rgba(78,107,46,0.65) 50%,rgba(122,148,68,0.45) 100%);"></div>
-                    <div class="relative z-10 px-6 pt-5 pb-5">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                                <i data-lucide="leaf" class="w-3 h-3 text-white/80"></i>
-                            </div>
-                            <span class="text-white/70 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
-                        </div>
-                        <h2 class="font-display italic text-white text-[1.55rem] font-semibold leading-[1.1] mb-1" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Novo Cadastro</h2>
-                        <p class="text-white/65 text-[12px] font-light" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Preencha os dados da árvore encontrada</p>
+                <!-- Cabeçalho Compacto Otimizado -->
+                <div class="app-compact-header">
+                    <button type="button" class="header-back-btn" onclick="navigateTo('pageDashboard')" title="Voltar ao Mapa">
+                        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                    </button>
+                    <div class="header-title-box">
+                        <h2 class="header-title" id="formHeaderTitle">Novo Cadastro</h2>
+                        <span class="header-subtitle">Inventário Arbóreo &bull; Andradas MG</span>
                     </div>
+                    <button type="button" class="header-action-btn theme-toggle-btn" title="Alternar tema">
+                        <i data-lucide="moon" class="w-4 h-4"></i>
+                    </button>
                 </div>
 
                 <div class="px-5">
-                <div class="mb-6">
 
-                <div class="mb-6">
+                <div class="mb-5">
                     <div class="progress-track"><div class="progress-fill" id="progFill" style="width:20%"></div></div>
                     <div class="flex justify-between px-0.5">
-                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm" data-s="1" onclick="goStep(1)">Local</span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="2" onclick="goStep(2)">Espécie</span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="3" onclick="goStep(3)">Fotos</span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="4" onclick="goStep(4)">Saúde</span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors select-none text-palm-dark/35" data-s="5" onclick="goStep(5)">Poda</span>
+                        <span class="step-chip active" data-s="1" onclick="goStep(1)">1. Local</span>
+                        <span class="step-chip" data-s="2" onclick="goStep(2)">2. Espécie</span>
+                        <span class="step-chip" data-s="3" onclick="goStep(3)">3. Fotos</span>
+                        <span class="step-chip" data-s="4" onclick="goStep(4)">4. Saúde</span>
+                        <span class="step-chip" data-s="5" onclick="goStep(5)">5. Poda</span>
                     </div>
                 </div>
 
@@ -509,6 +224,7 @@
                                 <div id="especieResults" class="search-dropdown"></div>
                             </div>
                             <input type="hidden" id="especie">
+                            <div id="speciesInfo" class="hidden mt-2 px-1"></div>
                         </div>
 
                         <div class="flex flex-wrap gap-2 mb-4" id="speciesChips">
@@ -529,6 +245,14 @@
                                 <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="certeza" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="check-circle" class="w-3 h-3"></i> Certeza</span></label>
                                 <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="palpite" class="hidden peer"><span class="peer-checked:bg-terra peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-terra/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="help-circle" class="w-3 h-3"></i> Palpite</span></label>
                                 <label class="flex-1 cursor-pointer"><input type="radio" name="certeza" value="nao_sei" class="hidden peer"><span class="peer-checked:bg-red-400 peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-red-200/15 text-palm-dark bg-cream/50 transition-all"><i data-lucide="x-circle" class="w-3 h-3"></i> Não sei</span></label>
+                            </div>
+                        </div>
+
+                        <div class="form-card">
+                            <label class="form-label">Amostra Coletada</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="amostra" value="sim" class="hidden peer"><span class="peer-checked:bg-leaf peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-leaf/12 text-palm-dark bg-cream/50 transition-all"><i data-lucide="flask-conical" class="w-3 h-3"></i> Sim</span></label>
+                                <label class="flex-1 cursor-pointer"><input type="radio" name="amostra" value="nao" class="hidden peer"><span class="peer-checked:bg-red-400 peer-checked:text-white flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-bold border border-red-200/15 text-palm-dark bg-cream/50 transition-all"><i data-lucide="x" class="w-3 h-3"></i> Não</span></label>
                             </div>
                         </div>
 
@@ -651,24 +375,6 @@
                         </div>
 
                         <div class="form-card">
-                            <label class="form-label">Mês ideal para poda</label>
-                            <div class="grid grid-cols-4 gap-2">
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="1" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jan</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="2" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Fev</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="3" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Mar</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="4" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Abr</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="5" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Mai</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="6" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jun</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="7" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Jul</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="8" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Ago</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="9" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Set</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="10" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Out</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="11" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Nov</span></label>
-                                <label class="cursor-pointer"><input type="radio" name="mesPoda" value="12" class="hidden peer"><span class="flex items-center justify-center py-2.5 rounded-2xl text-[10px] font-bold border border-leaf/10 text-palm-dark bg-cream/50 transition-all peer-checked:bg-gradient-to-r peer-checked:from-palm peer-checked:to-palm-dark peer-checked:text-white peer-checked:shadow-petal">Dez</span></label>
-                            </div>
-                        </div>
-
-                        <div class="form-card">
                             <label class="form-label">Data da última poda</label>
                             <input type="date" id="dataUltimaPoda" class="w-full bg-cream/50 rounded-2xl px-3.5 py-2.5 text-sm text-palm-dark border-none outline-none">
                         </div>
@@ -686,58 +392,136 @@
 
                 </form>
                 </div>
-                </div>
             </section>
 
-            <!-- ========== CATÁLOGO ========== -->
+            <!-- ========== CATÁLOGO & LISTA DE ÁRVORES ========== -->
             <section class="page pt-0 pb-6" id="pageCatalog">
-                <!-- Hero Catálogo -->
-                <div class="hero-card rounded-b-3xl overflow-hidden mb-5 min-h-[130px]">
-                    <img src="Referencias/4782ef7660a1e5511ce778895693fc88.jpg" alt="" onerror="this.style.display='none'">
-                    <div class="absolute inset-0" style="background:linear-gradient(160deg,rgba(160,82,45,0.85) 0%,rgba(192,105,58,0.65) 50%,rgba(232,196,184,0.45) 100%);"></div>
-                    <div class="relative z-10 px-6 pt-5 pb-5">
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                                <i data-lucide="trees" class="w-3 h-3 text-white/80"></i>
+                <!-- Cabeçalho Compacto Otimizado -->
+                <div class="app-compact-header">
+                    <button type="button" class="header-back-btn" onclick="navigateTo('pageDashboard')" title="Ver no Mapa">
+                        <i data-lucide="map" class="w-5 h-5"></i>
+                    </button>
+                    <div class="header-title-box">
+                        <h2 class="header-title">Lista de Árvores</h2>
+                        <span class="header-subtitle">Acervo e Estatísticas &bull; Andradas MG</span>
+                    </div>
+                    <button type="button" class="header-action-btn theme-toggle-btn" title="Alternar tema">
+                        <i data-lucide="moon" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="px-4">
+                    <!-- Barra Compacta de Estatísticas & Acesso à Planilha -->
+                    <div class="catalog-summary-bar mb-3" id="statsGrid">
+                        <div class="summary-pills">
+                            <div class="summary-pill" title="Total cadastradas">
+                                <i data-lucide="trees" class="w-3.5 h-3.5 text-palm"></i>
+                                <span>Total: <strong id="totalTrees">0</strong></span>
                             </div>
-                            <span class="text-white/70 text-[10px] font-bold uppercase tracking-[0.15em]">Andradas - MG</span>
+                            <div class="summary-pill pill-risk" title="Risco crítico">
+                                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500"></i>
+                                <span>Risco: <strong id="statRisco">0</strong></span>
+                            </div>
+                            <div class="summary-pill pill-poda" title="Necessitam de poda">
+                                <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-500"></i>
+                                <span>Poda: <strong id="statPoda">0</strong></span>
+                            </div>
                         </div>
-                        <h2 class="font-display italic text-white text-[1.55rem] font-semibold leading-[1.1] mb-1" style="text-shadow:0 2px 12px rgba(0,0,0,0.2);">Catálogo de Árvores</h2>
-                        <p class="text-white/65 text-[12px] font-light" style="text-shadow:0 1px 6px rgba(0,0,0,0.15);">Todas as árvores cadastradas em Andradas</p>
+
+                        <!-- Botão Seguro para Planilha Google -->
+                        <button type="button" class="btn-sheet-compact" id="btnSheet" title="Abrir planilha Google Sheets oficial">
+                            <i data-lucide="table" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            <span>Planilha</span>
+                            <i data-lucide="external-link" class="w-3 h-3 opacity-60"></i>
+                        </button>
                     </div>
-                </div>
 
-                <div class="px-5">
-                <div class="flex items-center gap-2.5 bg-white/70 backdrop-blur-sm rounded-full px-4 py-2.5 mb-4 border border-leaf/8 shadow-soft">
-                    <i data-lucide="search" class="w-4 h-4 text-palm-dark/20"></i>
-                    <input type="text" id="catalogSearch" class="flex-1 border-none outline-none bg-transparent text-sm text-palm-dark placeholder:text-palm-dark/30" placeholder="Buscar por espécie ou endereço...">
-                </div>
+                    <!-- Alertas de Poda -->
+                    <div id="alertArea" class="mb-2"></div>
 
-                <div class="flex gap-2 mb-3 overflow-x-auto pb-1">
-                    <select id="filterBairro" class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border border-leaf/10 bg-white/50 text-palm-dark outline-none">
-                        <option value="">Todos os bairros</option>
-                    </select>
-                    <select id="filterRua" class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border border-leaf/10 bg-white/50 text-palm-dark outline-none">
-                        <option value="">Todas as ruas</option>
-                    </select>
-                </div>
-
-                <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
-                    <button class="filter active px-4 py-1.5 rounded-full text-[10px] font-bold border border-leaf/15 whitespace-nowrap" data-filter="all">Todas</button>
-                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-leaf/10 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="saudavel"><i data-lucide="heart" class="w-3 h-3 inline"></i> Saudáveis</button>
-                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-terra/10 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="atencao"><i data-lucide="scissors" class="w-3 h-3 inline"></i> Atenção</button>
-                    <button class="filter px-4 py-1.5 rounded-full text-[10px] font-bold border border-red-200/15 bg-white/50 text-palm-dark whitespace-nowrap" data-filter="critico"><i data-lucide="alert-circle" class="w-3 h-3 inline"></i> Críticos</button>
-                </div>
-
-                <div class="flex flex-col gap-2" id="catalogList">
-                    <div class="flex flex-col items-center py-10 text-center">
-                        <div class="w-14 h-14 rounded-full bg-leaf/5 flex items-center justify-center mb-3">
-                            <i data-lucide="sprout" class="w-6 h-6 text-leaf/20"></i>
+                    <!-- Barra de Busca + Botão Filtros Expansíveis -->
+                    <div class="catalog-search-bar mb-3">
+                        <div class="catalog-search-input-box">
+                            <i data-lucide="search" class="w-4 h-4 text-zinc-400 flex-shrink-0"></i>
+                            <input type="text" id="catalogSearch" class="catalog-search-input" placeholder="Buscar espécie ou endereço...">
                         </div>
-                        <p class="font-display italic text-sm text-palm-dark/50">Nenhuma árvore ainda</p>
-                        <p class="text-[11px] text-palm-dark/40 mt-1">Cadastre a primeira árvore pelo formulário</p>
+                        <button type="button" id="btnToggleCatalogFilters" class="filter-toggle-btn" title="Filtros avançados" aria-expanded="false">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                            <span>Filtros</span>
+                            <span id="activeFilterBadge" class="filter-count-badge hidden">0</span>
+                        </button>
                     </div>
-                </div>
+
+                    <!-- Gaveta Expansível de Filtros Avançados (recolhida por padrão no celular) -->
+                    <div class="catalog-filters-drawer" id="catalogFiltersDrawer">
+                        <div class="filter-drawer-header">
+                            <span class="filter-drawer-title">
+                                <i data-lucide="list-filter" class="w-3.5 h-3.5 text-palm"></i> Filtros de Refinamento
+                            </span>
+                            <button type="button" id="btnClearAllFilters" class="filter-drawer-clear-btn">
+                                Limpar filtros
+                            </button>
+                        </div>
+
+                        <!-- Filtros por Bairro e Rua -->
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div>
+                                <label class="filter-field-label">Bairro</label>
+                                <select id="filterBairro" class="filter-select">
+                                    <option value="">Todos os bairros</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="filter-field-label">Rua</label>
+                                <select id="filterRua" class="filter-select">
+                                    <option value="">Todas as ruas</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Filtros de Condição / Saúde -->
+                        <div class="filter-group mb-3">
+                            <label class="filter-field-label">Condição / Saúde</label>
+                            <div class="filter-chips-row">
+                                <button class="filter active" data-filter="all">Todas</button>
+                                <button class="filter" data-filter="saudavel"><i data-lucide="heart" class="w-3 h-3 inline text-emerald-500"></i> Saudáveis</button>
+                                <button class="filter" data-filter="atencao"><i data-lucide="scissors" class="w-3 h-3 inline text-amber-500"></i> Atenção</button>
+                                <button class="filter" data-filter="critico"><i data-lucide="alert-triangle" class="w-3 h-3 inline text-rose-500"></i> Críticos</button>
+                            </div>
+                        </div>
+
+                        <!-- Filtros de Certeza de ID -->
+                        <div class="filter-group mb-3">
+                            <label class="filter-field-label">Identificação Botânica</label>
+                            <div class="filter-chips-row">
+                                <button class="cert-filter active" data-cert="all">Todos</button>
+                                <button class="cert-filter" data-cert="certeza"><i data-lucide="check-circle" class="w-3 h-3 inline text-emerald-600"></i> Certeza</button>
+                                <button class="cert-filter" data-cert="palpite"><i data-lucide="help-circle" class="w-3 h-3 inline text-amber-600"></i> Palpite</button>
+                                <button class="cert-filter" data-cert="nao_sei"><i data-lucide="x-circle" class="w-3 h-3 inline text-rose-600"></i> Não sei</button>
+                            </div>
+                        </div>
+
+                        <!-- Filtros de Amostra Coletada -->
+                        <div class="filter-group mb-1">
+                            <label class="filter-field-label">Amostra Coletada</label>
+                            <div class="filter-chips-row">
+                                <button class="amostra-filter active" data-amostra="all">Todas</button>
+                                <button class="amostra-filter" data-amostra="sim"><i data-lucide="flask-conical" class="w-3 h-3 inline text-emerald-600"></i> Coletada</button>
+                                <button class="amostra-filter" data-amostra="nao"><i data-lucide="x" class="w-3 h-3 inline"></i> Sem amostra</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Árvores -->
+                    <div class="flex flex-col gap-2 mt-2" id="catalogList">
+                        <div class="flex flex-col items-center py-10 text-center">
+                            <div class="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
+                                <i data-lucide="sprout" class="w-6 h-6 text-emerald-600"></i>
+                            </div>
+                            <p class="font-medium text-sm text-zinc-600 dark:text-zinc-400">Nenhuma árvore ainda</p>
+                            <p class="text-[11px] text-zinc-400 mt-1">Cadastre a primeira árvore pelo formulário</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -746,16 +530,16 @@
         <!-- Bottom Nav -->
         <nav class="bottom-nav">
             <button class="bnav-item active" data-page="pageDashboard">
-                <i data-lucide="home" class="w-5 h-5"></i>
-                <span>Início</span>
+                <i data-lucide="map" class="w-5 h-5"></i>
+                <span>Mapa</span>
             </button>
             <button class="bnav-item bnav-center" data-page="pageForm">
                 <div class="bnav-circle"><i data-lucide="plus" class="w-6 h-6 text-white"></i></div>
                 <span class="mt-1">Cadastrar</span>
             </button>
             <button class="bnav-item" data-page="pageCatalog">
-                <i data-lucide="layout-grid" class="w-5 h-5"></i>
-                <span>Catálogo</span>
+                <i data-lucide="list" class="w-5 h-5"></i>
+                <span>Lista</span>
             </button>
         </nav>
     </div>
@@ -810,12 +594,12 @@
                 easing: 'easeOutCubic'
             });
 
-            // Animate hero card
+            // Animate headers on load
             anime({
-                targets: '.hero-card',
-                translateY: [30, 0],
+                targets: '.app-compact-header',
+                translateY: [-10, 0],
                 opacity: [0, 1],
-                duration: 700,
+                duration: 400,
                 easing: 'easeOutCubic'
             });
         });

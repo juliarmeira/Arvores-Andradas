@@ -11,13 +11,13 @@
  * 6. Copie a URL e cole no SHEETS_URL do app.js
  *
  * CABEÇALHO da planilha (linha 1):
- * ID | Data Cadastro | Latitude | Longitude | Logradouro | Referencia | Local Plantio | Especie | Nome Certeza | Porte | Tronco | Fotos | Problemas | Interferencias | Intervencao | Mes Poda | Ultima Poda | Historico Poda | Observacoes | Status | Data Atualizacao
+ * ID | Data Cadastro | Latitude | Longitude | Logradouro | Referencia | Local Plantio | Especie | Nome Certeza | Porte | Tronco | Fotos | Problemas | Interferencias | Intervencao | Ultima Poda | Historico Poda | Observacoes | Status | Data Atualizacao
  */
 
 // ============================
 // CONFIGURAÇÃO
 // ============================
-const SHEET_NAME = 'Arvores'; // Nome da aba na planilha
+const SHEET_NAME = 'Arvores2'; // Nome da aba na planilha
 
 // ============================
 // WEB APP — GET (listar)
@@ -65,27 +65,32 @@ function getSheet() {
 
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    // Cabeçalho
+    // Cabeçalho conforme especificação da Prefeitura
     sheet.appendRow([
-      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Rua', 'Bairro', 'Logradouro',
-      'Referencia', 'Local Plantio', 'Especie', 'Certeza', 'Porte',
-      'Tronco', 'Fotos (qtd)', 'Problemas', 'Interferencias',
-      'Intervencao', 'Mes Poda', 'Ultima Poda', 'Historico Poda',
-      'Observacoes', 'Status', 'Data Atualizacao',
-      'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5'
+      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Logradouro', 'Rua', 'Bairro',
+      'Referencia', 'Local Plantio', 'Especie', 'Nome Cientifico', 'Familia', 'Origem', 'Data Coleta',
+      'Amostra Coletada', 'Certeza', 'Porte', 'Tronco',
+      'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5',
+      'Problemas', 'Interferencias', 'Intervencao', 'Mes Poda', 'Ultima Poda',
+      'Observacoes', 'Status', 'Data Atualizacao'
     ]);
-    // Formata cabeçalho
-    const headerRange = sheet.getRange(1, 1, 1, 28);
+    // Formata cabecalho
+    const headerRange = sheet.getRange(1, 1, 1, 31);
     headerRange.setFontWeight('bold');
-    headerRange.setBackground('#4E6B2E');
+    headerRange.setBackground('#059669');
     headerRange.setFontColor('#FFFFFF');
     sheet.setFrozenRows(1);
     // Largura das colunas
     sheet.setColumnWidth(1, 120); // ID
     sheet.setColumnWidth(2, 140); // Data
-    sheet.setColumnWidth(5, 160); // Rua
-    sheet.setColumnWidth(6, 140); // Bairro
+    sheet.setColumnWidth(5, 160); // Logradouro
+    sheet.setColumnWidth(6, 140); // Rua
+    sheet.setColumnWidth(7, 140); // Bairro
     sheet.setColumnWidth(10, 160); // Especie
+    sheet.setColumnWidth(11, 180); // Nome Cientifico
+    sheet.setColumnWidth(12, 140); // Familia
+    sheet.setColumnWidth(13, 100); // Origem
+    sheet.setColumnWidth(14, 100); // Data Coleta
   }
 
   return sheet;
@@ -114,30 +119,33 @@ function createTree(data) {
     formatDate(new Date(data.timestamp)),
     data.latitude || '',
     data.longitude || '',
+    data.logradouro || '',
     data.rua || '',
     data.bairro || '',
-    data.logradouro || '',
     data.referencia || '',
     data.localPlantio || '',
     data.especie || '',
+    data.nomeCientifico || data.especie || '',
+    data.familia || '',
+    data.origem || '',
+    data.dataColeta || '',
+    data.amostra || '',
     data.certeza || '',
     data.porte || data.porte2 || '',
     data.tronco || data.tronco2 || '',
-    data.fotos || 0,
+    data.foto1 || '',
+    data.foto2 || '',
+    data.foto3 || '',
+    data.foto4 || '',
+    data.foto5 || '',
     (data.problemas || []).join(', '),
     (data.interferencia || []).join(', '),
     data.intervencao || '',
     data.mesPoda || '',
     data.dataUltimaPoda || '',
-    data.historicoPoda || '',
     data.observacoes || '',
     data.status || '',
-    formatDate(new Date(data.dataAtualizacao)),
-    data.foto1 || '',
-    data.foto2 || '',
-    data.foto3 || '',
-    data.foto4 || '',
-    data.foto5 || ''
+    formatDate(new Date(data.dataAtualizacao))
   ];
 
   sheet.appendRow(row);
@@ -158,30 +166,33 @@ function updateTree(id, data) {
       const rowNum = i + 1;
       sheet.getRange(rowNum, 3).setValue(data.latitude || '');
       sheet.getRange(rowNum, 4).setValue(data.longitude || '');
-      sheet.getRange(rowNum, 5).setValue(data.rua || '');
-      sheet.getRange(rowNum, 6).setValue(data.bairro || '');
-      sheet.getRange(rowNum, 7).setValue(data.logradouro || '');
+      sheet.getRange(rowNum, 5).setValue(data.logradouro || '');
+      sheet.getRange(rowNum, 6).setValue(data.rua || '');
+      sheet.getRange(rowNum, 7).setValue(data.bairro || '');
       sheet.getRange(rowNum, 8).setValue(data.referencia || '');
       sheet.getRange(rowNum, 9).setValue(data.localPlantio || '');
       sheet.getRange(rowNum, 10).setValue(data.especie || '');
-      sheet.getRange(rowNum, 11).setValue(data.certeza || '');
-      sheet.getRange(rowNum, 12).setValue(data.porte || data.porte2 || '');
-      sheet.getRange(rowNum, 13).setValue(data.tronco || data.tronco2 || '');
-      sheet.getRange(rowNum, 14).setValue(data.fotos || 0);
-      sheet.getRange(rowNum, 15).setValue((data.problemas || []).join(', '));
-      sheet.getRange(rowNum, 16).setValue((data.interferencia || []).join(', '));
-      sheet.getRange(rowNum, 17).setValue(data.intervencao || '');
-      sheet.getRange(rowNum, 18).setValue(data.mesPoda || '');
-      sheet.getRange(rowNum, 19).setValue(data.dataUltimaPoda || '');
-      sheet.getRange(rowNum, 20).setValue(data.historicoPoda || '');
-      sheet.getRange(rowNum, 21).setValue(data.observacoes || '');
-      sheet.getRange(rowNum, 22).setValue(data.status || '');
-      sheet.getRange(rowNum, 23).setValue(formatDate(new Date(data.dataAtualizacao)));
-      if (data.foto1) sheet.getRange(rowNum, 24).setValue(data.foto1);
-      if (data.foto2) sheet.getRange(rowNum, 25).setValue(data.foto2);
-      if (data.foto3) sheet.getRange(rowNum, 26).setValue(data.foto3);
-      if (data.foto4) sheet.getRange(rowNum, 27).setValue(data.foto4);
-      if (data.foto5) sheet.getRange(rowNum, 28).setValue(data.foto5);
+      sheet.getRange(rowNum, 11).setValue(data.nomeCientifico || data.especie || '');
+      sheet.getRange(rowNum, 12).setValue(data.familia || '');
+      sheet.getRange(rowNum, 13).setValue(data.origem || '');
+      sheet.getRange(rowNum, 14).setValue(data.dataColeta || '');
+      sheet.getRange(rowNum, 15).setValue(data.amostra || '');
+      sheet.getRange(rowNum, 16).setValue(data.certeza || '');
+      sheet.getRange(rowNum, 17).setValue(data.porte || data.porte2 || '');
+      sheet.getRange(rowNum, 18).setValue(data.tronco || data.tronco2 || '');
+      sheet.getRange(rowNum, 19).setValue(data.foto1 || '');
+      sheet.getRange(rowNum, 20).setValue(data.foto2 || '');
+      sheet.getRange(rowNum, 21).setValue(data.foto3 || '');
+      sheet.getRange(rowNum, 22).setValue(data.foto4 || '');
+      sheet.getRange(rowNum, 23).setValue(data.foto5 || '');
+      sheet.getRange(rowNum, 24).setValue((data.problemas || []).join(', '));
+      sheet.getRange(rowNum, 25).setValue((data.interferencia || []).join(', '));
+      sheet.getRange(rowNum, 26).setValue(data.intervencao || '');
+      sheet.getRange(rowNum, 27).setValue(data.mesPoda || '');
+      sheet.getRange(rowNum, 28).setValue(data.dataUltimaPoda || '');
+      sheet.getRange(rowNum, 29).setValue(data.observacoes || '');
+      sheet.getRange(rowNum, 30).setValue(data.status || '');
+      sheet.getRange(rowNum, 31).setValue(formatDate(new Date(data.dataAtualizacao)));
 
       return jsonResponse({
         status: 'ok',
