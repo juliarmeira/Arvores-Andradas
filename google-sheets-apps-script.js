@@ -17,21 +17,20 @@
 // ============================
 // CONFIGURAÇÃO
 // ============================
-const SHEET_NAME = 'Arvores2'; // Nome da aba na planilha
+const SHEET_NAME = 'Arvores'; // Nome oficial da aba na planilha
 
 // ============================
 // WEB APP — GET (listar)
 // ============================
 function doGet(e) {
-  const action = e.parameter.action;
+  const params = e ? (e.parameter || {}) : {};
+  const action = params.action;
 
   if (action === 'list') {
     return listTrees();
   }
 
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', message: 'Inventário Arbóreo API' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonResponse({ status: 'ok', message: 'Inventário Arbóreo API - Andradas MG' });
 }
 
 // ============================
@@ -39,8 +38,18 @@ function doGet(e) {
 // ============================
 function doPost(e) {
   try {
-    const body = JSON.parse(e.postData.contents);
-    const action = body.action;
+    let body = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        body = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        body = e.parameter || {};
+      }
+    } else if (e && e.parameter) {
+      body = e.parameter;
+    }
+
+    const action = body.action || (e && e.parameter && e.parameter.action);
 
     if (action === 'create') {
       return createTree(body.data);
@@ -50,7 +59,7 @@ function doPost(e) {
       return deleteTree(body.id);
     }
 
-    return jsonResponse({ status: 'error', message: 'Ação desconhecida' });
+    return jsonResponse({ status: 'error', message: 'Ação desconhecida: ' + action });
   } catch (err) {
     return jsonResponse({ status: 'error', message: err.toString() });
   }
@@ -62,6 +71,21 @@ function doPost(e) {
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
+
+  // Se não encontrar pelo nome exato, busca por variações ou pelo ID 1119417971
+  if (!sheet) {
+    const allSheets = ss.getSheets();
+    for (let i = 0; i < allSheets.length; i++) {
+      const s = allSheets[i];
+      if (s.getSheetId() === 1119417971 || s.getName().toLowerCase().indexOf('arvore') !== -1) {
+        sheet = s;
+        break;
+      }
+    }
+    if (!sheet && allSheets.length > 0) {
+      sheet = allSheets[0];
+    }
+  }
 
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);

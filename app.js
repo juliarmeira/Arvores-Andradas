@@ -1,7 +1,92 @@
 const DB_KEY = 'arbore_andradas_v4';
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzYaVf1-1iWrUVNZZkvNwPH1TvNqEqS7EYqu2goz-gNTO7tw5ZvKVPXz-HIZB6jrHiB/exec';
 const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/edit?gid=1119417971#gid=1119417971';
+const CSV_EXPORT_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/export?format=csv&gid=1119417971';
 const FLORA_API_URL = 'https://servicos.jbrj.gov.br/v2/flora/taxon/';
+
+/**
+ * Sanitiza coordenadas GPS com múltiplos pontos ou vírgulas (ex: -22.055.778 -> -22.055778)
+ */
+function parseCoordinate(val) {
+    if (val === null || val === undefined || val === '') return NaN;
+    var s = String(val).trim().replace(',', '.');
+    var parts = s.split('.');
+    if (parts.length > 2) {
+        s = parts[0] + '.' + parts.slice(1).join('');
+    }
+    var n = parseFloat(s);
+    return isNaN(n) ? NaN : n;
+}
+
+/**
+ * Converte datas brasileiras DD/MM/YYYY HH:mm:ss para timestamp numérico
+ */
+function parseBrDate(str) {
+    if (!str) return Date.now();
+    var s = String(str).trim();
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    if (m) {
+        var day = parseInt(m[1], 10);
+        var month = parseInt(m[2], 10) - 1;
+        var year = parseInt(m[3], 10);
+        var hour = parseInt(m[4] || '0', 10);
+        var min = parseInt(m[5] || '0', 10);
+        var sec = parseInt(m[6] || '0', 10);
+        return new Date(year, month, day, hour, min, sec).getTime();
+    }
+    var d = new Date(s).getTime();
+    return isNaN(d) ? Date.now() : d;
+}
+
+/**
+ * Converte links de compartilhamento do Google Drive para thumbnail direto
+ */
+function formatPhotoUrl(url) {
+    if (!url) return '';
+    var s = String(url).trim();
+    if (s.startsWith('data:image')) return s;
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/id=([a-zA-Z0-9_-]+)/);
+    if (m && m[1]) {
+        return 'https://lh3.googleusercontent.com/d/' + m[1];
+    }
+    return s;
+}
+
+/**
+ * Parser de CSV compatível com RFC 4180
+ */
+function parseCsv(text) {
+    var rows = [];
+    var currentRow = [];
+    var inQuotes = false;
+    var curVal = '';
+    for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        var next = text[i + 1];
+        if (c === '"' && inQuotes && next === '"') {
+            curVal += '"';
+            i++;
+        } else if (c === '"') {
+            inQuotes = !inQuotes;
+        } else if (c === ',' && !inQuotes) {
+            currentRow.push(curVal.trim());
+            curVal = '';
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') i++;
+            currentRow.push(curVal.trim());
+            rows.push(currentRow);
+            currentRow = [];
+            curVal = '';
+        } else {
+            curVal += c;
+        }
+    }
+    if (curVal || currentRow.length > 0) {
+        currentRow.push(curVal.trim());
+        rows.push(currentRow);
+    }
+    return rows;
+}
 
 const STATUS_COLORS = { saudavel: '#10B981', atencao: '#F59E0B', critico: '#EF4444' };
 const STATUS_LABELS = { saudavel: 'Saudavel', atencao: 'Atencao', critico: 'Critico' };
@@ -425,6 +510,7 @@ let tileLayers = {
     streets: null
 };
 let currentLayerName = 'satellite';
+let hasFittedBounds = false;
 
 // Rastreamento GPS e Percurso de Ruas Percorridas
 let currentGpsPos = null; // { lat, lng, accuracy }
@@ -497,63 +583,176 @@ function initSheetButton() {
             window.open(SPREADSHEET_URL, '_blank');
         });
     }
+
+    var btnSync = document.getElementById('btnSyncSheet');
+    if (btnSync) {
+        btnSync.addEventListener('click', function() {
+            loadTreesFromSheets(true);
+        });
+    }
 }
 
-function loadTreesFromSheets() {
-    if (!SHEETS_URL) return;
-    fetch(SHEETS_URL + '?action=list')
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            if (data && data.status === 'ok' && Array.isArray(data.trees) && data.trees.length > 0) {
-                var modified = false;
-                data.trees.forEach(function(st) {
-                    var rawId = st.ID || st.id;
-                    if (!rawId) return;
-                    var id = parseInt(rawId);
-                    var existingIdx = trees.findIndex(function(t) { return t.id === id; });
-                    var item = {
-                        id: id,
-                        timestamp: st['Data Cadastro'] ? new Date(st['Data Cadastro']).getTime() : Date.now(),
-                        latitude: st['Latitude'] || '',
-                        longitude: st['Longitude'] || '',
-                        rua: st['Rua'] || '',
-                        bairro: st['Bairro'] || '',
-                        logradouro: st['Logradouro'] || [st['Rua'], st['Bairro']].filter(Boolean).join(', '),
-                        referencia: st['Referencia'] || '',
-                        localPlantio: st['Local Plantio'] || '',
-                        especie: st['Especie'] || st['Nome Cientifico'] || '',
-                        nomeCientifico: st['Nome Cientifico'] || st['Especie'] || '',
-                        nomePopular: st['Nome Popular'] || COMMON_NAMES[st['Especie']] || '',
-                        familia: st['Familia'] || '',
-                        origem: st['Origem'] || '',
-                        dataColeta: st['Data Coleta'] || '',
-                        amostra: st['Amostra Coletada'] || '',
-                        certeza: st['Certeza'] || '',
-                        porte: st['Porte'] || '',
-                        tronco: st['Tronco'] || '',
-                        fotos: [st['Foto 1'], st['Foto 2'], st['Foto 3'], st['Foto 4'], st['Foto 5']].filter(Boolean),
-                        problemas: st['Problemas'] ? String(st['Problemas']).split(',').map(function(s){ return s.trim(); }) : [],
-                        interferencia: st['Interferencias'] ? String(st['Interferencias']).split(',').map(function(s){ return s.trim(); }) : [],
-                        intervencao: st['Intervencao'] || '',
-                        mesPoda: st['Mes Poda'] || '',
-                        dataUltimaPoda: st['Ultima Poda'] || '',
-                        observacoes: st['Observacoes'] || '',
-                        status: st['Status'] || 'saudavel',
-                        dataAtualizacao: st['Data Atualizacao'] ? new Date(st['Data Atualizacao']).getTime() : Date.now()
-                    };
-                    if (existingIdx === -1) {
-                        trees.push(item);
-                        modified = true;
-                    }
-                });
-                if (modified) {
-                    saveData();
-                    renderAll();
+function loadTreesFromSheets(isManual) {
+    if (isManual) {
+        showToast('Buscando dados da planilha oficial...');
+    }
+
+    fetch(CSV_EXPORT_URL)
+        .then(function(res) {
+            if (!res.ok) throw new Error('CSV status ' + res.status);
+            return res.text();
+        })
+        .then(function(csvText) {
+            var rows = parseCsv(csvText);
+            if (!rows || rows.length < 2) throw new Error('Planilha sem dados');
+
+            var headerMap = {};
+            rows[0].forEach(function(h, idx) {
+                headerMap[h.trim()] = idx;
+            });
+
+            var modified = false;
+            var addedCount = 0;
+
+            for (var i = 1; i < rows.length; i++) {
+                var r = rows[i];
+                var idIdx = headerMap['ID'];
+                var rawId = idIdx !== undefined ? r[idIdx] : r[0];
+                if (!rawId) continue;
+                var id = parseInt(rawId, 10);
+                if (isNaN(id)) continue;
+
+                var getVal = function(colName) {
+                    var idx = headerMap[colName];
+                    return (idx !== undefined && r[idx] !== undefined) ? r[idx].trim() : '';
+                };
+
+                var rawLat = getVal('Latitude');
+                var rawLng = getVal('Longitude');
+                var parsedLat = parseCoordinate(rawLat);
+                var parsedLng = parseCoordinate(rawLng);
+
+                var item = {
+                    id: id,
+                    timestamp: parseBrDate(getVal('Data Cadastro')),
+                    latitude: isNaN(parsedLat) ? rawLat : String(parsedLat),
+                    longitude: isNaN(parsedLng) ? rawLng : String(parsedLng),
+                    logradouro: getVal('Logradouro'),
+                    rua: getVal('Rua'),
+                    bairro: getVal('Bairro'),
+                    referencia: getVal('Referencia'),
+                    localPlantio: getVal('Local Plantio'),
+                    especie: getVal('Especie') || getVal('Nome Cientifico'),
+                    nomeCientifico: getVal('Nome Cientifico') || getVal('Especie'),
+                    nomePopular: COMMON_NAMES[getVal('Especie')] || COMMON_NAMES[getVal('Nome Cientifico')] || '',
+                    familia: getVal('Familia'),
+                    origem: getVal('Origem'),
+                    dataColeta: getVal('Data Coleta'),
+                    amostra: getVal('Amostra Coletada'),
+                    certeza: getVal('Certeza'),
+                    porte: getVal('Porte'),
+                    tronco: getVal('Tronco'),
+                    fotos: [
+                        getVal('Foto 1'),
+                        getVal('Foto 2'),
+                        getVal('Foto 3'),
+                        getVal('Foto 4'),
+                        getVal('Foto 5')
+                    ].filter(Boolean),
+                    problemas: getVal('Problemas') ? getVal('Problemas').split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [],
+                    interferencia: getVal('Interferencias') ? getVal('Interferencias').split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [],
+                    intervencao: getVal('Intervencao'),
+                    mesPoda: getVal('Mes Poda'),
+                    dataUltimaPoda: getVal('Ultima Poda'),
+                    observacoes: getVal('Observacoes'),
+                    status: getVal('Status') || 'saudavel',
+                    dataAtualizacao: parseBrDate(getVal('Data Atualizacao'))
+                };
+
+                if (!item.logradouro) {
+                    item.logradouro = [item.rua, item.bairro].filter(Boolean).join(', ');
+                }
+
+                var existingIdx = trees.findIndex(function(t) { return t.id === id; });
+                if (existingIdx === -1) {
+                    trees.push(item);
+                    modified = true;
+                    addedCount++;
+                } else {
+                    trees[existingIdx] = Object.assign({}, trees[existingIdx], item);
+                    modified = true;
                 }
             }
+
+            if (modified || isManual) {
+                saveData();
+                renderAll();
+                showToast(trees.length + ' árvores carregadas da planilha!');
+            }
         })
-        .catch(function() {
-            // Silencioso se offline, mantém cache local intacto
+        .catch(function(err) {
+            console.warn('Carga CSV indisponível, tentando Apps Script...', err);
+            if (!SHEETS_URL) return;
+            fetch(SHEETS_URL + '?action=list')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data && data.status === 'ok' && Array.isArray(data.trees) && data.trees.length > 0) {
+                        var modified = false;
+                        data.trees.forEach(function(st) {
+                            var rawId = st.ID || st.id;
+                            if (!rawId) return;
+                            var id = parseInt(rawId, 10);
+                            var existingIdx = trees.findIndex(function(t) { return t.id === id; });
+                            var pLat = parseCoordinate(st['Latitude']);
+                            var pLng = parseCoordinate(st['Longitude']);
+                            var item = {
+                                id: id,
+                                timestamp: parseBrDate(st['Data Cadastro']),
+                                latitude: isNaN(pLat) ? (st['Latitude'] || '') : String(pLat),
+                                longitude: isNaN(pLng) ? (st['Longitude'] || '') : String(pLng),
+                                rua: st['Rua'] || '',
+                                bairro: st['Bairro'] || '',
+                                logradouro: st['Logradouro'] || [st['Rua'], st['Bairro']].filter(Boolean).join(', '),
+                                referencia: st['Referencia'] || '',
+                                localPlantio: st['Local Plantio'] || '',
+                                especie: st['Especie'] || st['Nome Cientifico'] || '',
+                                nomeCientifico: st['Nome Cientifico'] || st['Especie'] || '',
+                                nomePopular: st['Nome Popular'] || COMMON_NAMES[st['Especie']] || '',
+                                familia: st['Familia'] || '',
+                                origem: st['Origem'] || '',
+                                dataColeta: st['Data Coleta'] || '',
+                                amostra: st['Amostra Coletada'] || '',
+                                certeza: st['Certeza'] || '',
+                                porte: st['Porte'] || '',
+                                tronco: st['Tronco'] || '',
+                                fotos: [st['Foto 1'], st['Foto 2'], st['Foto 3'], st['Foto 4'], st['Foto 5']].filter(Boolean),
+                                problemas: st['Problemas'] ? String(st['Problemas']).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [],
+                                interferencia: st['Interferencias'] ? String(st['Interferencias']).split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [],
+                                intervencao: st['Intervencao'] || '',
+                                mesPoda: st['Mes Poda'] || '',
+                                dataUltimaPoda: st['Ultima Poda'] || '',
+                                observacoes: st['Observacoes'] || '',
+                                status: st['Status'] || 'saudavel',
+                                dataAtualizacao: parseBrDate(st['Data Atualizacao'])
+                            };
+                            if (existingIdx === -1) {
+                                trees.push(item);
+                                modified = true;
+                            } else {
+                                trees[existingIdx] = Object.assign({}, trees[existingIdx], item);
+                                modified = true;
+                            }
+                        });
+                        if (modified || isManual) {
+                            saveData();
+                            renderAll();
+                            showToast(trees.length + ' árvores sincronizadas!');
+                        }
+                    }
+                })
+                .catch(function() {
+                    if (isManual) showToast('Modo offline: dados locais mantidos');
+                });
         });
 }
 
@@ -707,13 +906,15 @@ function initMap() {
 
     // Camada 1: Satélite (ArcGIS World Imagery)
     tileLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19
+        maxZoom: 19,
+        attribution: 'Esri Satellite'
     });
 
-    // Camada 2: Mapa de Ruas com Nomes Nítidos (CartoDB Voyager)
-    tileLayers.streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // Camada 2: Mapa de Ruas Nítido e Gratuito sem marcas d'água (OpenStreetMap Oficial)
+    tileLayers.streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd'
+        subdomains: ['a', 'b', 'c'],
+        attribution: '© OpenStreetMap contributors'
     });
 
     // Padrão: Satélite
@@ -775,13 +976,13 @@ function initMapControls() {
                 map.removeLayer(tileLayers.satellite);
                 tileLayers.streets.addTo(map);
                 currentLayerName = 'streets';
-                if (layerLabel) layerLabel.textContent = 'Ruas';
+                if (layerLabel) layerLabel.textContent = 'Ver Satélite';
                 btnLayer.classList.add('active');
             } else {
                 map.removeLayer(tileLayers.streets);
                 tileLayers.satellite.addTo(map);
                 currentLayerName = 'satellite';
-                if (layerLabel) layerLabel.textContent = 'Satélite';
+                if (layerLabel) layerLabel.textContent = 'Ver Ruas';
                 btnLayer.classList.remove('active');
             }
         });
@@ -1023,7 +1224,7 @@ function createTreeIcon(color) {
 }
 
 function updateMapTreeCounts() {
-    var validTrees = trees.filter(t => t.latitude && t.longitude);
+    var validTrees = trees.filter(t => !isNaN(parseCoordinate(t.latitude)) && !isNaN(parseCoordinate(t.longitude)));
     var countAll = validTrees.length;
     var countSaudavel = validTrees.filter(t => t.status === 'saudavel').length;
     var countAtencao = validTrees.filter(t => t.status === 'atencao').length;
@@ -1047,17 +1248,23 @@ function renderMapMarkers() {
 
     updateMapTreeCounts();
 
+    var validCoords = [];
+
     trees.forEach(t => {
-        if (!t.latitude || !t.longitude) return;
+        var lat = parseCoordinate(t.latitude);
+        var lng = parseCoordinate(t.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
 
         if (mapFilter !== 'all' && t.status !== mapFilter) return;
 
         var color = STATUS_COLORS[t.status] || '#10B981';
         var icon = createTreeIcon(color);
 
-        var marker = L.marker([parseFloat(t.latitude), parseFloat(t.longitude)], { icon: icon }).addTo(map);
+        var marker = L.marker([lat, lng], { icon: icon }).addTo(map);
+        validCoords.push([lat, lng]);
 
-        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var rawPhoto = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var photo = formatPhotoUrl(rawPhoto);
         var photoHtml = photo
             ? '<img src="' + photo + '" style="width:100%;height:85px;object-fit:cover;border-radius:8px;" alt="">'
             : '';
@@ -1080,6 +1287,12 @@ function renderMapMarkers() {
 
         markers[t.id] = marker;
     });
+
+    if (validCoords.length > 0 && !hasFittedBounds) {
+        var bounds = L.latLngBounds(validCoords);
+        map.fitBounds(bounds.pad(0.1));
+        hasFittedBounds = true;
+    }
 }
 
 function closePopups() { if (map) map.closePopup(); }
@@ -1294,7 +1507,7 @@ function openModal(id) {
 
     var date = t.timestamp ? new Date(t.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Data nao informada';
 
-    var photos = t.fotos || [];
+    var photos = (t.fotos || []).map(formatPhotoUrl);
     var photosHtml = '';
     if (photos.some(function(p) { return p; })) {
         var labels = ['Árvore inteira', 'Tronco', 'Folhas', 'Flores', 'Danos'];
@@ -1467,10 +1680,10 @@ function syncToSheets(data, action) {
         if (result && (result.success || result.status === 'ok')) {
             showToast('Salvo com sucesso na planilha!');
         } else {
-            showToast('Nao foi possivel salvar na planilha');
+            showToast('Salvo no dispositivo (pendente na planilha)');
         }
     }).catch(function(err) {
-        showToast('Nao foi possivel conectar na planilha');
+        showToast('Salvo no dispositivo (modo offline)');
     });
 }
 
@@ -1746,6 +1959,7 @@ function renderAll() {
     renderMapMarkers();
     renderRecent();
     populateLocationFilters();
+    renderCatalog();
 }
 
 function renderStats() {
@@ -1784,7 +1998,8 @@ function renderRecent() {
 
     el.innerHTML = sorted.map(function(t) {
         var color = STATUS_COLORS[t.status] || '#7A9444';
-        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var rawPhoto = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var photo = formatPhotoUrl(rawPhoto);
         var iconName = getTreeIcon(t.id);
         var nomePopular = t.nomePopular || COMMON_NAMES[t.especie] || '';
         var nomeCientifico = t.especie || '';
@@ -1869,7 +2084,8 @@ function renderCatalog() {
 
     el.innerHTML = filtered.map(function(t) {
         var color = STATUS_COLORS[t.status] || '#10B981';
-        var photo = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var rawPhoto = (t.fotos && t.fotos[0]) ? t.fotos[0] : '';
+        var photo = formatPhotoUrl(rawPhoto);
         var iconName = getTreeIcon(t.id);
 
         var iconHtml;
