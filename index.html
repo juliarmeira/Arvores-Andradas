@@ -7,7 +7,7 @@
     <title>Inventário Arbóreo - Andradas</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@0.446.0/dist/umd/lucide.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="index.css" />
@@ -143,7 +143,7 @@
                         <h2 class="header-title" id="formHeaderTitle">Novo Cadastro</h2>
                         <span class="header-subtitle">Inventário Arbóreo &bull; Andradas MG</span>
                     </div>
-                    <button type="button" class="header-action-btn theme-toggle-btn" title="Alternar tema">
+                    <button type="button" class="header-action-btn theme-toggle-btn" id="themeToggleForm" title="Alternar tema">
                         <i data-lucide="moon" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -405,7 +405,7 @@
                         <h2 class="header-title">Lista de Árvores</h2>
                         <span class="header-subtitle">Acervo e Estatísticas &bull; Andradas MG</span>
                     </div>
-                    <button type="button" class="header-action-btn theme-toggle-btn" title="Alternar tema">
+                    <button type="button" class="header-action-btn theme-toggle-btn" id="themeToggleCatalog" title="Alternar tema">
                         <i data-lucide="moon" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -580,28 +580,31 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
     <script>
-        lucide.createIcons();
-
-        // Anime.js entrance animations
+        // Anime.js entrance animations — run after DOM + app.js are ready
         document.addEventListener('DOMContentLoaded', function() {
-            // Animate stat cards on load
-            anime({
-                targets: '.stat-card',
-                translateY: [20, 0],
-                opacity: [0, 1],
-                duration: 600,
-                delay: anime.stagger(100, {start: 200}),
-                easing: 'easeOutCubic'
-            });
+            // Ensure all Lucide icons are rendered after page setup
+            if (window.lucide) lucide.createIcons();
 
-            // Animate headers on load
-            anime({
-                targets: '.app-compact-header',
-                translateY: [-10, 0],
-                opacity: [0, 1],
-                duration: 400,
-                easing: 'easeOutCubic'
-            });
+            // Animate stat cards on load
+            if (window.anime) {
+                anime({
+                    targets: '.stat-card',
+                    translateY: [20, 0],
+                    opacity: [0, 1],
+                    duration: 600,
+                    delay: anime.stagger(100, {start: 200}),
+                    easing: 'easeOutCubic'
+                });
+
+                // Animate headers on load
+                anime({
+                    targets: '.app-compact-header',
+                    translateY: [-10, 0],
+                    opacity: [0, 1],
+                    duration: 400,
+                    easing: 'easeOutCubic'
+                });
+            }
         });
     </script>
 </body>

@@ -558,7 +558,7 @@ function loadTreesFromSheets() {
 }
 
 function initTheme() {
-    var themeToggleBtns = document.querySelectorAll('#themeToggle, #themeToggleGlobal');
+    var themeToggleBtns = document.querySelectorAll('#themeToggle, #themeToggleGlobal, #themeToggleForm, #themeToggleCatalog');
     if (!themeToggleBtns.length) return;
 
     var activeTheme = localStorage.getItem('arbore_theme');
