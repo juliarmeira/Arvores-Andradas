@@ -1,186 +1,179 @@
-import express from "express";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { fileURLToPath } from "url";
+import http from "node:http";
+import { readFile, stat } from "node:fs/promises";
+import { extname, join, normalize, resolve } from "node:path";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = process.cwd();
+const port = Number(process.env.PORT) || 4178;
 
-// Carregar GEMINI_API_KEY
-let API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-if (!API_KEY) {
-  try {
-    const dotenvPath = path.resolve(__dirname, ".env");
-    if (fs.existsSync(dotenvPath)) {
-      const cfg = fs.readFileSync(dotenvPath, "utf-8");
-      const m = cfg.match(/GEMINI_API_KEY\s*=\s*(.+)/);
-      if (m) API_KEY = m[1].trim();
-    }
-  } catch (e) {
-    console.error("Erro ao ler arquivo .env:", e.message);
-  }
-}
+let localKey = "";
+try {
+  const cfg = await readFile(join(root, ".env"), "utf8");
+  localKey = cfg.match(/^PLANTNET_API_KEY=(.+)$/m)?.[1]?.trim() || "";
+} catch {}
 
-const app = express();
-const PORT = 3000;
+const types = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon"
+};
 
-// Configurar limites de JSON altos para fotos em base64
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
-// Servir arquivos estáticos da pasta public
-app.use(express.static(path.join(__dirname, "public")));
-
-// Endpoint para verificar configuração
-app.get("/api/config", (req, res) => {
-  res.json({
-    hasApiKey: !!API_KEY,
-    localIp: getLocalIp(),
-    port: PORT
+const json = (res, status, data) => {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Content-Type-Options": "nosniff"
   });
-});
+  res.end(JSON.stringify(data));
+};
 
-// Endpoint proxy para buscar árvores cadastradas na planilha
-app.get("/api/trees", async (req, res) => {
-  try {
-    const { url } = req.query;
-    if (!url) {
-      return res.status(400).json({ error: "URL da planilha não fornecida" });
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { "Accept": "application/json" }
+const readBody = (req, limit = 2_000_000) =>
+  new Promise((res, rej) => {
+    const parts = [];
+    let size = 0;
+    req.on("data", c => {
+      size += c.length;
+      if (size > limit) {
+        rej(new Error("Requisição excede o limite máximo permitido"));
+        req.destroy();
+      } else parts.push(c);
     });
+    req.on("end", () => res(Buffer.concat(parts)));
+    req.on("error", rej);
+  });
 
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar dados do Google Apps Script (${response.status})`);
-    }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error("Erro ao buscar árvores:", error);
-    res.status(500).json({ error: error.message || "Erro desconhecido ao carregar árvores." });
+// Whitelist of allowed public paths for safe static serving
+const isAllowedStatic = (relPath) => {
+  if (!relPath || relPath.includes("..") || relPath.startsWith(".") || relPath.includes("/.")) {
+    return false;
   }
-});
+  const clean = relPath.toLowerCase().replace(/\\/g, "/");
+  if (clean === "index.html" || clean === "index.css" || clean === "index.js" || clean === "favicon.ico") {
+    return true;
+  }
+  if (clean.startsWith("data/") && (clean.endsWith(".js") || clean.endsWith(".json"))) {
+    return true;
+  }
+  return false;
+};
 
-// Endpoint proxy para o Gemini
-app.post("/api/analyze-tree", async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
-    const { photoBase64, customApiKey } = req.body;
+    const u = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
-    if (!photoBase64) {
-      return res.status(400).json({ error: "Foto não fornecida" });
+    if (req.method === "GET" && u.pathname === "/api/config") {
+      return json(res, 200, {
+        plantnetConfigured: !!(process.env.PLANTNET_API_KEY || localKey)
+      });
     }
 
-    const key = customApiKey || API_KEY;
-    if (!key) {
-      return res.status(400).json({ error: "Chave da API Gemini não configurada no servidor. Por favor, configure nas configurações do app." });
-    }
+    if (req.method === "POST" && u.pathname === "/api/identify") {
+      const key = u.searchParams.get("key") || process.env.PLANTNET_API_KEY || localKey;
+      if (!key) return json(res, 400, { error: "Chave Pl@ntNet não configurada" });
 
-    // Processar base64 da foto
-    const match = photoBase64.match(/^data:(image\/\w+);base64,(.+)$/);
-    if (!match) {
-      return res.status(400).json({ error: "Formato de imagem inválido" });
-    }
-    const mimeType = match[1];
-    const base64Data = match[2];
-
-    const PROMPT_JSON = `Você é um botânico forense e fiscal ambiental especializado em vistorias técnicas para avaliação de árvores.
-Analise a foto da árvore com rigor técnico e retorne um objeto JSON estritamente no seguinte formato:
-{
-  "scientificName": "Nome científico da árvore (ex: Tabebuia alba)",
-  "popularNames": "Nomes populares separados por vírgula (ex: Ipê Amarelo, Ipê)",
-  "family": "Família botânica (ex: Bignoniaceae)",
-  "origin": "Origem: Nativa do Brasil ou Exótica",
-  "dimensions": "Porte estimado: Altura, Diâmetro de Tronco, Copa (ex: Altura: 10m, DAP: 35cm, Copa: 6m)",
-  "developmentStage": "Estádio de desenvolvimento: Jovem, Adulto ou Senil",
-  "barkCondition": "Diagnóstico do estado da casca: Relate se há lesões, rachaduras profundas, desprendimento anormal, ocos ou se está saudável",
-  "pestsAndDiseases": "Sinais de pragas/doenças: Identifique se há cupins, fungos orelha-de-pau, brocas ou outras pragas. Caso não haja nada, indique 'Nenhuma identificada'",
-  "riskLevel": "Nível de risco estimado de queda ou quebra de galhos grandes: Baixo, Médio ou Alto",
-  "conflicts": "Conflitos visíveis com estruturas urbanas: Ex: fiação elétrica, calçada levantada, muros trincados, tubulação ou 'Nenhum visível'",
-  "parecer": "Parecer inicial de manejo sugerido: FAVORÁVEL (para corte/remoção se houver risco grave ou morte), DESFAVORÁVEL (manter árvore saudável), ou NECESSITA AVALIAÇÃO PRESENCIAL (se a imagem não der certeza)",
-  "justificativa": "Justificativa técnica detalhada sobre as condições da árvore e o motivo do parecer acima.",
-  "confidence": "Grau de confiança da identificação botânica: Alto, Médio ou Baixo"
-}
-
-IMPORTANTE: Seja conservador. Se não for possível identificar a espécie ou avaliar o risco devido à qualidade da foto ou ângulo, indique isso nos campos correspondentes.`;
-
-    const requestBody = {
-      contents: [
+      const multipart = await readBody(req, 55_000_000);
+      const upstream = await fetch(
+        `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(key)}&lang=pt&nb-results=5`,
         {
-          parts: [
-            { text: PROMPT_JSON },
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType
-              }
-            }
-          ]
+          method: "POST",
+          headers: {
+            "content-type": req.headers["content-type"] || "multipart/form-data",
+            "content-length": String(multipart.length)
+          },
+          body: multipart
         }
-      ],
-      generationConfig: {
-        temperature: 0.15,
-        maxOutputTokens: 8192,
-        responseMimeType: "application/json"
-      }
-    };
+      );
+      const body = await upstream.text();
+      res.writeHead(upstream.status, {
+        "Content-Type": upstream.headers.get("content-type") || "application/json",
+        "X-Content-Type-Options": "nosniff"
+      });
+      return res.end(body);
+    }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-      {
+    if (req.method === "POST" && u.pathname === "/api/sheet") {
+      const bodyBuffer = await readBody(req);
+      let data;
+      try {
+        data = JSON.parse(bodyBuffer.toString("utf8"));
+      } catch {
+        return json(res, 400, { ok: false, error: "JSON inválido" });
+      }
+
+      const target = data.url || process.env.SHEETS_WEBHOOK_URL;
+      if (!target || !/^https:\/\/script\.google\.com\//i.test(target)) {
+        return json(res, 400, { ok: false, error: "URL válida do Google Apps Script não configurada" });
+      }
+
+      const upstream = await fetch(target, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(data.payload),
+        redirect: "follow"
+      });
+
+      const text = await upstream.text();
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = { ok: upstream.ok, response: text.slice(0, 300) };
       }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Erro na API do Gemini (${response.status}): ${errText}`);
+      return json(res, upstream.ok ? 200 : 502, result);
     }
 
-    const responseData = await response.json();
-    const responseText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!responseText) {
-      throw new Error("Resposta vazia da API do Gemini.");
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return json(res, 405, { error: "Método não permitido" });
     }
 
-    // Retornar o JSON analisado para o frontend
-    const parsedData = JSON.parse(responseText.trim());
-    res.json(parsedData);
+    // Static file serving with strict whitelist & path sanitization
+    const rawPath = decodeURIComponent(u.pathname);
+    const rel = rawPath === "/" ? "index.html" : rawPath.replace(/^\/+/, "");
 
-  } catch (error) {
-    console.error("Erro na análise da árvore:", error);
-    res.status(500).json({ error: error.message || "Erro desconhecido na análise da árvore." });
+    if (!isAllowedStatic(rel)) {
+      return json(res, 404, { error: "Arquivo não encontrado ou acesso restrito" });
+    }
+
+    const filePath = resolve(root, normalize(rel));
+    if (!filePath.startsWith(resolve(root))) {
+      return json(res, 403, { error: "Acesso proibido" });
+    }
+
+    try {
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile()) {
+        return json(res, 404, { error: "Arquivo não encontrado" });
+      }
+    } catch {
+      return json(res, 404, { error: "Arquivo não encontrado" });
+    }
+
+    const body = await readFile(filePath);
+    const ext = extname(filePath).toLowerCase();
+    res.writeHead(200, {
+      "Content-Type": types[ext] || "application/octet-stream",
+      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+      "X-Content-Type-Options": "nosniff"
+    });
+    if (req.method === "HEAD") {
+      return res.end();
+    }
+    return res.end(body);
+  } catch (e) {
+    console.error("[servidor]", e.message);
+    if (!res.headersSent) {
+      json(res, 500, { error: "Erro interno do servidor", message: e.message });
+    } else {
+      res.end();
+    }
   }
 });
 
-// Função para buscar IP local
-function getLocalIp() {
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === "IPv4" && !net.internal) {
-        return net.address;
-      }
-    }
-  }
-  return "127.0.0.1";
-}
-
-// Iniciar servidor
-app.listen(PORT, "0.0.0.0", () => {
-  const localIp = getLocalIp();
-  console.log("\n" + "=".repeat(64));
-  console.log("  🌳 SISTEMA DE CADASTRO E VISTORIA DE ÁRVORES - ANDRADAS 🌳");
-  console.log("=".repeat(64));
-  console.log(`\n  🖥️  Acesso no Computador:  http://localhost:${PORT}`);
-  console.log(`  📱  Acesso no Celular:     http://${localIp}:${PORT}`);
-  console.log("\n  * Certifique-se de que o celular está no mesmo Wi-Fi do computador.");
-  console.log("  * A interface no computador exibirá um QR Code para escanear!");
-  console.log("=".repeat(64) + "\n");
+server.listen(port, "127.0.0.1", () => {
+  console.log(`Parecer Ambiental rodando em: http://127.0.0.1:${port}`);
 });

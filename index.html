@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#153f34">
+  <meta name="description" content="Sistema de Vistoria Ambiental e Emissão de Parecer Técnico - Deliberação Normativa CODEMA nº 09/2026 - Município de Andradas/MG">
+  <title>Parecer Ambiental · Vistoria Arbórea · Andradas/MG</title>
+  <link rel="stylesheet" href="index.css?v=6">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">PA</span>
+    <div>
+      <strong>Parecer Ambiental</strong>
+      <small>Vistoria arbórea · DN CODEMA 09/2026</small>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="status">Andradas · MG</span>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Secretaria de Planejamento Urbano e Meio Ambiente</p>
+      <h1>Vistoria clara.<br>Parecer consistente.</h1>
+      <p>Cadastre o processo, identifique com auxílio botânico, avalie o risco e gere o parecer oficial com memória de compensação.</p>
+    </div>
+    <div class="hero-leaf" aria-hidden="true">☘</div>
+  </section>
+
+  <nav class="steps" aria-label="Etapas do Processo" role="tablist">
+    <button class="step active" data-tab="requerimento" role="tab" aria-selected="true" id="step-requerimento">
+      <b>1</b><span>Requerimento</span>
+    </button>
+    <button class="step" data-tab="especies" role="tab" aria-selected="false" id="step-especies">
+      <b>2</b><span>Espécies e fotos</span>
+    </button>
+    <button class="step" data-tab="avaliacao" role="tab" aria-selected="false" id="step-avaliacao">
+      <b>3</b><span>Avaliação técnica</span>
+    </button>
+    <button class="step" data-tab="parecer" role="tab" aria-selected="false" id="step-parecer">
+      <b>4</b><span>Parecer e compensação</span>
+    </button>
+  </nav>
+
+  <!-- ETAPA 1: REQUERIMENTO -->
+  <section class="panel tab active" id="tab-requerimento" role="tabpanel" aria-labelledby="step-requerimento">
+    <header class="panel-head">
+      <span>01</span>
+      <div>
+        <p class="eyebrow">Etapa inicial</p>
+        <h2>Identificação do requerimento</h2>
+        <p>Dados administrativos do processo e objeto da solicitação de intervenção arbórea.</p>
+      </div>
+    </header>
+    <div class="grid two">
+      <label>Número do processo / protocolo
+        <input id="processo" placeholder="Ex.: 01234/2026" autocomplete="off">
+      </label>
+      <label>Requerente (Solicitante)
+        <input id="requerente" placeholder="Nome completo ou razão social" autocomplete="off">
+      </label>
+      <label class="full">Endereço da vistoria
+        <input id="local" placeholder="Rua, número, bairro e pontos de referência" autocomplete="off">
+      </label>
+      <label>Solicitação principal
+        <select id="intervencao">
+          <option value="corte">Corte ou supressão</option>
+          <option value="substituicao">Substituição de espécime</option>
+          <option value="poda">Poda técnica de condução/limpeza</option>
+          <option value="podadrastica">Poda drástica (>30% copa)</option>
+          <option value="transplante">Transplante de árvore</option>
+        </select>
+      </label>
+      <label>Quantidade de árvores
+        <input id="quantidade" type="number" min="1" max="100" step="1" value="1">
+      </label>
+      <label class="full">Finalidade do pedido
+        <select id="finalidade">
+          <option value="seguranca">Segurança e prevenção de risco de queda</option>
+          <option value="fitossanitaria">Condição fitossanitária (doença severa / sem vida)</option>
+          <option value="infraestrutura">Conflito com infraestrutura urbana / redes</option>
+          <option value="danos">Danos à edificação ou ao patrimônio</option>
+          <option value="obra">Implantação de obra pública ou privada</option>
+          <option value="manejo">Manejo e adequação da arborização urbana</option>
+          <option value="outro">Outro motivo tecnicamente justificado</option>
+        </select>
+      </label>
+    </div>
+    <div class="next-row">
+      <button class="primary" data-go="especies" type="button">Continuar para espécies e fotos →</button>
+    </div>
+  </section>
+
+  <!-- ETAPA 2: ESPÉCIES E FOTOS -->
+  <section class="panel tab" id="tab-especies" role="tabpanel" aria-labelledby="step-especies" hidden>
+    <header class="panel-head">
+      <span>02</span>
+      <div>
+        <p class="eyebrow">Identificação assistida</p>
+        <h2>Espécies e registro fotográfico</h2>
+        <p>Adicione fotos nítidas do exemplar para sugestão via Pl@ntNet e validação na Flora e Funga do Brasil.</p>
+      </div>
+    </header>
+
+    <div class="api-box">
+      <div>
+        <strong>Identificação botânica via Pl@ntNet</strong>
+        <small>As fotos são comprimidas localmente e enviadas somente quando você clicar em "Identificar com Pl@ntNet".</small>
+      </div>
+      <label>Chave da API Pl@ntNet
+        <input id="plantnet-key" type="password" autocomplete="off" placeholder="Chave de my.plantnet.org">
+      </label>
+      <button id="save-key" type="button">Salvar chave</button>
+    </div>
+
+    <div id="trees-container" class="tree-forms"></div>
+
+    <div class="next-row">
+      <button data-go="requerimento" type="button">← Voltar</button>
+      <button class="primary" data-go="avaliacao" type="button">Continuar para avaliação técnica →</button>
+    </div>
+  </section>
+
+  <!-- ETAPA 3: AVALIAÇÃO TÉCNICA -->
+  <section class="panel tab" id="tab-avaliacao" role="tabpanel" aria-labelledby="step-avaliacao" hidden>
+    <header class="panel-head">
+      <span>03</span>
+      <div>
+        <p class="eyebrow">Vistoria de campo</p>
+        <h2>Avaliação biométrica e fitossanitária</h2>
+        <p>Informe as medidas individuais e selecione as condições observadas in loco.</p>
+      </div>
+    </header>
+
+    <div id="assessment-container" class="tree-forms"></div>
+
+    <div class="grid three">
+      <label>Enquadramento da área
+        <select id="area">
+          <option value="privada">Área privada comum</option>
+          <option value="publica">Área pública (passeio / canteiro / praça)</option>
+          <option value="app">Área de Preservação Permanente (APP)</option>
+          <option value="verde">Área verde pública municipal</option>
+        </select>
+      </label>
+      <label>Árvore de grande porte?
+        <select id="grande">
+          <option value="nao">Não</option>
+          <option value="sim">Sim (porte expressivo)</option>
+          <option value="duvida">Inconclusivo / Não determinado</option>
+        </select>
+      </label>
+      <label>Valor paisagístico, histórico ou cultural
+        <select id="valor">
+          <option value="nao">Não identificado</option>
+          <option value="sim">Relevante / Notável</option>
+          <option value="duvida">Necessita laudo específico</option>
+        </select>
+      </label>
+      <label>Impacto ambiental ou controvérsia
+        <select id="impacto">
+          <option value="nao">Sem controvérsia / baixo impacto</option>
+          <option value="sim">Impacto relevante / controvérsia</option>
+          <option value="duvida">Inconclusivo</option>
+        </select>
+      </label>
+      <label>Alternativa técnica ao corte
+        <select id="alternativa">
+          <option value="insuficiente">Poda ou tratamento inviável/insuficiente</option>
+          <option value="suficiente">Poda, tratamento ou manejo suficiente</option>
+          <option value="naoavaliada">Não avaliada</option>
+        </select>
+      </label>
+      <label>Hipótese especial
+        <select id="especial">
+          <option value="nenhum">Nenhum caso especial</option>
+          <option value="ameacada">Espécie protegida ou ameaçada</option>
+          <option value="cercaviva">Cerca-viva (Art. 11 DN 09/2026)</option>
+          <option value="obra">Obra pública municipal (Art. 16 DN 09/2026)</option>
+          <option value="sensivel">Área ou exemplar ambientalmente sensível</option>
+        </select>
+      </label>
+      <label>Conclusão técnica do fiscal
+        <select id="conclusao">
+          <option value="deferir">Favorável ao pedido (condicionado)</option>
+          <option value="indeferir">Desfavorável (indeferimento)</option>
+          <option value="diligencia">Necessária diligência / laudo complementar</option>
+        </select>
+      </label>
+      <label>Forma de cumprimento da compensação
+        <select id="forma">
+          <option value="direta">Execução direta: plantio compensatório</option>
+          <option value="pecuniaria">Execução indireta: pecuniária (FMMA)</option>
+          <option value="doacao">Execução indireta: doação de bens/projetos</option>
+          <option value="dispensa">Dispensa motivada (Art. 9º §2º - exótica sem vida)</option>
+          <option value="naoaplica">Não se aplica</option>
+        </select>
+      </label>
+      <label>Plantio compensatório no próprio imóvel
+        <select id="proprio">
+          <option value="sim">Viável no próprio lote</option>
+          <option value="nao">Inviável no lote; indicar área pública</option>
+          <option value="naoaplica">Não se aplica</option>
+        </select>
+      </label>
+      <label>Responsável pela execução do corte
+        <select id="executor">
+          <option value="requerente">Requerente / Proprietário</option>
+          <option value="municipio">Município (Secretaria de Obras / SPUMA)</option>
+          <option value="definir">A definir no ato autorizativo</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="full">Diagnóstico circunstanciado e justificativa técnica
+      <textarea id="diagnostico" rows="5" placeholder="Descreva os achados da vistoria: fitossanidade, interferências radiculares, fiação, risco estrutural, funções ambientais e justificativa da alternativa adotada."></textarea>
+    </label>
+
+    <div class="next-row">
+      <button data-go="especies" type="button">← Voltar</button>
+      <button class="primary" data-go="parecer" type="button">Ver enquadramento e parecer →</button>
+    </div>
+  </section>
+
+  <!-- ETAPA 4: PARECER E COMPENSAÇÃO -->
+  <section class="panel tab" id="tab-parecer" role="tabpanel" aria-labelledby="step-parecer" hidden>
+    <header class="panel-head">
+      <span>04</span>
+      <div>
+        <p class="eyebrow">Resultado técnico-jurídico</p>
+        <h2>Enquadramento, compensação e parecer</h2>
+        <p>Confira a competência decisória e a memória de cálculo antes de emitir o parecer.</p>
+      </div>
+    </header>
+
+    <div class="summary">
+      <article id="rota">
+        <small>Competência Decisória</small>
+        <strong>Aguardando avaliação...</strong>
+      </article>
+      <article id="modelo">
+        <small>Ato Administrativo</small>
+        <strong>Aguardando avaliação...</strong>
+      </article>
+      <article id="compensacao">
+        <small>Compensação Ambiental (DN 09/2026)</small>
+        <strong>Aguardando avaliação...</strong>
+      </article>
+    </div>
+
+    <div id="alertas" class="alerts" hidden></div>
+
+    <div class="actions">
+      <button id="gerar" class="primary" type="button">Gerar parecer técnico</button>
+      <button data-go="avaliacao" type="button">← Revisar avaliação</button>
+    </div>
+
+    <!-- DOCUMENTO EMITIDO -->
+    <div id="documento" class="document-card" hidden>
+      <div class="document-head">
+        <div>
+          <h3 id="titulo-modelo">Parecer Técnico Ambiental</h3>
+          <small id="subtitulo-modelo" class="text-muted">Prefeitura Municipal de Andradas · SPUMA</small>
+        </div>
+        <span id="rota-badge">SPUMA</span>
+      </div>
+      <textarea id="saida" class="output" rows="28" aria-label="Texto do Parecer Técnico"></textarea>
+      <div class="actions">
+        <button id="copiar" class="primary" type="button">Copiar texto</button>
+        <button id="baixar" type="button">Baixar parecer (.txt)</button>
+        <button id="imprimir" type="button">Imprimir / Salvar PDF</button>
+      </div>
+    </div>
+
+    <!-- REGISTRO NA PLANILHA DE CONTROLE -->
+    <section class="sheet-card">
+      <header class="sheet-head">
+        <div>
+          <p class="eyebrow">Controle administrativo</p>
+          <h3>Registrar na planilha de compensação</h3>
+          <p>Envia o protocolo, requerente, enquadramento e coordenadas diretamente à planilha oficial.</p>
+        </div>
+        <a class="button-link" href="https://docs.google.com/spreadsheets/d/1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU/edit" target="_blank" rel="noopener">
+          Abrir planilha Google ↗
+        </a>
+      </header>
+
+      <div class="grid three">
+        <label>Data do registro
+          <input id="sheet-data" type="date">
+        </label>
+        <label>Coordenada 1 (Corte / Latitude)
+          <input id="coord-corte-1" placeholder="Ex.: -22.06742">
+        </label>
+        <label>Coordenada 2 (Corte / Longitude)
+          <input id="coord-corte-2" placeholder="Ex.: -46.56891">
+        </label>
+        <label>Responsável pelo corte
+          <select id="responsavel-corte">
+            <option>Solicitante</option>
+            <option>Sec. de Obras</option>
+            <option>A definir</option>
+          </select>
+        </label>
+        <label>Autorização
+          <select id="autorizacao">
+            <option>Município (SPUMA)</option>
+            <option>CODEMA</option>
+          </select>
+        </label>
+        <label>Data da autorização
+          <input id="data-autorizacao" type="date">
+        </label>
+        <label>Prazo de execução / compensação
+          <input id="prazo" type="date">
+        </label>
+        <label>Coordenada 1 (Compensação)
+          <input id="coord-comp-1" placeholder="Latitude plantio">
+        </label>
+        <label>Coordenada 2 (Compensação)
+          <input id="coord-comp-2" placeholder="Longitude plantio">
+        </label>
+        <label>Situação do processo
+          <select id="situacao">
+            <option>Aguardando Compensação</option>
+            <option>Compensado</option>
+            <option>Em Análise</option>
+            <option>Indeferido</option>
+          </select>
+        </label>
+        <label class="full">URL do Webhook do Google Apps Script
+          <input id="sheet-webhook" placeholder="https://script.google.com/macros/s/.../exec">
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="save-sheet" class="primary" type="button">Salvar registro na planilha</button>
+      </div>
+      <p id="sheet-status" class="sheet-status" role="status" aria-live="polite"></p>
+    </section>
+  </section>
+</main>
+
+<footer>
+  <p>Parecer Ambiental Andradas · Sistema de Apoio Técnico · DN CODEMA nº 09/2026 e LC 163/2015.</p>
+  <small>A identificação por imagem e os cálculos automáticos servem de subsídio e devem ser validados pelo fiscal/responsável técnico habilitado.</small>
+</footer>
+
+<script src="data/flora-ameacada.js"></script>
+<script src="index.js?v=6"></script>
+</body>
+</html>

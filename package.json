@@ -1,13 +1,11 @@
 {
-  "name": "vistoria-ambiental-web",
-  "version": "1.0.0",
-  "description": "Aplicativo de Cadastro e Vistoria Ambiental de Árvores com IA",
-  "main": "server.js",
+  "name": "parecer-ambiental-dn9",
+  "version": "3.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js && node --check index.js"
   },
-  "dependencies": {
-    "express": "^4.19.2"
-  }
+  "engines": { "node": ">=20" }
 }
