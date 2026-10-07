@@ -2061,6 +2061,7 @@ function renderProcessos() {
     else if (p.situacao.includes('Compensação')) badgeClass = 'compensacao';
     else if (p.situacao === 'Concluído' || p.situacao === 'Compensado') badgeClass = 'concluido';
     else if (p.situacao === 'Indeferido') badgeClass = 'indeferido';
+    const canConfirmCompensation = /Aguardando Compensação|Autorizado/i.test(p.situacao || '');
 
     return `
       <article class="processo-card">
@@ -2100,11 +2101,16 @@ function renderProcessos() {
         </div>
 
         <footer class="processo-actions">
+          ${canConfirmCompensation ? `
+            <button type="button" class="btn-sm btn-confirm-compensacao" data-id="${esc(p.id)}">
+              ✓ Confirmar compensação
+            </button>
+          ` : ''}
           <button type="button" class="btn-sm button-outline btn-resume-proc" data-id="${esc(p.id)}" title="Carregar no formulário para continuar ou alterar">
             📝 Continuar / Editar
           </button>
           <button type="button" class="btn-sm primary btn-view-parecer" data-id="${esc(p.id)}">
-            📄 Ver Parecer
+            📋 Detalhes
           </button>
           <button type="button" class="btn-sm btn-change-status" data-id="${esc(p.id)}">
             ✏️ Situação
@@ -2116,6 +2122,10 @@ function renderProcessos() {
       </article>
     `;
   }).join('');
+
+  listEl.querySelectorAll('.btn-confirm-compensacao').forEach(btn => {
+    btn.addEventListener('click', () => confirmCompensacao(btn.dataset.id));
+  });
 
   listEl.querySelectorAll('.btn-resume-proc').forEach(btn => {
     btn.addEventListener('click', () => resumeProcesso(btn.dataset.id));
@@ -2703,6 +2713,38 @@ async function savePlantNetKey() {
   }, 2500);
 }
 
+async function syncProcessStatus(processo, situacao, compensacao) {
+  const response = await fetch('/api/process-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ protocolo: processo.protocolo, situacao, compensacao: compensacao || processo.compensacao || '' })
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível atualizar a planilha');
+  return data;
+}
+
+async function confirmCompensacao(procId) {
+  const p = processos.find(x => x.id === procId);
+  if (!p) return;
+  if (!confirm(`Confirmar que a compensação do processo nº ${p.protocolo} foi cumprida?`)) return;
+
+  const dataConfirmacao = new Date().toLocaleDateString('pt-BR');
+  const compensacao = p.compensacao
+    ? `${p.compensacao} — Cumprimento confirmado em ${dataConfirmacao}`
+    : `Compensação cumprida em ${dataConfirmacao}`;
+  try {
+    await syncProcessStatus(p, 'Compensado', compensacao);
+    p.situacao = 'Compensado';
+    p.compensacao = compensacao;
+    p.compensacaoConfirmadaEm = dataConfirmacao;
+    p.updatedAt = new Date().toISOString();
+    saveProcessos();
+    alert(`✓ Compensação do processo nº ${p.protocolo} confirmada na planilha.`);
+  } catch (error) {
+    alert(`Não foi possível confirmar a compensação: ${error.message}`);
+  }
+}
 function viewProcessoParecer(procId) {
   const p = processos.find(x => x.id === procId);
   if (!p) return;
@@ -2711,10 +2753,20 @@ function viewProcessoParecer(procId) {
   const modal = $('modal-processo');
   if (!modal) return;
 
+  const hasParecer = Boolean(String(p.parecerTexto || '').trim());
   $('modal-processo-badge').textContent = `Proc. nº ${p.protocolo}`;
-  $('modal-processo-titulo').textContent = `Parecer: ${p.intervencaoLabel || p.intervencao}`;
-  $('modal-processo-sub').textContent = `${p.requerente} · ${p.endereco}`;
-  $('modal-parecer-texto').value = p.parecerTexto || '[Nenhum parecer técnico gerado ainda para este processo.]';
+  $('modal-processo-titulo').textContent = 'Detalhes do processo';
+  $('modal-processo-sub').textContent = `${p.requerente || 'Requerente não informado'} · ${p.endereco || 'Endereço não informado'}`;
+  $('modal-resumo-situacao').textContent = p.situacao || 'Em Análise';
+  $('modal-resumo-objeto').textContent = p.intervencaoLabel || p.intervencao || 'Não informado';
+  $('modal-resumo-compensacao').textContent = p.compensacao || 'Não informada';
+  $('modal-parecer-aviso').textContent = hasParecer
+    ? 'Documento técnico salvo para este processo.'
+    : 'Este processo veio da planilha e ainda não possui texto de parecer salvo no aplicativo.';
+  $('modal-parecer-texto').value = hasParecer ? p.parecerTexto : '';
+  $('modal-parecer-texto').hidden = !hasParecer;
+  $('modal-btn-copiar').disabled = !hasParecer;
+  $('modal-btn-imprimir').disabled = !hasParecer;
   $('modal-status-select').value = p.situacao || 'Em Análise';
 
   const treeInfo = $('modal-tree-info');
@@ -2741,18 +2793,22 @@ function openStatusModal(procId) {
   viewProcessoParecer(procId);
 }
 
-function updateViewingProcessStatus() {
+async function updateViewingProcessStatus() {
   if (!currentViewingProcessId) return;
   const p = processos.find(x => x.id === currentViewingProcessId);
   if (!p) return;
 
   const newStatus = val('modal-status-select');
-  p.situacao = newStatus;
-  p.updatedAt = new Date().toISOString();
-  saveProcessos();
-
-  alert(`✓ Situação do processo atualizada para: ${newStatus}`);
-  $('modal-processo')?.close();
+  try {
+    await syncProcessStatus(p, newStatus, p.compensacao);
+    p.situacao = newStatus;
+    p.updatedAt = new Date().toISOString();
+    saveProcessos();
+    alert(`✓ Situação atualizada na planilha para: ${newStatus}`);
+    $('modal-processo')?.close();
+  } catch (error) {
+    alert(`Não foi possível atualizar a situação: ${error.message}`);
+  }
 }
 
 function deleteProcesso(procId) {

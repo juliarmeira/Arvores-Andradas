@@ -189,6 +189,35 @@ const server = http.createServer(async (req, res) => {
       return res.end(body);
     }
 
+    // ── POST /api/process-status (atualiza linha existente com segurança) ─────
+    if (req.method === "POST" && u.pathname === "/api/process-status") {
+      const bodyBuffer = await readBody(req);
+      let data;
+      try { data = JSON.parse(bodyBuffer.toString("utf8")); }
+      catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
+      const protocolo = String(data.protocolo || "").trim();
+      const situacao = String(data.situacao || "").trim();
+      if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
+
+      const target = process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
+      try {
+        const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
+        const capability = await capabilityResponse.json();
+        if (Number(capability.apiVersion || 0) < 2) {
+          return json(res, 409, { ok: false, error: "Atualize e publique novamente o Google Apps Script da Vistoria antes de alterar situações." });
+        }
+        const upstream = await fetch(target, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "updateStatus", protocolo, situacao, compensacao: String(data.compensacao || "") }),
+          redirect: "follow"
+        });
+        const result = await upstream.json();
+        return json(res, upstream.ok && result.ok ? 200 : 502, result);
+      } catch (error) {
+        return json(res, 502, { ok: false, error: error.message });
+      }
+    }
     // ── POST /api/sheet (proxy Apps Script doPost) ───────────────────────────
     if (req.method === "POST" && u.pathname === "/api/sheet") {
       const bodyBuffer = await readBody(req);

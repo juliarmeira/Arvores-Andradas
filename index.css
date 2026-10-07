@@ -1998,6 +1998,42 @@ footer p {
   font-size: .72rem;
   font-variant-numeric: tabular-nums;
 }
+.btn-confirm-compensacao {
+  background: #1f7a4f;
+  border-color: #1f7a4f;
+  color: #fff;
+  font-weight: 800;
+}
+.btn-confirm-compensacao:hover { background: #155f3c; border-color: #155f3c; }
+.process-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.process-summary article {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7faf8;
+}
+.process-summary article small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.process-summary article strong { color: var(--forest); font-size: .9rem; line-height: 1.4; }
+.process-summary-wide { grid-column: 1 / -1; }
+.parecer-viewer { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.parecer-viewer-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 10px; }
+.parecer-viewer-head h4 { margin: 2px 0 0; color: var(--forest); font-size: 1.05rem; }
+.parecer-viewer-head small { max-width: 55%; text-align: right; }
+.parecer-viewer .output[hidden] { display: none; }
+.dialog-actions button:disabled { opacity: .45; cursor: not-allowed; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 3px solid rgba(47, 115, 91, .28);
   outline-offset: 2px;

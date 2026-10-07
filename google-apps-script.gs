@@ -7,6 +7,29 @@ function doPost(e) {
     const p = JSON.parse(e.postData.contents);
     const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error('Aba Página1 não encontrada');
+    if (p.action === 'updateStatus') {
+      const protocolo = String(p.protocolo || '').trim();
+      const situacao = String(p.situacao || '').trim();
+      if (!protocolo || !situacao) throw new Error('Protocolo e situação são obrigatórios');
+
+      const lastRow = sheet.getLastRow();
+      const protocolos = lastRow > 1 ? sheet.getRange(2, 2, lastRow - 1, 1).getDisplayValues() : [];
+      let targetRow = 0;
+      for (let i = protocolos.length - 1; i >= 0; i--) {
+        if (String(protocolos[i][0]).trim() === protocolo) {
+          targetRow = i + 2;
+          break;
+        }
+      }
+      if (!targetRow) throw new Error('Processo não encontrado: ' + protocolo);
+
+      sheet.getRange(targetRow, 15).setValue(situacao);
+      if (p.compensacao) sheet.getRange(targetRow, 11).setValue(String(p.compensacao));
+      SpreadsheetApp.flush();
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, row: targetRow, protocolo: protocolo, situacao: situacao }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     const brDate = value => value ? Utilities.parseDate(value, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
     sheet.appendRow([
       brDate(p.data), p.protocolo || '', p.solicitante || '', p.endereco || '', p.solicitacao || '',
@@ -15,7 +38,7 @@ function doPost(e) {
       p.coordComp2 || '', p.situacao || 'Aguardando Compensação'
     ]);
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, row: sheet.getLastRow() }))
+      .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, row: sheet.getLastRow() }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService
@@ -33,7 +56,7 @@ function doGet(e) {
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) {
       return ContentService
-        .createTextOutput(JSON.stringify({ ok: true, trees: [], processes: [] }))
+        .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, trees: [], processes: [] }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -96,7 +119,7 @@ function doGet(e) {
     }
 
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, trees: trees, processes: processes }))
+      .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, trees: trees, processes: processes }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {

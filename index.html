@@ -537,7 +537,11 @@
       <button id="modal-processo-close" class="close-btn" type="button" aria-label="Fechar">✕</button>
     </header>
     <div class="dialog-body">
-      <div id="modal-tree-info" class="modal-tree-info" hidden></div>
+      <section class="process-summary" aria-label="Resumo do processo">
+        <article><small>Situação atual</small><strong id="modal-resumo-situacao">—</strong></article>
+        <article><small>Solicitação</small><strong id="modal-resumo-objeto">—</strong></article>
+        <article class="process-summary-wide"><small>Compensação ambiental</small><strong id="modal-resumo-compensacao">—</strong></article>
+      </section>      <div id="modal-tree-info" class="modal-tree-info" hidden></div>
       <section id="modal-process-map-section" class="process-map-section" hidden aria-label="Localização da árvore">
         <div class="process-map-heading">
           <div>
@@ -549,7 +553,16 @@
         <div id="modal-process-map" class="process-map-canvas"></div>
         <small id="modal-process-map-caption" class="process-map-caption"></small>
       </section>
-      <textarea id="modal-parecer-texto" class="output" rows="18" readonly></textarea>
+      <section class="parecer-viewer">
+        <div class="parecer-viewer-head">
+          <div>
+            <span class="process-map-kicker">Documento técnico</span>
+            <h4>Parecer</h4>
+          </div>
+          <small id="modal-parecer-aviso" class="text-muted"></small>
+        </div>
+        <textarea id="modal-parecer-texto" class="output" rows="18" readonly></textarea>
+      </section>
     </div>
     <footer class="dialog-footer">
       <div class="dialog-status-changer">
@@ -603,7 +616,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=10"></script>
+<script defer src="index.js?v=11"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">
