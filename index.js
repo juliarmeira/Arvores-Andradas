@@ -25,6 +25,14 @@ const organs = [
   ['fruto', 'Fruto']
 ];
 
+const INVENTORY_API_URL = 'https://script.google.com/macros/s/AKfycbzYaVf1-1iWrUVNZZkvNwPH1TvNqEqS7EYqu2goz-gNTO7tw5ZvKVPXz-HIZB6jrHiB/exec';
+let inventoryTrees = [];
+let linkedTree = null;
+let processos = [];
+let activeProcessFilter = 'todos';
+let activeProcessSearch = '';
+let currentViewingProcessId = null;
+
 let trees = [];
 
 const defaultTree = i => ({
@@ -44,7 +52,8 @@ const defaultTree = i => ({
   doenca: 'ausente',
   conflito: 'nenhum',
   risco: 'nao',
-  observacao: ''
+  observacao: '',
+  inventoryId: null
 });
 
 // Normaliza nome científico para os 2 primeiros termos (gênero + epíteto)
@@ -168,6 +177,89 @@ function floraBox(t) {
   `;
 }
 
+const COMMON_TREES = [
+  // Espécies nativas recomendadas e urbanas comuns em Andradas e região
+  { popular: 'Ipê-amarelo', cientifico: 'Handroanthus chrysotrichus', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Ipê-amarelo-do-brejo', cientifico: 'Handroanthus albus', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Ipê-amarelo-cascudo', cientifico: 'Handroanthus serratifolius', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Ipê-branco', cientifico: 'Tabebuia roseoalba', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Ipê-roxo', cientifico: 'Handroanthus impetiginosus', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Ipê-rosa', cientifico: 'Handroanthus heptaphyllus', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Quaresmeira', cientifico: 'Pleroma granulosum', familia: 'Melastomataceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Quaresmeira-roxa', cientifico: 'Tibouchina granulosa', familia: 'Melastomataceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Sibipiruna', cientifico: 'Poincianella pluviosa', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Pata-de-vaca nativa', cientifico: 'Bauhinia forficata', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Pata-de-vaca (flor branca)', cientifico: 'Bauhinia variegata var. candida', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Pata-de-vaca (flor lilás/roxa)', cientifico: 'Bauhinia variegata', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Pitanga (Pitangueira)', cientifico: 'Eugenia uniflora', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Jabuticaba (Jabuticabeira)', cientifico: 'Plinia cauliflora', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Cambuci', cientifico: 'Campomanesia phaea', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Cereja-do-mato', cientifico: 'Eugenia involucrata', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Grumixama', cientifico: 'Eugenia brasiliensis', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Goiaba (Goiabeira)', cientifico: 'Psidium guajava', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Araçá', cientifico: 'Psidium cattleianum', familia: 'Myrtaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Aroeira-salsa', cientifico: 'Schinus molle', familia: 'Anacardiaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Aroeira-pimenteira', cientifico: 'Schinus terebinthifolia', familia: 'Anacardiaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Manacá-da-serra', cientifico: 'Pleroma mutabile', familia: 'Melastomataceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Jacarandá-mimoso', cientifico: 'Jacaranda mimosifolia', familia: 'Bignoniaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Jacarandá-da-bahia', cientifico: 'Dalbergia nigra', familia: 'Fabaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Pau-ferro', cientifico: 'Libidibia ferrea', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Pau-brasil', cientifico: 'Paubrasilia echinata', familia: 'Fabaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Cedro-rosa', cientifico: 'Cedrela fissilis', familia: 'Meliaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Araucária (Pinheiro-do-paraná)', cientifico: 'Araucaria angustifolia', familia: 'Araucariaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Pequi (Pequizeiro)', cientifico: 'Caryocar brasiliense', familia: 'Caryocaraceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Buriti', cientifico: 'Mauritia flexuosa', familia: 'Arecaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Palmito-juçara', cientifico: 'Euterpe edulis', familia: 'Arecaceae', origem: 'nativa', protegida: 'sim' },
+  { popular: 'Canafístula', cientifico: 'Peltophorum dubium', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Paineira-rosa', cientifico: 'Ceiba speciosa', familia: 'Malvaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Jerivá (Coqueiro-jerivá)', cientifico: 'Syagrus romanzoffiana', familia: 'Arecaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Macaúba', cientifico: 'Acrocomia aculeata', familia: 'Arecaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Oiti', cientifico: 'Licania tomentosa', familia: 'Chrysobalanaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Ingá', cientifico: 'Inga edulis', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  { popular: 'Sombreiro (Clitória)', cientifico: 'Clitoria fairchildiana', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' },
+  // Espécies exóticas frequentes em calçadas/jardins
+  { popular: 'Acerola', cientifico: 'Malpighia emarginata', familia: 'Malpighiaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Amora (Amoreira)', cientifico: 'Morus nigra', familia: 'Moraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Resedá (Extremosa)', cientifico: 'Lagerstroemia indica', familia: 'Lythraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Resedá-gigante', cientifico: 'Lagerstroemia speciosa', familia: 'Lythraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Fícus (Benjamina)', cientifico: 'Ficus benjamina', familia: 'Moraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Ficus microcarpa', cientifico: 'Ficus microcarpa', familia: 'Moraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Ligustro (Alfeneiro)', cientifico: 'Ligustrum lucidum', familia: 'Oleaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Ligustro-arbustivo', cientifico: 'Ligustrum sinense', familia: 'Oleaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Flamboyant', cientifico: 'Delonix regia', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Chapéu-de-sol (Amendoeira)', cientifico: 'Terminalia catappa', familia: 'Combretaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Tipuana', cientifico: 'Tipuana tipu', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Mangueira', cientifico: 'Mangifera indica', familia: 'Anacardiaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Abacateiro', cientifico: 'Persea americana', familia: 'Lauraceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Grevílea', cientifico: 'Grevillea robusta', familia: 'Proteaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Pinus (Pinheiro-americano)', cientifico: 'Pinus elliottii', familia: 'Pinaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Eucalipto', cientifico: 'Eucalyptus spp.', familia: 'Myrtaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Palmeira-imperial', cientifico: 'Roystonea oleracea', familia: 'Arecaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Palmeira-seafórtia', cientifico: 'Archontophoenix cunninghamiana', familia: 'Arecaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Espatódia (Bisnagueira)', cientifico: 'Spathodea campanulata', familia: 'Bignoniaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Magnólia-amarela', cientifico: 'Magnolia champaca', familia: 'Magnoliaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Chuva-de-ouro', cientifico: 'Cassia fistula', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Casuarina', cientifico: 'Casuarina equisetifolia', familia: 'Casuarinaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Chorão (Salgueiro-chorão)', cientifico: 'Salix babylonica', familia: 'Salicaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Leucena', cientifico: 'Leucaena leucocephala', familia: 'Fabaceae', origem: 'exotica', protegida: 'nao' },
+  { popular: 'Sansão-do-campo', cientifico: 'Mimosa caesalpiniifolia', familia: 'Fabaceae', origem: 'nativa', protegida: 'nao' }
+];
+
+// Relação oficial do município de Andradas extraída do modelo de ofício do CODEMA
+const MUNICIPAL_RECOMMENDED_TREES = [
+  { nome: 'Ipê branco', cientifico: 'Tabebuia roseoalba', desc: 'Nativa, floração exuberante' },
+  { nome: 'Pitanga', cientifico: 'Eugenia uniflora', desc: 'Nativa, frutífera atrativa da avifauna' },
+  { nome: 'Quaresmeira', cientifico: 'Pleroma granulosum / Tibouchina granulosa', desc: 'Nativa, floração roxa/rosa' },
+  { nome: 'Cambuci', cientifico: 'Campomanesia phaea', desc: 'Nativa, fruto tradicional da Mata Atlântica' },
+  { nome: 'Cereja-do-mato', cientifico: 'Eugenia involucrata', desc: 'Nativa, excelente para calçadas e quintais' },
+  { nome: 'Grumixama', cientifico: 'Eugenia brasiliensis', desc: 'Nativa, porte nobre e frutos saborosos' },
+  { nome: 'Goiaba', cientifico: 'Psidium guajava', desc: 'Frutífera rústica e adaptada' },
+  { nome: 'Acerola', cientifico: 'Malpighia emarginata', desc: 'Pequeno porte, ideal para calçadas estreitas' },
+  { nome: 'Amora', cientifico: 'Morus nigra', desc: 'Frutífera de rápido crescimento' },
+  { nome: 'Araçá', cientifico: 'Psidium cattleianum', desc: 'Nativa, alta rusticidade e frutos' },
+  { nome: 'Aroeira salsa', cientifico: 'Schinus molle', desc: 'Nativa, copa graciosa, raízes não agressivas' }
+];
+
 function photoSlots(t, i) {
   return organs.map(([key, title]) => `
     <label class="photo-slot" title="Adicionar foto: ${title}">
@@ -179,6 +271,7 @@ function photoSlots(t, i) {
   `).join('');
 }
 
+// Template unificado de cada exemplar para a Etapa 2 (Vistoria a Campo)
 function speciesTemplate(t, i) {
   const hasPhotos = Object.keys(t.photos).length > 0;
   return `
@@ -186,24 +279,34 @@ function speciesTemplate(t, i) {
       <header class="tree-card-head">
         <div>
           <small>Exemplar Arbóreo nº ${i + 1}</small>
-          <strong>${esc(t.popular || t.cientifico || 'Espécie não informada')}</strong>
+          <strong>${esc(t.popular || t.cientifico || 'Exemplar sem identificação')}</strong>
         </div>
-        <span class="badge ${t.flora ? 'badge-ok' : ''}">${t.flora ? 'Flora consultada' : 'Aguardando dados'}</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="badge ${t.condicao === 'semvida' ? 'badge-urgent' : t.risco === 'sim' ? 'badge-urgent' : ''}">
+            ${t.condicao === 'semvida' ? 'Sem vida biológica' : t.risco === 'sim' ? 'Risco iminente' : 'Normal'}
+          </span>
+          <span class="badge ${t.flora ? 'badge-ok' : ''}">${t.flora ? 'Flora consultada' : 'Aguardando dados'}</span>
+        </div>
       </header>
+
       <div class="tree-body">
+        <!-- BLOCO 1: REGISTRO FOTOGRÁFICO & PLANTNET -->
         <div class="subhead">
-          <h3>Registro fotográfico para identificação</h3>
-          <p>Tire ou anexe fotos de diferentes partes do mesmo exemplar para maior precisão.</p>
+          <h3>Identificação Botânica do Exemplar</h3>
+          <p>Tire fotos para o Pl@ntNet ou digite o <b>Nome Popular</b> para obter sugestões automáticas com nome científico.</p>
         </div>
+
         <div class="photo-slots">${photoSlots(t, i)}</div>
+
         <div class="identify-row">
           <button type="button" class="primary identify" ${hasPhotos ? '' : 'disabled'}>
             Identificar com Pl@ntNet
           </button>
           <small class="identify-status">
-            ${hasPhotos ? `${Object.keys(t.photos).length} foto(s) anexada(s). Clique para enviar.` : 'Adicione pelo menos uma foto para identificação.'}
+            ${hasPhotos ? `${Object.keys(t.photos).length} foto(s) anexada(s). Clique para enviar.` : 'Adicione pelo menos uma foto para identificação por IA.'}
           </small>
         </div>
+
         <div class="results" id="results-${i}">
           ${(t.predictions || []).map((r, n) => `
             <button type="button" class="result-option" data-tree="${i}" data-result="${n}">
@@ -215,21 +318,29 @@ function speciesTemplate(t, i) {
             </button>
           `).join('')}
         </div>
-        <div class="grid three">
-          <label>Nome popular
-            <input class="popular" value="${esc(t.popular)}" placeholder="Ex.: Ipê-amarelo">
-          </label>
+
+        <!-- BLOCO 2: CAMPOS BOTÂNICOS COM AUTOCOMPLETE ÁGIL -->
+        <div class="grid three" style="margin-top: 14px;">
+          <div class="input-with-autocomplete">
+            <label>Nome popular (digite para autocompletar)
+              <input class="popular" value="${esc(t.popular)}" placeholder="Ex.: Ipê, Quaresmeira, Sibipiruna..." autocomplete="off">
+            </label>
+            <div class="popular-suggestions" id="pop-sugg-${i}" hidden></div>
+          </div>
+
           <div class="input-with-button">
             <label>Nome científico
               <div class="input-group">
                 <input class="cientifico" value="${esc(t.cientifico)}" placeholder="Ex.: Handroanthus albus">
-                <button type="button" class="lookup">Consultar Flora</button>
+                <button type="button" class="lookup" title="Validar na base oficial da Flora e Funga do Brasil">Consultar Flora</button>
               </div>
             </label>
           </div>
+
           <label>Família botânica
             <input class="familia" value="${esc(t.familia)}" placeholder="Ex.: Bignoniaceae">
           </label>
+
           <label>Origem da espécie
             <select class="origem">
               <option value="duvida" ${t.origem === 'duvida' ? 'selected' : ''}>Não determinada</option>
@@ -237,6 +348,7 @@ function speciesTemplate(t, i) {
               <option value="exotica" ${t.origem === 'exotica' ? 'selected' : ''}>Exótica (introduzida)</option>
             </select>
           </label>
+
           <label>Grau de confirmação
             <select class="certeza">
               <option value="duvida" ${t.certeza === 'duvida' ? 'selected' : ''}>Dúvida / Em conferência</option>
@@ -244,6 +356,7 @@ function speciesTemplate(t, i) {
               <option value="confirmada" ${t.certeza === 'confirmada' ? 'selected' : ''}>Confirmada pelo fiscal</option>
             </select>
           </label>
+
           <label>Enquadramento legal
             <select class="protegida">
               <option value="duvida" ${t.protegida === 'duvida' ? 'selected' : ''}>Aguardando consulta</option>
@@ -251,71 +364,75 @@ function speciesTemplate(t, i) {
               <option value="nao" ${t.protegida === 'nao' ? 'selected' : ''}>Sem proteção especial</option>
             </select>
           </label>
+
           <div class="flora-box" id="flora-box-${i}">
             ${floraBox(t)}
           </div>
         </div>
-      </div>
-    </article>
-  `;
-}
 
-function assessmentTemplate(t, i) {
-  return `
-    <article class="tree-card assessment" data-tree="${i}" id="assessment-card-${i}">
-      <header class="tree-card-head">
-        <div>
-          <small>Vistoria nº ${i + 1}</small>
-          <strong>${esc(t.popular || t.cientifico || 'Exemplar sem identificação')}</strong>
-        </div>
-        <span class="badge">${t.condicao === 'semvida' ? 'Sem vida biológica' : t.risco === 'sim' ? 'Risco iminente' : 'Normal'}</span>
-      </header>
-      <div class="tree-body">
-        <div class="grid three">
-          <label>DAP - Diâmetro à Altura do Peito (cm)
-            <input class="dap" type="number" min="0" max="500" step="0.5" value="${t.dap || ''}" placeholder="Ex.: 25">
-          </label>
-          <label>Altura total estimada (m)
-            <input class="altura" type="number" min="0" max="100" step="0.5" value="${t.altura || ''}" placeholder="Ex.: 8">
-          </label>
-          <label>Condição biológica (Art. 2º VI e Art. 9º)
-            <select class="condicao">
-              <option value="viva" ${t.condicao === 'viva' ? 'selected' : ''}>Viva e viável</option>
-              <option value="declinio" ${t.condicao === 'declinio' ? 'selected' : ''}>Em declínio severo</option>
-              <option value="semvida" ${t.condicao === 'semvida' ? 'selected' : ''}>Sem vida (morta / inviável)</option>
-              <option value="duvida" ${t.condicao === 'duvida' ? 'selected' : ''}>Inconclusiva</option>
-            </select>
-          </label>
-          <label>Sinais de pragas ou podridão
-            <select class="doenca">
-              <option value="ausente" ${t.doenca === 'ausente' ? 'selected' : ''}>Sem sinais aparentes</option>
-              <option value="leve" ${t.doenca === 'leve' ? 'selected' : ''}>Sinais leves (tratável)</option>
-              <option value="ativa" ${t.doenca === 'ativa' ? 'selected' : ''}>Infestação ativa / ocos</option>
-              <option value="severa" ${t.doenca === 'severa' ? 'selected' : ''}>Podridão basal / brocas severas</option>
-              <option value="duvida" ${t.doenca === 'duvida' ? 'selected' : ''}>Não avaliada</option>
-            </select>
-          </label>
-          <label>Conflito urbano constatado
-            <select class="conflito">
-              <option value="nenhum" ${t.conflito === 'nenhum' ? 'selected' : ''}>Nenhum conflito relevante</option>
-              <option value="fiacao" ${t.conflito === 'fiacao' ? 'selected' : ''}>Fiação / rede aérea</option>
-              <option value="edificacao" ${t.conflito === 'edificacao' ? 'selected' : ''}>Edificação / muro / telhado</option>
-              <option value="calcada" ${t.conflito === 'calcada' ? 'selected' : ''}>Passeio público / encanamento</option>
-              <option value="viario" ${t.conflito === 'viario' ? 'selected' : ''}>Tráfego viário / sinalização</option>
-              <option value="obra" ${t.conflito === 'obra' ? 'selected' : ''}>Interferência com obra autorizada</option>
-            </select>
-          </label>
-          <label>Risco de queda (Art. 2º VII e Art. 10º)
-            <select class="risco">
-              <option value="nao" ${t.risco === 'nao' ? 'selected' : ''}>Sem risco aparente de queda</option>
-              <option value="monitorar" ${t.risco === 'monitorar' ? 'selected' : ''}>Risco potencial (monitorar)</option>
-              <option value="sim" ${t.risco === 'sim' ? 'selected' : ''}>Risco atual ou iminente (urgência)</option>
-              <option value="duvida" ${t.risco === 'duvida' ? 'selected' : ''}>Inconclusivo / requer laudo</option>
-            </select>
-          </label>
-          <label class="full">Observações específicas deste exemplar
-            <textarea class="observacao" rows="2" placeholder="Descreva particularidades do exemplar, tais como inclinação do fuste, necroses, interferências ou medidas prévias adotadas.">${esc(t.observacao)}</textarea>
-          </label>
+        <!-- BLOCO 3: AVALIAÇÃO DE CAMPO, BIOMETRIA E RISCOS -->
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
+          <div class="subhead" style="margin-bottom: 12px;">
+            <h3 style="font-size: 0.98rem; display:flex; align-items:center; gap:6px;">
+              <span>🩺</span> Avaliação Fitossanitária e Biometria de Campo
+            </h3>
+            <p>Registre a sanidade e conflitos. As medidas biométricas são utilizadas para o cálculo compensatório da DN 09/2026 e não aparecem no parecer emitido.</p>
+          </div>
+
+          <div class="grid three">
+            <label>Condição biológica (Art. 2º VI e Art. 9º)
+              <select class="condicao">
+                <option value="viva" ${t.condicao === 'viva' ? 'selected' : ''}>Viva e viável</option>
+                <option value="declinio" ${t.condicao === 'declinio' ? 'selected' : ''}>Em declínio severo</option>
+                <option value="semvida" ${t.condicao === 'semvida' ? 'selected' : ''}>Sem vida biológica (morta / inviável)</option>
+                <option value="duvida" ${t.condicao === 'duvida' ? 'selected' : ''}>Inconclusiva</option>
+              </select>
+            </label>
+
+            <label>Sinais de pragas ou podridão
+              <select class="doenca">
+                <option value="ausente" ${t.doenca === 'ausente' ? 'selected' : ''}>Sem sinais aparentes</option>
+                <option value="leve" ${t.doenca === 'leve' ? 'selected' : ''}>Sinais leves (tratável)</option>
+                <option value="ativa" ${t.doenca === 'ativa' ? 'selected' : ''}>Infestação ativa / ocos</option>
+                <option value="severa" ${t.doenca === 'severa' ? 'selected' : ''}>Podridão basal / brocas severas</option>
+                <option value="duvida" ${t.doenca === 'duvida' ? 'selected' : ''}>Não avaliada</option>
+              </select>
+            </label>
+
+            <label>Conflito urbano constatado
+              <select class="conflito">
+                <option value="nenhum" ${t.conflito === 'nenhum' ? 'selected' : ''}>Nenhum conflito relevante</option>
+                <option value="fiacao" ${t.conflito === 'fiacao' ? 'selected' : ''}>Fiação / rede aérea</option>
+                <option value="edificacao" ${t.conflito === 'edificacao' ? 'selected' : ''}>Edificação / muro / telhado</option>
+                <option value="calcada" ${t.conflito === 'calcada' ? 'selected' : ''}>Passeio público / encanamento</option>
+                <option value="viario" ${t.conflito === 'viario' ? 'selected' : ''}>Tráfego viário / sinalização</option>
+                <option value="obra" ${t.conflito === 'obra' ? 'selected' : ''}>Interferência com obra autorizada</option>
+              </select>
+            </label>
+
+            <label>Risco de queda (Art. 2º VII e Art. 10º)
+              <select class="risco">
+                <option value="nao" ${t.risco === 'nao' ? 'selected' : ''}>Sem risco aparente de queda</option>
+                <option value="monitorar" ${t.risco === 'monitorar' ? 'selected' : ''}>Risco potencial (monitorar)</option>
+                <option value="sim" ${t.risco === 'sim' ? 'selected' : ''}>Risco atual ou iminente (urgência)</option>
+                <option value="duvida" ${t.risco === 'duvida' ? 'selected' : ''}>Inconclusivo / requer laudo</option>
+              </select>
+            </label>
+
+            <label>DAP - Diâmetro à Altura do Peito (cm)
+              <input class="dap" type="number" min="0" max="500" step="0.5" value="${t.dap || ''}" placeholder="Ex.: 25">
+              <small class="text-muted" style="display:block; font-size:0.75rem; margin-top:2px;">*Cálculo compensatório interno. Não sai no parecer.</small>
+            </label>
+
+            <label>Altura total estimada (m)
+              <input class="altura" type="number" min="0" max="100" step="0.5" value="${t.altura || ''}" placeholder="Ex.: 8">
+              <small class="text-muted" style="display:block; font-size:0.75rem; margin-top:2px;">*Registro de campo. Não sai no parecer.</small>
+            </label>
+
+            <label class="full">Observações específicas deste exemplar
+              <textarea class="observacao" rows="2" placeholder="Descreva particularidades do exemplar, tais como inclinação do fuste, necroses, podridão do colo ou proximidade com rede.">${esc(t.observacao)}</textarea>
+            </label>
+          </div>
         </div>
       </div>
     </article>
@@ -327,19 +444,7 @@ function syncSpecies() {
   document.querySelectorAll('#trees-container .tree-card').forEach((c, i) => {
     if (!trees[i]) return;
     const t = trees[i];
-    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida']) {
-      const el = c.querySelector('.' + k);
-      if (el) t[k] = el.value;
-    }
-  });
-}
-
-// Sincroniza dados da Etapa 3 lendo os inputs da tela para o objeto trees
-function syncAssessment() {
-  document.querySelectorAll('#assessment-container .assessment').forEach((c, i) => {
-    if (!trees[i]) return;
-    const t = trees[i];
-    for (const k of ['condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
+    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
       const el = c.querySelector('.' + k);
       if (el) t[k] = el.value;
     }
@@ -350,24 +455,21 @@ function syncAssessment() {
   });
 }
 
+function syncAssessment() {
+  syncSpecies();
+}
+
 // Sincroniza um card específico sem re-renderizar todo o DOM
 function syncCard(i) {
   const sc = document.getElementById(`species-card-${i}`);
   if (sc && trees[i]) {
-    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida']) {
+    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
       const el = sc.querySelector('.' + k);
       if (el) trees[i][k] = el.value;
     }
-  }
-  const ac = document.getElementById(`assessment-card-${i}`);
-  if (ac && trees[i]) {
-    for (const k of ['condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
-      const el = ac.querySelector('.' + k);
-      if (el) trees[i][k] = el.value;
-    }
-    const dapEl = ac.querySelector('.dap');
+    const dapEl = sc.querySelector('.dap');
     if (dapEl) trees[i].dap = Math.max(0, Number(dapEl.value) || 0);
-    const altEl = ac.querySelector('.altura');
+    const altEl = sc.querySelector('.altura');
     if (altEl) trees[i].altura = Math.max(0, Number(altEl.value) || 0);
   }
 }
@@ -376,18 +478,14 @@ function syncCard(i) {
 function renderAll(capture = true) {
   if (capture) {
     syncSpecies();
-    syncAssessment();
   }
   const q = Math.max(1, Math.min(100, Math.floor(Number(val('quantidade')) || 1)));
   trees = Array.from({ length: q }, (_, i) => trees[i] || defaultTree(i));
 
   const tc = $('trees-container');
-  const ac = $('assessment-container');
   if (tc) tc.innerHTML = trees.map(speciesTemplate).join('');
-  if (ac) ac.innerHTML = trees.map(assessmentTemplate).join('');
 
   bindSpecies();
-  bindAssessment();
   update();
 }
 
@@ -400,7 +498,6 @@ function bindSpecies() {
         if (!file) return;
         loadPhoto(file, src => {
           trees[i].photos[e.target.dataset.organ] = src;
-          // Atualiza o slot visualmente sem perder os outros campos
           const slot = inp.closest('.photo-slot');
           if (slot) {
             slot.querySelector('div').innerHTML = `<img src="${src}" alt="Foto">`;
@@ -436,30 +533,113 @@ function bindSpecies() {
       });
     });
 
-    // Atualização reativa de digitação
+    // AUTOCOMPLETE ÁGIL DO NOME POPULAR
+    const popInput = card.querySelector('.popular');
+    const suggBox = card.querySelector(`#pop-sugg-${i}`);
+    if (popInput && suggBox) {
+      popInput.addEventListener('input', () => {
+        const query = popInput.value.trim().toLowerCase();
+        if (query.length < 2) {
+          suggBox.hidden = true;
+          suggBox.innerHTML = '';
+          return;
+        }
+
+        const matches = COMMON_TREES.filter(t => {
+          return t.popular.toLowerCase().includes(query) ||
+                 t.cientifico.toLowerCase().includes(query);
+        }).slice(0, 8);
+
+        if (!matches.length) {
+          suggBox.hidden = true;
+          suggBox.innerHTML = '';
+          return;
+        }
+
+        suggBox.innerHTML = matches.map((m, idx) => `
+          <div class="pop-sugg-item" data-idx="${idx}">
+            <div class="sugg-top">
+              <strong>🌳 ${esc(m.popular)}</strong>
+              <span class="tag-origin ${m.origem}">${m.origem === 'nativa' ? 'Nativa' : 'Exótica'}</span>
+            </div>
+            <div class="sugg-bot">
+              <em>${esc(m.cientifico)}</em> · <small>${esc(m.familia)}</small>
+            </div>
+          </div>
+        `).join('');
+        suggBox.hidden = false;
+
+        // Clique em uma sugestão
+        suggBox.querySelectorAll('.pop-sugg-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const idx = Number(item.dataset.idx);
+            const chosen = matches[idx];
+            if (!chosen) return;
+
+            // Preenche o objeto da árvore
+            trees[i].popular = chosen.popular;
+            trees[i].cientifico = chosen.cientifico;
+            trees[i].familia = chosen.familia;
+            trees[i].origem = chosen.origem;
+            trees[i].protegida = chosen.protegida || 'nao';
+            trees[i].certeza = 'confirmada';
+
+            // Preenche os campos do card no DOM
+            popInput.value = chosen.popular;
+            const sciInp = card.querySelector('.cientifico');
+            if (sciInp) sciInp.value = chosen.cientifico;
+            const famInp = card.querySelector('.familia');
+            if (famInp) famInp.value = chosen.familia;
+            const origSel = card.querySelector('.origem');
+            if (origSel) origSel.value = chosen.origem;
+            const protSel = card.querySelector('.protegida');
+            if (protSel) protSel.value = chosen.protegida;
+            const certSel = card.querySelector('.certeza');
+            if (certSel) certSel.value = 'confirmada';
+
+            const cardTitle = card.querySelector('.tree-card-head strong');
+            if (cardTitle) cardTitle.textContent = chosen.popular;
+
+            suggBox.hidden = true;
+            suggBox.innerHTML = '';
+
+            // Dispara validação taxonômica oficial na Flora do Brasil
+            lookupFlora(i, card);
+            update();
+          });
+        });
+      });
+
+      // Fecha o menu de sugestões se clicar fora
+      document.addEventListener('click', e => {
+        if (!popInput.contains(e.target) && !suggBox.contains(e.target)) {
+          suggBox.hidden = true;
+        }
+      });
+    }
+
+    // Atualização reativa de digitação e selects
     card.addEventListener('input', () => {
       syncCard(i);
       const title = card.querySelector('.tree-card-head strong');
-      if (title) title.textContent = trees[i].popular || trees[i].cientifico || 'Espécie não informada';
-      // Sincroniza o cabeçalho correspondente na etapa de avaliação
-      const acHead = document.querySelector(`#assessment-card-${i} .tree-card-head strong`);
-      if (acHead) acHead.textContent = trees[i].popular || trees[i].cientifico || 'Exemplar sem identificação';
+      if (title) title.textContent = trees[i].popular || trees[i].cientifico || 'Exemplar sem identificação';
+      const badge = card.querySelector('.tree-card-head .badge');
+      if (badge) {
+        badge.textContent = trees[i].condicao === 'semvida' ? 'Sem vida biológica' : trees[i].risco === 'sim' ? 'Risco iminente' : 'Normal';
+        badge.className = 'badge ' + (trees[i].condicao === 'semvida' || trees[i].risco === 'sim' ? 'badge-urgent' : '');
+      }
+      update();
+    });
+
+    card.addEventListener('change', () => {
+      syncCard(i);
       update();
     });
   });
 }
 
 function bindAssessment() {
-  document.querySelectorAll('#assessment-container .assessment').forEach((card, i) => {
-    card.addEventListener('input', () => {
-      syncCard(i);
-      const badge = card.querySelector('.tree-card-head .badge');
-      if (badge) {
-        badge.textContent = trees[i].condicao === 'semvida' ? 'Sem vida biológica' : trees[i].risco === 'sim' ? 'Risco iminente' : 'Normal';
-      }
-      update();
-    });
-  });
+  // Integrado no bindSpecies
 }
 
 // Comprime imagem usando Canvas para manter a requisição rápida e leve
@@ -872,20 +1052,20 @@ function calculateCompensation() {
 
     const band = dapBand(t.dap);
     if (band === 'jovem') {
-      detalhes.push(`Árvore ${t.numero}: DAP < 5cm (exemplar jovem/arvoreta, sem exigência de tabela do Art. 7º; recomenda-se reposição 1:1).`);
+      detalhes.push(`Árvore nº ${t.numero} (${t.popular || t.cientifico || 'Exemplar'}, exemplar jovem): Reposição 1:1 recomendada.`);
       totalMudas += 1;
       totalUfm += (t.origem === 'nativa' ? 80 : 40);
       return;
     }
 
     if (!band) {
-      pendencias.push(`Árvore ${t.numero} (DAP não informado)`);
+      pendencias.push(`Árvore nº ${t.numero} (porte biométrico não informado)`);
       return;
     }
 
     const row = table[t.origem]?.[band];
     if (!row) {
-      pendencias.push(`Árvore ${t.numero} (faixa não identificada)`);
+      pendencias.push(`Árvore nº ${t.numero} (faixa não identificada)`);
       return;
     }
 
@@ -901,11 +1081,12 @@ function calculateCompensation() {
 
     totalMudas += m;
     totalUfm += u;
-    detalhes.push(`Árvore ${t.numero} (${t.origem}, DAP ${t.dap}cm): ${m} mudas ou ${u} UFM${motivoAgravante}.`);
+    const nomeIdent = t.popular ? `${t.popular} (${t.cientifico || 'espécie identificada'})` : (t.cientifico || 'Exemplar vistoriado');
+    detalhes.push(`Árvore nº ${t.numero} [${nomeIdent}, ${t.origem === 'nativa' ? 'Nativa' : 'Exótica'}]: ${m} muda(s) nativa(s) ou ${u} UFM${motivoAgravante}.`);
   });
 
   const baseText = `${totalMudas} muda(s) nativa(s) ou ${totalUfm} UFM`;
-  const pendText = pendencias.length ? ` [Pendente de aferição para: ${pendencias.join(', ')}]` : '';
+  const pendText = pendencias.length ? ` [Pendente de validação para: ${pendencias.join(', ')}]` : '';
 
   return {
     text: `${baseText}${pendText}`,
@@ -917,6 +1098,13 @@ function calculateCompensation() {
 }
 
 function model(e) {
+  const destinacao = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
+  if (destinacao === 'codema') {
+    return 'Ofício de Encaminhamento ao CODEMA (Deliberação Plenária)';
+  }
+  if (destinacao === 'obras') {
+    return 'Ofício à Secretaria de Obras (Execução com Maquinário Público)';
+  }
   if (e.conclusao === 'diligencia' || e.doubts) {
     return 'Parecer de Diligência Técnica / Complementação';
   }
@@ -926,10 +1114,7 @@ function model(e) {
   if (e.urgent) {
     return 'Autorização Ambiental de Urgência (Risco Iminente - Art. 10º)';
   }
-  if (e.codema) {
-    return 'Parecer Técnico para Deliberação do CODEMA (Art. 3º § 2º)';
-  }
-  return 'Parecer Técnico de Deferimento Direto pela SPUMA (Art. 3º § 1º)';
+  return 'Parecer Técnico de Vistoria Ambiental / Autorização';
 }
 
 function route(e) {
@@ -939,7 +1124,7 @@ function route(e) {
   if (e.codema) {
     return 'Submissão obrigatória à Plenária do CODEMA para deliberação colegiada (Art. 3º § 2º da DN 09/2026).';
   }
-  return 'Decisão administrativa direta pela Secretaria de Planejamento Urbano e Meio Ambiente - SPUMA (Art. 3º § 1º).';
+  return 'Decisão administrativa direta pela Divisão de Meio Ambiente / SPUMA (Art. 3º § 1º).';
 }
 
 function update() {
@@ -985,7 +1170,7 @@ function update() {
   }
 }
 
-// Gera o Parecer Técnico Ambiental oficial
+// Gera o Parecer Técnico Ambiental ou Ofício oficial
 function generate() {
   const e = evaluate();
   const comp = calculateCompensation();
@@ -993,124 +1178,268 @@ function generate() {
   const req = val('requerente') || '[REQUERENTE NÃO INFORMADO]';
   const endereco = val('local') || '[ENDEREÇO NÃO INFORMADO]';
   const dataHoje = new Date().toLocaleDateString('pt-BR');
+  const latCoord = val('geo-lat') || val('coord-corte-1') || '-';
+  const lngCoord = val('geo-lng') || val('coord-corte-2') || '-';
 
-  const inventory = trees.map(t => {
-    const pop = t.popular ? `"${t.popular}"` : 'nome popular não informado';
-    const sci = t.cientifico ? `${t.cientifico}` : 'espécie não identificada';
-    const fam = t.familia ? `família ${t.familia}` : 'família não informada';
+  // Identificação do Fiscal
+  const fiscalNome = val('fiscal-nome') || localStorage.getItem('fiscal_nome') || 'Júlia R. Meira';
+  const fiscalMatricula = val('fiscal-matricula') || localStorage.getItem('fiscal_matricula') || '04218';
+  const fiscalCargo = val('fiscal-cargo') || localStorage.getItem('fiscal_cargo') || 'Fiscal de Meio Ambiente';
+
+  // Destinação do documento
+  const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
+  const numOficio = val('num-oficio') || `___/${new Date().getFullYear()} - DMA/SPUMA`;
+
+  // Motivo com suporte ao campo detalhado de "Outro"
+  let motivoSolicitacao = label('finalidade');
+  if (val('finalidade') === 'outro') {
+    const outroTxt = val('finalidade-outro-detalhe');
+    motivoSolicitacao = outroTxt ? `Outro motivo tecnicamente justificado: ${outroTxt}` : 'Outro motivo tecnicamente justificado';
+  }
+
+  // Lista formatada oficial de mudas sugeridas pelo município de Andradas
+  const listaMudasFormatada = MUNICIPAL_RECOMMENDED_TREES.map((arv, idx) =>
+    `    ${String(idx + 1).padStart(2, ' ')}. ${arv.nome} (${arv.cientifico}) — ${arv.desc}`
+  ).join('\n');
+
+  // Inventário técnico dos exemplares: SEM DAP E SEM ALTURA no documento!
+  const inventorySemDap = trees.map(t => {
+    const pop = t.popular ? `"${t.popular}"` : 'Nome popular não informado';
+    const sci = t.cientifico ? `${t.cientifico}` : 'Espécie não identificada';
+    const fam = t.familia ? `família ${t.familia}` : 'Família não informada';
     const orig = t.origem === 'nativa' ? 'Nativa' : t.origem === 'exotica' ? 'Exótica' : 'Origem em apuração';
-    const dap = t.dap > 0 ? `${t.dap} cm` : 'DAP não medido';
-    const alt = t.altura > 0 ? `${t.altura} m` : 'altura não estimada';
-    const cond = t.condicao === 'viva' ? 'Viva' : t.condicao === 'semvida' ? 'Sem vida biológica (morta/inviável)' : t.condicao;
+    const cond = t.condicao === 'viva' ? 'Viva e viável' : t.condicao === 'semvida' ? 'Sem vida biológica (morta/inviável)' : t.condicao;
     const risco = t.risco === 'sim' ? 'SIM (Risco atual/iminente)' : t.risco === 'monitorar' ? 'Potencial (monitorar)' : 'Sem risco aparente';
     const specs = specialFor(t).join('; ');
 
     return `  • Exemplar nº ${t.numero}: ${pop} (${sci}), ${fam}.
-    - Origem: ${orig} | DAP: ${dap} | Altura: ${alt}
-    - Sanidade: ${cond} | Sinais de pragas/podridão: ${t.doenca}
-    - Conflitos urbanos: ${t.conflito} | Risco de queda: ${risco}
-    ${specs ? `    - Enquadramento especial: ${specs}\n` : ''}    ${t.observacao ? `    - Observações: ${t.observacao}\n` : ''}`;
+    - Origem: ${orig} | Estado Sanitário: ${cond}
+    - Sinais de pragas/podridão: ${t.doenca} | Conflitos urbanos: ${t.conflito} | Risco de queda: ${risco}
+    ${specs ? `    - Enquadramento especial: ${specs}\n` : ''}${t.observacao ? `    - Observações: ${t.observacao}\n` : ''}`;
   }).join('\n');
 
   const compDetails = comp.detalhes.length
     ? comp.detalhes.map(d => `  - ${d}`).join('\n')
     : `  - ${comp.text}`;
 
-  const ptrfText = e.ptrf
-    ? `EXIGÊNCIA DE PTRF:
-Nos termos do Art. 15º da Deliberação Normativa CODEMA nº 09/2026, faz-se OBRIGATÓRIA a elaboração e apresentação de Projeto Técnico de Reconstituição da Flora (PTRF) por profissional legalmente habilitado com a devida Anotação de Responsabilidade Técnica (ART/TRT).\n\n`
-    : '';
+  let doc = '';
 
-  const doc = `================================================================================
+  // ═════════════════════════════════════════════════════════════════════════════
+  // MODELO 1: PARECER TÉCNICO / AUTORIZAÇÃO AO REQUERENTE (LINGUAGEM SIMPLES)
+  // ═════════════════════════════════════════════════════════════════════════════
+  if (destinacaoTipo === 'requerente') {
+    const deferido = e.conclusao === 'deferir';
+    const indeferido = e.conclusao === 'indeferir';
+
+    doc = `================================================================================
 PREFEITURA MUNICIPAL DE ANDRADAS
-SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE - SPUMA
-CONSELHO MUNICIPAL DE CONSERVAÇÃO E DEFESA DO MEIO AMBIENTE - CODEMA
+SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
+DIVISÃO DE MEIO AMBIENTE
 ================================================================================
 
 PARECER TÉCNICO DE VISTORIA AMBIENTAL
-Deliberação Normativa CODEMA nº 09/2026 | Lei Complementar Municipal nº 163/2015
+Deliberação Normativa CODEMA nº 09/2026 · Lei Complementar nº 163/2015
 
-1. IDENTIFICAÇÃO DO PROCESSO
---------------------------------------------------------------------------------
-Processo / Protocolo: ${proc}
-Data da Vistoria:     ${dataHoje}
-Requerente:           ${req}
-Local da Vistoria:    ${endereco}
-Intervenção Proposta: ${label('intervencao')} de ${trees.length} exemplar(es) arbóreo(s)
-Finalidade do Pedido: ${label('finalidade')}
-Enquadramento da Área: ${label('area')}
+Ao(À) Requerente: ${req}
+Processo / Protocolo nº: ${proc}
+Data da Vistoria: ${dataHoje}
+Endereço da Vistoria: ${endereco}
+Coordenadas da Árvore: Lat ${latCoord}, Long ${lngCoord}
+${linkedTree ? `Árvore no Inventário Arbóreo Municipal: ID #${linkedTree.id} - ${linkedTree.especie || 'Cadastrada'}\n` : ''}
+Prezado(a) Senhor(a),
 
-2. RELATÓRIO E MOTIVAÇÃO
---------------------------------------------------------------------------------
-Trata-se de procedimento administrativo de vistoria para avaliação técnica de pedido
-de ${label('intervencao').toLowerCase()} de ${trees.length} espécime(s) arbóreo(s) no endereço supracitado,
-motivado por razões de ${label('finalidade').toLowerCase()}.
+Informamos que a equipe técnica da Divisão de Meio Ambiente realizou vistoria no
+endereço acima para analisar o seu pedido de ${label('intervencao').toLowerCase()} de ${trees.length} exemplar(es) arbóreo(s),
+tendo como motivo: ${motivoSolicitacao}.
 
-3. INVENTÁRIO TÉCNICO DOS EXEMPLARES
+1. O QUE FOI OBSERVADO NA VISTORIA
 --------------------------------------------------------------------------------
-${inventory}
+${inventorySemDap}
 
-4. DIAGNÓSTICO CIRCUNSTANCIADO
---------------------------------------------------------------------------------
-${val('diagnostico') || '[Sem diagnóstico específico inserido na vistoria preliminar.]'}
+Diagnóstico Técnico da Equipe:
+${val('diagnostico') || 'Avaliação realizada no local para verificação da saúde biológica, estabilidade da árvore e compatibilidade com as estruturas urbanas existentes.'}
 
-Análise de Alternativas Técnicas:
-Foi verificada a hipótese de manejo conservacionista, constatando-se: ${label('alternativa')}.
-
-5. ENQUADRAMENTO NORMATIVO E COMPETÊNCIA
+2. DECISÃO TÉCNICA DA PREFEITURA
 --------------------------------------------------------------------------------
-A intervenção foi submetida aos critérios da Deliberação Normativa CODEMA nº 09/2026:
-- Competência Administrativa: ${route(e)}
-${e.triggers.length ? `- Fatores Determinantes: ${e.triggers.join('; ')}.\n` : '- Casos ordinários decididos diretamente pela SPUMA conforme Art. 3º, § 1º.\n'}
-${ptrfText}6. CONCLUSÃO TÉCNICA
---------------------------------------------------------------------------------
-Diante dos elementos vistoriados e das diretrizes ambientais vigentes, o parecer da equipe técnica é:
+Após análise detalhada no local, o parecer da fiscalização ambiental é:
 >> ${label('conclusao').toUpperCase()} <<
 
-${e.conclusao === 'deferir'
-  ? 'O deferimento fica estritamente condicionado ao cumprimento das obrigações compensatórias e condicionantes técnicas fixadas neste parecer e no respectivo alvará de autorização.'
-  : e.conclusao === 'indeferir'
-  ? 'O indeferimento fundamenta-se na viabilidade de preservação do exemplar, ausência de risco iminente ou insuficiência de justificativa técnica admissível.'
-  : 'Fica determinada a realização de diligência técnica ou juntada de laudo complementar para saneamento das pendências apontadas.'}
+${deferido
+  ? `Seu pedido foi APROVADO. A autorização é concedida com a condição obrigatória
+de realizar o plantio compensatório de mudas de árvores, conforme explicado abaixo.`
+  : indeferido
+  ? `Seu pedido foi INDEFERIDO. Constatou-se que a árvore possui boas condições de saúde,
+não oferece perigo iminente e deve ser preservada para a qualidade ambiental da cidade.`
+  : `O processo aguarda complementação ou realização de nova diligência técnica para decisão final.`}
 
-7. OBRIGAÇÃO COMPENSATÓRIA AMBIENTAL (Art. 6º e 7º da DN 09/2026)
+${deferido ? `3. COMPENSAÇÃO AMBIENTAL OBRIGATÓRIA (Art. 6º e 7º da DN 09/2026)
 --------------------------------------------------------------------------------
-Memória de Cálculo:
-${compDetails}
+Pela retirada da árvore, é obrigatório repor novas árvores para a nossa cidade:
+Quantidade exigida: ${comp.text}
 
-Parâmetro Total Fixado:
-${comp.text}
+Opção escolhida: ${label('forma')}
+Plantio no próprio imóvel ou calçada: ${label('proprio')}
+Responsável pelo corte/remoção: ${label('executor')}
 
-Modalidade Escolhida: ${label('forma')}
-Plantio no Próprio Imóvel: ${label('proprio')}
-Responsável pela Execução do Corte: ${label('executor')}
+Como deve ser feito o plantio das novas mudas:
+  • A muda deve ter pelo menos 1,5 metro de altura.
+  • O plantio deve ser feito na calçada (com abertura de canteiro adequado) ou no quintal.
+  • A pessoa responsável deve molhar, cuidar e manter a árvore por pelo menos 2 anos (24 meses).
+  • Se a mudinha secar ou morrer nesse período, deverá ser plantada uma nova no mesmo lugar.
 
-${val('forma') === 'direta'
-  ? `Requisitos de Execução Direta (Art. 8º da DN 09/2026):
-  a) Altura mínima das mudas: 1,5 metros;
-  b) Espécies nativas adequadas ao ambiente urbano e aprovadas pela SPUMA;
-  c) Monitoramento obrigatório mínimo de 24 (vinte e quatro) meses;
-  d) Comprovação semestral via relatórios técnicos com registros fotográficos atualizados;
-  e) Substituição obrigatória de mudas que venham a perecer durante o período.`
-  : val('forma') === 'pecuniaria'
-  ? `Requisitos de Execução Indireta Pecuniária (Art. 6º § 4º a § 8º da DN 09/2026):
-  O recolhimento do valor correspondente em Unidades Fiscais Municipais (UFM) deverá ocorrer
-  PREVIAMENTE à emissão da autorização, sendo a receita obrigatoriamente vinculada ao Fundo
-  Municipal de Meio Ambiente (FMMA) para ações estruturadas de arborização e recuperação urbana.`
-  : ''}
+ÁRVORES RECOMENDADAS PELA PREFEITURA DE ANDRADAS PARA PLANTIO:
+Para facilitar sua escolha, a Prefeitura recomenda as seguintes espécies ideais para a nossa cidade:
+${listaMudasFormatada}
 
-8. PRAZOS DE VALIDADE
+4. PRAZO DE VALIDADE DA AUTORIZAÇÃO
 --------------------------------------------------------------------------------
-- Prazo de Validade da Autorização: 60 (sessenta) dias contados da ciência formal (Art. 5º).
-${e.urgent ? '- Prazo para formalização da compensação de urgência: até 15 (quinze) dias (Art. 10º).\n' : ''}
-================================================================================
+Esta autorização é válida por 60 (sessenta) dias a contar da data de entrega.` : ''}
+
 Andradas/MG, ${dataHoje}.
 
 
 ____________________________________________________________
-Equipe Técnica / Fiscal de Meio Ambiente
-Secretaria de Planejamento Urbano e Meio Ambiente - SPUMA
+${fiscalNome}
+Matrícula: ${fiscalMatricula} · ${fiscalCargo}
+Divisão de Meio Ambiente
+Secretaria Municipal de Planejamento Urbano e Meio Ambiente
+Prefeitura Municipal de Andradas / MG
 `;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // MODELO 2: OFÍCIO DE ENCAMINHAMENTO AO CODEMA
+  // ═════════════════════════════════════════════════════════════════════════════
+  else if (destinacaoTipo === 'codema') {
+    doc = `================================================================================
+PREFEITURA MUNICIPAL DE ANDRADAS
+SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
+DIVISÃO DE MEIO AMBIENTE
+================================================================================
+
+OFÍCIO Nº ${numOficio}
+
+Andradas/MG, ${dataHoje}.
+
+Ao
+Conselho Municipal de Conservação e Defesa do Meio Ambiente - CODEMA
+Prefeitura Municipal de Andradas / MG
+
+Assunto: Encaminhamento de Laudo de Vistoria Técnica para Deliberação Colegiada
+Referência: Processo / Protocolo nº ${proc}
+Requerente: ${req}
+Local da Vistoria: ${endereco} (Coordenadas: Lat ${latCoord}, Long ${lngCoord})
+${linkedTree ? `Tombamento Arbóreo: ID #${linkedTree.id} - ${linkedTree.especie || 'Inventário Municipal'}\n` : ''}
+Senhor(a) Presidente e Senhores(as) Conselheiros(as),
+
+1. CUMPRIMENTOS E ENQUADRAMENTO DA MATÉRIA
+Cumprimentando-os cordialmente, encaminhamos a este respeitável colegiado o presente
+Laudo Técnico de Vistoria Ambiental referente à solicitação de ${label('intervencao').toLowerCase()}
+de ${trees.length} exemplar(es) arbóreo(s) no endereço supracitado, motivada por: ${motivoSolicitacao}.
+
+A submissão à deliberação da Plenária do CODEMA fundamenta-se nos termos do Art. 3º, § 2º
+da Deliberação Normativa CODEMA nº 09/2026, em razão de:
+- Fatores determinantes: ${e.triggers.length ? e.triggers.join('; ') : 'Matéria reservada à competência colegiada do Conselho'}.
+
+2. INVENTÁRIO TÉCNICO DOS EXEMPLARES
+--------------------------------------------------------------------------------
+${inventorySemDap}
+
+3. DIAGNÓSTICO CIRCUNSTANCIADO DA FISCALIZAÇÃO
+--------------------------------------------------------------------------------
+${val('diagnostico') || 'Avaliação técnica de campo atesta as condições do exemplar vistoriado.'}
+Análise de alternativas conservacionistas: ${label('alternativa')}.
+
+4. PROPOSTA DE COMPENSAÇÃO AMBIENTAL (Art. 6º e 7º da DN CODEMA 09/2026)
+--------------------------------------------------------------------------------
+Memória de Fixação da Obrigação:
+${compDetails}
+
+Parâmetro Geral Calculado:
+${comp.text}
+Modalidade indicada: ${label('forma')}
+Espécies recomendadas oficialmente pelo Município:
+${listaMudasFormatada}
+
+5. MANIFESTAÇÃO CONCLUSIVA DO FISCAL RELATOR
+--------------------------------------------------------------------------------
+Diante dos elementos apurados em campo, a equipe técnica da Divisão de Meio Ambiente
+submete o parecer à apreciação da Plenária com posicionamento de:
+>> ${label('conclusao').toUpperCase()} <<
+
+Permanecemos à inteira disposição para prestar esclarecimentos complementares durante a sessão ordinária.
+
+Atenciosamente,
+
+
+____________________________________________________________
+${fiscalNome}
+Matrícula: ${fiscalMatricula} · ${fiscalCargo}
+Divisão de Meio Ambiente
+Secretaria Municipal de Planejamento Urbano e Meio Ambiente
+Prefeitura Municipal de Andradas / MG
+`;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // MODELO 3: OFÍCIO DE EXECUÇÃO À SECRETARIA DE OBRAS E SERVIÇOS PÚBLICOS
+  // ═════════════════════════════════════════════════════════════════════════════
+  else if (destinacaoTipo === 'obras') {
+    doc = `================================================================================
+PREFEITURA MUNICIPAL DE ANDRADAS
+SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
+DIVISÃO DE MEIO AMBIENTE
+================================================================================
+
+OFÍCIO Nº ${numOficio}
+
+Andradas/MG, ${dataHoje}.
+
+À
+Secretaria Municipal de Obras e Serviços Públicos
+Prefeitura Municipal de Andradas / MG
+A/C: Sr(a). Secretário(a) e Setor Operacional de Parques e Jardins
+
+Assunto: Solicitação Operacional de Intervenção / Manejo de Exemplares Arbóreos
+Referência: Processo Administrativo nº ${proc}
+Requerente / Interessado: ${req}
+Local da Intervenção: ${endereco}
+Coordenadas Geográficas: Latitude ${latCoord} | Longitude ${lngCoord}
+${linkedTree ? `Cadastro Arbóreo: Árvore ID #${linkedTree.id} (${linkedTree.logradouro || 'Inventário Municipal'})\n` : ''}
+Senhor(a) Secretário(a),
+
+1. SOLICITAÇÃO DE SERVIÇO PÚBLICO OPERACIONAL
+Pelo presente instrumento, a Divisão de Meio Ambiente solicita a este conceituado
+setor a programação e execução dos serviços de ${label('intervencao').toUpperCase()} de ${trees.length} exemplar(es)
+arbóreo(s) localizado(s) em logradouro público no endereço em epígrafe.
+
+2. JUSTIFICATIVA E DIAGNÓSTICO TÉCNICO
+--------------------------------------------------------------------------------
+A vistoria técnica constatou a necessidade de atuação operacional com maquinário municipal devido a:
+- Diagnóstico: ${val('diagnostico') || 'Intervenção indispensável por motivo de segurança viária e salubridade pública.'}
+- Motivação declarada: ${motivoSolicitacao}.
+- Exemplar(es) sob intervenção:
+${inventorySemDap}
+
+3. ORIENTAÇÕES OPERACIONAIS E SEGURANÇA
+--------------------------------------------------------------------------------
+a) Sinalização de segurança da via e isolamento de tráfego de pedestres durante a execução;
+b) Cuidados específicos quanto à proximidade da rede elétrica e de telecomunicações;
+c) Destinação e descarte ambientalmente adequado de todo o resíduo vegetal (galharias e troncos).
+
+Certos da costumeira presteza e cooperação desta Secretaria, renovamos nossos protestos de apreço.
+
+Atenciosamente,
+
+
+____________________________________________________________
+${fiscalNome}
+Matrícula: ${fiscalMatricula} · ${fiscalCargo}
+Divisão de Meio Ambiente
+Secretaria Municipal de Planejamento Urbano e Meio Ambiente
+Prefeitura Municipal de Andradas / MG
+`;
+  }
 
   const saidaEl = $('saida');
   if (saidaEl) saidaEl.value = doc;
@@ -1120,8 +1449,8 @@ Secretaria de Planejamento Urbano e Meio Ambiente - SPUMA
 
   const badgeEl = $('rota-badge');
   if (badgeEl) {
-    badgeEl.textContent = e.urgent ? 'URGÊNCIA' : e.codema ? 'CODEMA' : 'SPUMA';
-    badgeEl.className = e.urgent ? 'badge-urgent' : e.codema ? 'badge-codema' : 'badge-spuma';
+    badgeEl.textContent = destinacaoTipo === 'codema' ? 'CODEMA' : destinacaoTipo === 'obras' ? 'OBRAS' : (e.urgent ? 'URGÊNCIA' : 'DEFERIDO');
+    badgeEl.className = destinacaoTipo === 'codema' ? 'badge-codema' : destinacaoTipo === 'obras' ? 'badge-urgent' : 'badge-spuma';
   }
 
   const docEl = $('documento');
@@ -1248,6 +1577,1245 @@ function downloadTxt() {
   URL.revokeObjectURL(a.href);
 }
 
+// =============================================================================
+// INTEGRAÇÃO COM INVENTÁRIO ARBÓREO & CONTROLE DE PROCESSOS EM ANDAMENTO
+// =============================================================================
+
+// Cálculo de distância geográfica em metros (Fórmula de Haversine)
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 6371000;
+  const toRad = deg => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Normalização de texto para cruzamento de logradouros
+function normalizeText(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\b(rua|avenida|av|praca|praça|travessa|alameda|rodovia|estrada|dr|doutor|cel|coronel|prof|professor)\b/gi, '')
+    .replace(/[^a-z0-9]/g, ' ')
+    .trim();
+}
+
+// Carregamento do catálogo de árvores do Inventário Municipal
+async function loadInventoryTrees() {
+  try {
+    const cached = localStorage.getItem('arbo_inventory_trees');
+    if (cached) {
+      inventoryTrees = JSON.parse(cached);
+    }
+  } catch {}
+
+  try {
+    let res;
+    try {
+      res = await fetch('/api/inventory');
+    } catch {
+      res = await fetch(`${INVENTORY_API_URL}?action=list`);
+    }
+
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data && data.status === 'ok' && Array.isArray(data.trees)) {
+        inventoryTrees = data.trees.map(st => {
+          const rawId = st.ID || st.id;
+          const lat = parseFloat(String(st['Latitude'] || '').replace(',', '.'));
+          const lng = parseFloat(String(st['Longitude'] || '').replace(',', '.'));
+          return {
+            id: parseInt(rawId, 10) || rawId,
+            latitude: isNaN(lat) ? null : lat,
+            longitude: isNaN(lng) ? null : lng,
+            rua: st['Rua'] || '',
+            bairro: st['Bairro'] || '',
+            logradouro: st['Logradouro'] || [st['Rua'], st['Bairro']].filter(Boolean).join(', '),
+            referencia: st['Referencia'] || '',
+            especie: st['Especie'] || '',
+            porte: st['Porte'] || '',
+            tronco: st['Tronco'] || '',
+            fotos: st['Fotos'] || st['Foto 1'] || '',
+            problemas: st['Problemas'] || '',
+            interferencias: st['Interferencias'] || '',
+            status: st['Status'] || 'Cadastrada',
+            dataCadastro: st['Data Cadastro'] || ''
+          };
+        }).filter(t => t.id);
+
+        localStorage.setItem('arbo_inventory_trees', JSON.stringify(inventoryTrees));
+      }
+    }
+  } catch (err) {
+    console.warn('[inventário] Usando base em cache local:', err.message);
+  }
+}
+
+// Detecção inteligente por coordenadas GPS + logradouro + espécie
+function detectInventoryMatch() {
+  const container = $('inventory-match-container');
+  if (!container) return;
+
+  if (linkedTree) {
+    container.hidden = false;
+    container.innerHTML = `
+      <div class="matched-confirmed-box">
+        <div>
+          <strong style="color: var(--green);">✓ Árvore Vinculada ao Inventário Municipal</strong>
+          <div style="font-size:0.95rem; margin-top:2px;"><b>ID #${esc(linkedTree.id)}</b> — ${esc(linkedTree.especie || 'Espécime catalogado')}</div>
+          <small class="text-muted">${esc(linkedTree.logradouro || '')}</small>
+        </div>
+        <button type="button" class="btn-sm button-outline" id="btn-unlink-tree">Desvincular</button>
+      </div>
+    `;
+    $('btn-unlink-tree')?.addEventListener('click', unlinkInventoryTree);
+    return;
+  }
+
+  const rawLat = parseFloat(val('geo-lat').replace(',', '.'));
+  const rawLng = parseFloat(val('geo-lng').replace(',', '.'));
+  const hasCoords = !isNaN(rawLat) && !isNaN(rawLng);
+  const inputRuaNorm = normalizeText(val('local'));
+
+  if (!hasCoords && inputRuaNorm.length < 3) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  const candidates = [];
+  for (const tree of inventoryTrees) {
+    let distance = Infinity;
+    if (hasCoords && tree.latitude != null && tree.longitude != null) {
+      distance = haversineMeters(rawLat, rawLng, tree.latitude, tree.longitude);
+    }
+
+    const treeRuaNorm = normalizeText(tree.logradouro || tree.rua);
+    let streetMatch = false;
+    if (inputRuaNorm.length >= 3 && treeRuaNorm.length >= 3) {
+      if (treeRuaNorm.includes(inputRuaNorm) || inputRuaNorm.includes(treeRuaNorm)) {
+        streetMatch = true;
+      } else {
+        const words = inputRuaNorm.split(/\s+/).filter(w => w.length > 3);
+        streetMatch = words.some(w => treeRuaNorm.includes(w));
+      }
+    }
+
+    if (distance <= 40 || (distance <= 120 && streetMatch) || (distance === Infinity && streetMatch)) {
+      candidates.push({
+        tree,
+        distance,
+        streetMatch,
+        score: (distance <= 15 ? 100 : distance <= 40 ? 80 : 50) + (streetMatch ? 40 : 0)
+      });
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score || a.distance - b.distance);
+
+  if (!candidates.length) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  const best = candidates[0];
+  const t = best.tree;
+  const distText = isFinite(best.distance)
+    ? `🎯 Distância: a cerca de ${Math.round(best.distance)} metros do ponto informado`
+    : `📍 Mesma rua encontrada no Inventário Arbóreo`;
+
+  container.hidden = false;
+  container.innerHTML = `
+    <div class="inventory-match-card">
+      <div class="match-head">
+        <span class="match-title">
+          <span>🌳</span> Árvore Encontrada no Inventário Municipal!
+        </span>
+        <span class="match-pill">ID #${esc(t.id)}</span>
+      </div>
+      <div class="match-details">
+        <div class="match-thumb-placeholder">🌳</div>
+        <div class="match-data">
+          <h4>${esc(t.especie || 'Espécime catalogado')}</h4>
+          <p><strong>Logradouro:</strong> ${esc(t.logradouro || t.rua || 'Andradas/MG')}</p>
+          ${t.porte ? `<p><strong>Porte:</strong> ${esc(t.porte)} ${t.status ? `· <strong>Status:</strong> ${esc(t.status)}` : ''}</p>` : ''}
+          <span class="match-distance">${distText}</span>
+        </div>
+      </div>
+      <div class="match-actions-row">
+        <button type="button" class="primary btn-sm" id="btn-confirm-match">
+          ✓ Vincular a esta Árvore
+        </button>
+        ${candidates.length > 1 ? `
+          <button type="button" class="btn-sm" id="btn-see-others">
+            Ver outras ${candidates.length - 1} árvores próximas
+          </button>
+        ` : ''}
+        <button type="button" class="btn-sm button-outline" id="btn-dismiss-match">
+          Não vincular (árvore nova)
+        </button>
+      </div>
+      ${candidates.length > 1 ? `
+        <div id="other-matches-list" style="margin-top: 12px; display: none; border-top: 1px dashed var(--line); padding-top: 10px;">
+          <small class="text-muted" style="display:block; margin-bottom: 6px;">Outras árvores no mesmo local:</small>
+          ${candidates.slice(1, 5).map(c => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.82rem;">
+              <span><b>ID #${esc(c.tree.id)}</b> - ${esc(c.tree.especie || 'Sem espécie')} (${isFinite(c.distance) ? Math.round(c.distance) + 'm' : 'rua'})</span>
+              <button type="button" class="btn-sm primary pick-other-btn" data-tree-id="${esc(c.tree.id)}">Vincular</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  $('btn-confirm-match')?.addEventListener('click', () => linkInventoryTree(t, best.distance));
+  $('btn-dismiss-match')?.addEventListener('click', () => {
+    container.hidden = true;
+    container.innerHTML = '';
+  });
+
+  const seeOthersBtn = $('btn-see-others');
+  if (seeOthersBtn) {
+    seeOthersBtn.addEventListener('click', () => {
+      const otherList = $('other-matches-list');
+      if (otherList) {
+        otherList.style.display = otherList.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+  }
+
+  container.querySelectorAll('.pick-other-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tr = inventoryTrees.find(x => String(x.id) === btn.dataset.treeId);
+      if (tr) linkInventoryTree(tr);
+    });
+  });
+}
+
+// Vincula a árvore selecionada do inventário
+function linkInventoryTree(tree, distance) {
+  linkedTree = tree;
+
+  if (tree.latitude != null && !val('geo-lat')) {
+    $('geo-lat').value = tree.latitude.toFixed(6);
+  }
+  if (tree.longitude != null && !val('geo-lng')) {
+    $('geo-lng').value = tree.longitude.toFixed(6);
+  }
+
+  if (tree.logradouro && !val('local')) {
+    $('local').value = tree.logradouro;
+  }
+
+  const c1 = $('coord-corte-1');
+  const c2 = $('coord-corte-2');
+  if (c1 && tree.latitude != null) c1.value = tree.latitude.toFixed(6);
+  if (c2 && tree.longitude != null) c2.value = tree.longitude.toFixed(6);
+
+  if (trees.length > 0) {
+    if (tree.especie) {
+      trees[0].popular = tree.especie;
+      trees[0].cientifico = tree.especie;
+      trees[0].certeza = 'sim';
+    }
+    trees[0].inventoryId = tree.id;
+    if (tree.porte) {
+      const p = tree.porte.toLowerCase();
+      if (p.includes('grande')) $('grande').value = 'sim';
+      else if (p.includes('pequeno') || p.includes('medio')) $('grande').value = 'nao';
+    }
+  }
+
+  detectInventoryMatch();
+  renderAll(false);
+}
+
+// Desvincula árvore
+function unlinkInventoryTree() {
+  linkedTree = null;
+  if (trees.length > 0) {
+    trees[0].inventoryId = null;
+  }
+  detectInventoryMatch();
+}
+
+// Captura GPS do dispositivo do usuário/fiscal
+function captureGPS() {
+  const statusEl = $('gps-status');
+  if (!navigator.geolocation) {
+    if (statusEl) {
+      statusEl.hidden = false;
+      statusEl.textContent = 'Geolocalização não suportada neste dispositivo.';
+      statusEl.className = 'gps-status text-danger';
+    }
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.hidden = false;
+    statusEl.textContent = 'Buscando coordenadas GPS de alta precisão...';
+    statusEl.className = 'gps-status text-muted';
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      const acc = Math.round(pos.coords.accuracy);
+
+      $('geo-lat').value = lat;
+      $('geo-lng').value = lng;
+
+      const c1 = $('coord-corte-1');
+      const c2 = $('coord-corte-2');
+      if (c1) c1.value = lat;
+      if (c2) c2.value = lng;
+
+      if (statusEl) {
+        statusEl.textContent = `✓ Coordenadas obtidas: ${lat}, ${lng} (Precisão: ±${acc}m)`;
+        statusEl.className = 'gps-status text-success';
+      }
+
+      detectInventoryMatch();
+    },
+    err => {
+      if (statusEl) {
+        statusEl.textContent = `GPS indisponível: ${err.message}. Digite as coordenadas manualmente.`;
+        statusEl.className = 'gps-status text-danger';
+      }
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+}
+
+// Modal de Busca Manual no Inventário
+function openInventorySearchModal() {
+  const modal = $('modal-inventory-search');
+  if (!modal) return;
+  modal.showModal();
+  renderInventorySearchResults(inventoryTrees);
+  $('inventory-search-input')?.focus();
+}
+
+function closeInventorySearchModal() {
+  $('modal-inventory-search')?.close();
+}
+
+function renderInventorySearchResults(list) {
+  const res = $('inventory-search-results');
+  if (!res) return;
+
+  if (!list || !list.length) {
+    res.innerHTML = '<div class="empty-desc" style="text-align:center; padding: 20px;">Nenhuma árvore encontrada no catálogo com este critério.</div>';
+    return;
+  }
+
+  res.innerHTML = list.slice(0, 30).map(t => `
+    <div class="inv-item" data-id="${esc(t.id)}">
+      <div>
+        <strong style="color: var(--forest);">ID #${esc(t.id)} · ${esc(t.especie || 'Espécime')}</strong>
+        <div style="font-size: 0.8rem; color: var(--muted);">${esc(t.logradouro || 'Andradas/MG')}</div>
+        ${t.status ? `<span class="badge" style="margin-top: 4px; display: inline-block;">${esc(t.status)}</span>` : ''}
+      </div>
+      <button type="button" class="btn-sm primary select-inv-btn" data-id="${esc(t.id)}">Selecionar</button>
+    </div>
+  `).join('');
+
+  res.querySelectorAll('.select-inv-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const tr = inventoryTrees.find(x => String(x.id) === String(id));
+      if (tr) {
+        linkInventoryTree(tr);
+        closeInventorySearchModal();
+      }
+    });
+  });
+}
+
+function filterInventoryCatalog(query) {
+  const q = normalizeText(query);
+  if (!q) {
+    renderInventorySearchResults(inventoryTrees);
+    return;
+  }
+  const filtered = inventoryTrees.filter(t => {
+    const idMatch = String(t.id) === query.trim();
+    const espMatch = normalizeText(t.especie).includes(q);
+    const ruaMatch = normalizeText(t.logradouro || t.rua).includes(q);
+    return idMatch || espMatch || ruaMatch;
+  });
+  renderInventorySearchResults(filtered);
+}
+
+// =============================================================================
+// GESTÃO DE PROCESSOS EM ANDAMENTO
+// =============================================================================
+
+async function loadProcessos() {
+  try {
+    const raw = localStorage.getItem('arbo_processos');
+    processos = raw ? JSON.parse(raw) : [];
+  } catch {
+    processos = [];
+  }
+  updateProcessosBadge();
+  renderProcessos();
+
+  // Os processos da Vistoria vêm da planilha configurada em SHEETS_WEBHOOK_URL.
+  // A API do Inventário é usada somente para vincular exemplares arbóreos.
+  try {
+    const response = await fetch('/api/processes');
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Não foi possível consultar a planilha da Vistoria.');
+    }
+
+    if (Array.isArray(data.processes)) {
+      const localByProtocol = new Map(processos.map(p => [String(p.protocolo || ''), p]));
+      processos = data.processes.map(remote => ({
+        ...(localByProtocol.get(String(remote.protocolo || '')) || {}),
+        ...remote
+      }));
+      localStorage.setItem('arbo_processos', JSON.stringify(processos));
+      updateProcessosBadge();
+      renderProcessos();
+    }
+  } catch (error) {
+    console.warn('[vistoria] Falha ao carregar processos da planilha:', error.message);
+  }
+}
+
+function saveProcessos() {
+  localStorage.setItem('arbo_processos', JSON.stringify(processos));
+  updateProcessosBadge();
+  renderProcessos();
+}
+
+function updateProcessosBadge() {
+  const badge = $('badge-total-processos');
+  if (badge) {
+    const activeCount = processos.filter(p => p.situacao !== 'Concluído' && p.situacao !== 'Indeferido').length;
+    badge.textContent = String(activeCount || processos.length);
+  }
+}
+
+function renderProcessos() {
+  const listEl = $('processos-list');
+  if (!listEl) return;
+
+  const total = processos.length;
+  const analise = processos.filter(p => p.situacao === 'Em Análise' || p.situacao === 'Vistoriado').length;
+  const autorizados = processos.filter(p => p.situacao.includes('Autorizado')).length;
+  const concluidos = processos.filter(p => p.situacao.includes('Compensado') || p.situacao === 'Concluído').length;
+
+  if ($('stat-total')) $('stat-total').textContent = String(total);
+  if ($('stat-analise')) $('stat-analise').textContent = String(analise);
+  if ($('stat-autorizados')) $('stat-autorizados').textContent = String(autorizados);
+  if ($('stat-concluidos')) $('stat-concluidos').textContent = String(concluidos);
+
+  const s = normalizeText(activeProcessSearch);
+  const filtered = processos.filter(p => {
+    if (activeProcessFilter === 'analise' && p.situacao !== 'Em Análise' && p.situacao !== 'Vistoriado') return false;
+    if (activeProcessFilter === 'autorizado' && !p.situacao.includes('Autorizado')) return false;
+    if (activeProcessFilter === 'compensacao' && p.situacao !== 'Aguardando Compensação') return false;
+    if (activeProcessFilter === 'concluido' && p.situacao !== 'Concluído' && p.situacao !== 'Compensado') return false;
+    if (activeProcessFilter === 'indeferido' && p.situacao !== 'Indeferido') return false;
+
+    if (s) {
+      const matchProt = normalizeText(p.protocolo).includes(s);
+      const matchReq = normalizeText(p.requerente).includes(s);
+      const matchEnd = normalizeText(p.endereco).includes(s);
+      const matchTree = p.arvoreInventarioId && String(p.arvoreInventarioId).includes(s);
+      return matchProt || matchReq || matchEnd || matchTree;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">📋</span>
+        <h3 class="empty-title">Nenhum processo encontrado</h3>
+        <p class="empty-desc">Não há processos com o filtro ou busca selecionados.</p>
+        <button type="button" class="primary" id="btn-empty-novo">➕ Iniciar Nova Solicitação</button>
+      </div>
+    `;
+    $('btn-empty-novo')?.addEventListener('click', () => switchMainView('novo'));
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(p => {
+    let badgeClass = 'analise';
+    if (p.situacao.includes('Autorizado')) badgeClass = 'autorizado';
+    else if (p.situacao.includes('Compensação')) badgeClass = 'compensacao';
+    else if (p.situacao === 'Concluído' || p.situacao === 'Compensado') badgeClass = 'concluido';
+    else if (p.situacao === 'Indeferido') badgeClass = 'indeferido';
+
+    return `
+      <article class="processo-card">
+        <header class="processo-header">
+          <div class="proc-id-wrap">
+            <span class="proc-num">Proc. nº ${esc(p.protocolo || 'S/N')}</span>
+            <span class="status-badge ${badgeClass}">${esc(p.situacao)}</span>
+          </div>
+          <span class="proc-date">📅 ${isoToBr(p.data)}</span>
+        </header>
+
+        <div class="processo-body">
+          <div>
+            <div class="proc-info-row">
+              <span class="proc-label">Requerente:</span> ${esc(p.requerente || 'Não informado')}
+            </div>
+            <div class="proc-info-row">
+              <span class="proc-label">Local:</span> ${esc(p.endereco || 'Andradas/MG')}
+            </div>
+            <div class="proc-info-row">
+              <span class="proc-label">Objeto:</span> ${esc(p.intervencaoLabel || p.intervencao)} (${p.quantidade || 1} árvore(s))
+            </div>
+          </div>
+          <div>
+            ${p.arvoreInventarioId ? `
+              <div class="tree-badge-link" title="Árvore vinculada ao Inventário Municipal">
+                <span>🌳</span>
+                <div>
+                  <strong>Árvore ID #${esc(p.arvoreInventarioId)}</strong>
+                  <div style="font-size: 0.72rem; opacity: 0.85;">${esc(p.arvoreInventarioNome || 'Inventário')}</div>
+                </div>
+              </div>
+            ` : `
+              <span class="badge" style="opacity: 0.7;">Árvore não inventariada</span>
+            `}
+          </div>
+        </div>
+
+        <footer class="processo-actions">
+          <button type="button" class="btn-sm button-outline btn-resume-proc" data-id="${esc(p.id)}" title="Carregar no formulário para continuar ou alterar">
+            📝 Continuar / Editar
+          </button>
+          <button type="button" class="btn-sm primary btn-view-parecer" data-id="${esc(p.id)}">
+            📄 Ver Parecer
+          </button>
+          <button type="button" class="btn-sm btn-change-status" data-id="${esc(p.id)}">
+            ✏️ Situação
+          </button>
+          <button type="button" class="btn-sm button-outline btn-delete-proc" data-id="${esc(p.id)}" style="color: var(--red); border-color: var(--red);">
+            🗑️ Excluir
+          </button>
+        </footer>
+      </article>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.btn-resume-proc').forEach(btn => {
+    btn.addEventListener('click', () => resumeProcesso(btn.dataset.id));
+  });
+
+  listEl.querySelectorAll('.btn-view-parecer').forEach(btn => {
+    btn.addEventListener('click', () => viewProcessoParecer(btn.dataset.id));
+  });
+
+  listEl.querySelectorAll('.btn-change-status').forEach(btn => {
+    btn.addEventListener('click', () => openStatusModal(btn.dataset.id));
+  });
+
+  listEl.querySelectorAll('.btn-delete-proc').forEach(btn => {
+    btn.addEventListener('click', () => deleteProcesso(btn.dataset.id));
+  });
+}
+
+async function syncNewProcessoVistoria(proc, isNew) {
+  if (!isNew) return true;
+  const toBr = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? isoToBr(value) : (value || '');
+  const coords = proc.coordenadas || {};
+  const payload = {
+    data: toBr(proc.data),
+    protocolo: proc.protocolo || '',
+    solicitante: proc.requerente || '',
+    endereco: proc.endereco || '',
+    solicitacao: proc.intervencaoLabel || proc.intervencao || '',
+    coordCorte1: coords.lat || '',
+    coordCorte2: coords.lng || '',
+    responsavelCorte: proc.responsavelCorte || '',
+    autorizacao: proc.autorizacao || '',
+    dataAutorizacao: toBr(proc.dataAutorizacao),
+    compensacao: proc.compensacao || '',
+    prazo: toBr(proc.prazo),
+    coordComp1: proc.coordComp1 || '',
+    coordComp2: proc.coordComp2 || '',
+    situacao: proc.situacao || 'Em Análise'
+  };
+
+  try {
+    const response = await fetch('/api/sheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Resposta inválida do Google');
+    return true;
+  } catch (error) {
+    alert(`O processo foi salvo neste computador, mas não foi enviado à planilha: ${error.message}`);
+    return false;
+  }
+}
+// Salva processo atual
+async function saveCurrentProcesso() {
+  const prot = val('processo') || `PROC-${new Date().getFullYear()}-${String(processos.length + 1).padStart(4, '0')}`;
+  const req = val('requerente') || 'Não informado';
+  const end = val('local') || 'Andradas/MG';
+  const inter = val('intervencao');
+  const sit = val('situacao') || 'Em Análise';
+  const parecerText = val('saida') || '';
+
+  const proc = {
+    id: `PROC-${Date.now()}`,
+    protocolo: prot,
+    data: new Date().toISOString().slice(0, 10),
+    requerente: req,
+    endereco: end,
+    intervencao: inter,
+    intervencaoLabel: label('intervencao'),
+    quantidade: trees.length,
+    finalidade: label('finalidade'),
+    situacao: sit,
+    arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
+    arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
+    coordenadas: {
+      lat: val('geo-lat') || val('coord-corte-1'),
+      lng: val('geo-lng') || val('coord-corte-2')
+    },
+    compensacao: $('compensacao')?.innerText?.trim() || '',
+    parecerTexto: parecerText,
+    updatedAt: new Date().toISOString()
+  };
+
+  const existingIdx = processos.findIndex(p => p.protocolo === prot);
+  const isNewProcess = existingIdx < 0;
+  if (existingIdx >= 0) {
+    processos[existingIdx] = { ...processos[existingIdx], ...proc };
+  } else {
+    processos.unshift(proc);
+  }
+
+  saveProcessos();
+  await syncNewProcessoVistoria(proc, isNewProcess);
+  alert(`✓ Processo nº ${prot} salvo com sucesso em "Processos em Andamento"!`);
+  switchMainView('processos');
+}
+
+// ── Salvamento da Etapa 1: Requerimento Administrativo ───────────────────────
+async function saveEtapa1() {
+  const prot = val('processo') || `PROV-${Date.now().toString().slice(-5)}`;
+  const req = val('requerente') || 'Requerente não informado';
+  const end = val('local') || 'Endereço não informado';
+  const inter = val('intervencao');
+  const finalidadeVal = val('finalidade');
+  let finalidadeTxt = label('finalidade');
+  const outroDetalhe = val('finalidade-outro-detalhe');
+  if (finalidadeVal === 'outro') {
+    finalidadeTxt = outroDetalhe ? `Outro: ${outroDetalhe}` : 'Outro motivo tecnicamente justificado';
+  }
+
+  syncSpecies();
+
+  const proc = {
+    id: 'PROC-' + Date.now(),
+    protocolo: prot,
+    data: new Date().toISOString().slice(0, 10),
+    requerente: req,
+    endereco: end,
+    intervencao: inter,
+    intervencaoLabel: label('intervencao'),
+    quantidade: trees.length,
+    finalidade: finalidadeTxt,
+    finalidadeVal: finalidadeVal,
+    finalidadeOutroDetalhe: outroDetalhe,
+    situacao: 'Aguardando Vistoria',
+    arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
+    arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
+    coordenadas: {
+      lat: val('geo-lat') || val('coord-corte-1'),
+      lng: val('geo-lng') || val('coord-corte-2')
+    },
+    trees: JSON.parse(JSON.stringify(trees)),
+    compensacao: 'Aguardando vistoria técnica a campo',
+    parecerTexto: 'Requerimento administrativo registrado. Aguardando coleta de dados e vistoria técnica in loco.',
+    updatedAt: new Date().toISOString()
+  };
+
+  const existingIdx = processos.findIndex(p => p.protocolo === prot);
+  const isNewProcess = existingIdx < 0;
+  if (existingIdx >= 0) {
+    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
+  } else {
+    processos.unshift(proc);
+  }
+
+  saveProcessos();
+  await syncNewProcessoVistoria(proc, isNewProcess);
+  alert(`✓ Etapa 1 salva com sucesso! Processo nº ${prot} registrado como "Aguardando Vistoria".`);
+}
+
+// ── Salvamento da Etapa 2: Vistoria Técnica a Campo ─────────────────────────
+async function saveEtapa2() {
+  syncSpecies();
+  const prot = val('processo') || `PROV-${Date.now().toString().slice(-5)}`;
+  const req = val('requerente') || 'Requerente não informado';
+  const end = val('local') || 'Endereço não informado';
+  const inter = val('intervencao');
+  const finalidadeVal = val('finalidade');
+  let finalidadeTxt = label('finalidade');
+  const outroDetalhe = val('finalidade-outro-detalhe');
+  if (finalidadeVal === 'outro') {
+    finalidadeTxt = outroDetalhe ? `Outro: ${outroDetalhe}` : 'Outro motivo tecnicamente justificado';
+  }
+
+  const comp = calculateCompensation();
+
+  const proc = {
+    id: 'PROC-' + Date.now(),
+    protocolo: prot,
+    data: new Date().toISOString().slice(0, 10),
+    requerente: req,
+    endereco: end,
+    intervencao: inter,
+    intervencaoLabel: label('intervencao'),
+    quantidade: trees.length,
+    finalidade: finalidadeTxt,
+    finalidadeVal: finalidadeVal,
+    finalidadeOutroDetalhe: outroDetalhe,
+    situacao: 'Vistoriado',
+    arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
+    arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
+    coordenadas: {
+      lat: val('geo-lat') || val('coord-corte-1'),
+      lng: val('geo-lng') || val('coord-corte-2')
+    },
+    trees: JSON.parse(JSON.stringify(trees)),
+    compensacao: comp.text,
+    diagnostico: val('diagnostico'),
+    parecerTexto: 'Vistoria a campo realizada e registrada pela equipe técnica. Aguardando emissão do parecer/ofício.',
+    updatedAt: new Date().toISOString()
+  };
+
+  const existingIdx = processos.findIndex(p => p.protocolo === prot);
+  const isNewProcess = existingIdx < 0;
+  if (existingIdx >= 0) {
+    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
+  } else {
+    processos.unshift(proc);
+  }
+
+  saveProcessos();
+  await syncNewProcessoVistoria(proc, isNewProcess);
+  alert(`✓ Etapa 2 salva com sucesso! Processo nº ${prot} atualizado para a situação "Vistoriado".`);
+}
+
+// ── Salvamento da Etapa 3 / Conclusão: Parecer e Expedição ──────────────────
+async function saveFinalProcesso() {
+  if (!val('saida')) {
+    generate();
+  }
+
+  const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
+  const concl = val('conclusao');
+  let sit = 'Concluído';
+
+  if (destinacaoTipo === 'codema') {
+    sit = 'Encaminhado ao CODEMA';
+  } else if (destinacaoTipo === 'obras') {
+    sit = 'Encaminhado para Obras';
+  } else if (concl === 'deferir') {
+    sit = 'Autorizado (Aguardando Compensação)';
+  } else if (concl === 'indeferir') {
+    sit = 'Indeferido';
+  } else if (concl === 'diligencia') {
+    sit = 'Em Diligência';
+  }
+
+  const prot = val('processo') || `PROC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+  const req = val('requerente') || 'Requerente não informado';
+  const end = val('local') || 'Endereço não informado';
+  const inter = val('intervencao');
+  const finalidadeVal = val('finalidade');
+  let finalidadeTxt = label('finalidade');
+  const outroDetalhe = val('finalidade-outro-detalhe');
+  if (finalidadeVal === 'outro') {
+    finalidadeTxt = outroDetalhe ? `Outro: ${outroDetalhe}` : 'Outro motivo tecnicamente justificado';
+  }
+
+  syncSpecies();
+
+  const proc = {
+    id: 'PROC-' + Date.now(),
+    protocolo: prot,
+    data: new Date().toISOString().slice(0, 10),
+    requerente: req,
+    endereco: end,
+    intervencao: inter,
+    intervencaoLabel: label('intervencao'),
+    quantidade: trees.length,
+    finalidade: finalidadeTxt,
+    finalidadeVal: finalidadeVal,
+    finalidadeOutroDetalhe: outroDetalhe,
+    situacao: sit,
+    destinacaoTipo: destinacaoTipo,
+    conclusao: concl,
+    arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
+    arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
+    coordenadas: {
+      lat: val('geo-lat') || val('coord-corte-1'),
+      lng: val('geo-lng') || val('coord-corte-2')
+    },
+    trees: JSON.parse(JSON.stringify(trees)),
+    compensacao: $('compensacao')?.innerText?.trim() || '',
+    diagnostico: val('diagnostico'),
+    parecerTexto: val('saida'),
+    updatedAt: new Date().toISOString()
+  };
+
+  const existingIdx = processos.findIndex(p => p.protocolo === prot);
+  const isNewProcess = existingIdx < 0;
+  if (existingIdx >= 0) {
+    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
+  } else {
+    processos.unshift(proc);
+  }
+
+  saveProcessos();
+  await syncNewProcessoVistoria(proc, isNewProcess);
+  alert(`✓ Processo nº ${prot} concluído e salvo com sucesso! Situação: "${sit}".`);
+  switchMainView('processos');
+}
+
+// ── Retomada / Edição de Processo no Wizard ─────────────────────────────────
+function resumeProcesso(id) {
+  const p = processos.find(x => x.id === id);
+  if (!p) {
+    alert('Processo não encontrado.');
+    return;
+  }
+
+  // 1. Restaura campos da Etapa 1
+  if ($('processo')) $('processo').value = p.protocolo || '';
+  if ($('requerente')) $('requerente').value = p.requerente || '';
+  if ($('local')) $('local').value = p.endereco || '';
+  if ($('intervencao') && p.intervencao) $('intervencao').value = p.intervencao;
+
+  // Finalidade e motivo detalhado
+  if ($('finalidade')) {
+    if (p.finalidadeVal) {
+      $('finalidade').value = p.finalidadeVal;
+    } else if (p.finalidade && p.finalidade.toLowerCase().includes('outro')) {
+      $('finalidade').value = 'outro';
+    }
+  }
+  const outroWrap = $('finalidade-outro-wrap');
+  const outroInp = $('finalidade-outro-detalhe');
+  if (val('finalidade') === 'outro') {
+    if (outroWrap) outroWrap.hidden = false;
+    if (outroInp) outroInp.value = p.finalidadeOutroDetalhe || (p.finalidade?.replace(/^Outro:\s*/, '') || '');
+  } else {
+    if (outroWrap) outroWrap.hidden = true;
+  }
+
+  // Coordenadas
+  const lat = p.coordenadas?.lat || '';
+  const lng = p.coordenadas?.lng || '';
+  if ($('geo-lat')) $('geo-lat').value = lat;
+  if ($('geo-lng')) $('geo-lng').value = lng;
+  if ($('coord-corte-1')) $('coord-corte-1').value = lat;
+  if ($('coord-corte-2')) $('coord-corte-2').value = lng;
+  if (lat && lng) {
+    initOrUpdateMiniMap(lat, lng, p.endereco);
+  }
+
+  // Árvore vinculada do Inventário
+  if (p.arvoreInventarioId) {
+    linkedTree = inventoryTrees.find(it => String(it.id) === String(p.arvoreInventarioId)) || {
+      id: p.arvoreInventarioId,
+      especie: p.arvoreInventarioNome || ''
+    };
+  } else {
+    linkedTree = null;
+  }
+
+  // 2. Restaura árvores da Etapa 2
+  if (Array.isArray(p.trees) && p.trees.length > 0) {
+    trees = JSON.parse(JSON.stringify(p.trees));
+    if ($('quantidade')) $('quantidade').value = trees.length;
+    renderAll(false);
+  } else {
+    const q = p.quantidade || 1;
+    if ($('quantidade')) $('quantidade').value = q;
+    renderAll(true);
+  }
+
+  // 3. Restaura campos da Etapa 3
+  if ($('diagnostico') && p.diagnostico) $('diagnostico').value = p.diagnostico;
+  if ($('conclusao') && p.conclusao) $('conclusao').value = p.conclusao;
+  if (p.destinacaoTipo) {
+    const radio = document.querySelector(`input[name="destinacao-tipo"][value="${p.destinacaoTipo}"]`);
+    if (radio) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    }
+  }
+  if (p.parecerTexto && $('saida')) {
+    $('saida').value = p.parecerTexto;
+    if ($('documento')) $('documento').hidden = false;
+  }
+
+  // Muda para a visão do Wizard
+  switchMainView('novo');
+
+  // Abre a etapa mais relevante para continuar o trabalho
+  if (p.situacao === 'Aguardando Vistoria') {
+    showTab('vistoria');
+  } else if (p.situacao === 'Vistoriado' || p.situacao.includes('Autorizado') || p.situacao.includes('Compensado') || p.situacao === 'Concluído') {
+    showTab('parecer');
+  } else {
+    showTab('requerimento');
+  }
+}
+
+// ── Mini-Mapa da Árvore com Leaflet ──────────────────────────────────────────
+let treeMiniMap = null;
+let treeMiniMarker = null;
+let modalProcessMap = null;
+
+function getProcessMapLocation(process) {
+  const processLat = parseFloat(String(process?.coordenadas?.lat || '').replace(',', '.'));
+  const processLng = parseFloat(String(process?.coordenadas?.lng || '').replace(',', '.'));
+  const hasProcessCoords = Number.isFinite(processLat) && Number.isFinite(processLng);
+  const linkedInventoryTree = process?.arvoreInventarioId
+    ? inventoryTrees.find(tree => String(tree.id) === String(process.arvoreInventarioId))
+    : null;
+
+  let matchedTree = linkedInventoryTree || null;
+  let matchDistance = null;
+  if (!matchedTree && hasProcessCoords) {
+    for (const tree of inventoryTrees) {
+      if (tree.latitude == null || tree.longitude == null) continue;
+      const distance = haversineMeters(processLat, processLng, tree.latitude, tree.longitude);
+      if (distance <= 40 && (matchDistance == null || distance < matchDistance)) {
+        matchedTree = tree;
+        matchDistance = distance;
+      }
+    }
+  }
+
+  const inventoryLat = Number(matchedTree?.latitude);
+  const inventoryLng = Number(matchedTree?.longitude);
+  const lat = hasProcessCoords ? processLat : inventoryLat;
+  const lng = hasProcessCoords ? processLng : inventoryLng;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return {
+    lat, lng, matchedTree, matchDistance,
+    isExplicitLink: Boolean(linkedInventoryTree),
+    label: matchedTree
+      ? `Árvore #${matchedTree.id} · ${matchedTree.especie || process.arvoreInventarioNome || 'Inventário Municipal'}`
+      : `Processo ${process?.protocolo || 'sem número'}`
+  };
+}
+
+function renderModalProcessMap(process) {
+  const section = $('modal-process-map-section');
+  const location = getProcessMapLocation(process);
+  if (!section) return;
+  if (modalProcessMap) {
+    modalProcessMap.remove();
+    modalProcessMap = null;
+  }
+  if (!location || typeof L === 'undefined') {
+    section.hidden = true;
+    return;
+  }
+
+  section.hidden = false;
+  const matchDescription = location.isExplicitLink
+    ? 'Correspondência confirmada no Inventário Municipal'
+    : location.matchedTree
+      ? `Possível correspondência com a Árvore #${location.matchedTree.id} (${Math.round(location.matchDistance)} m)`
+      : 'Coordenadas registradas na vistoria';
+  $('modal-process-map-title').textContent = location.matchedTree ? location.label : 'Coordenadas da vistoria';
+  $('modal-process-map-caption').textContent = `${matchDescription} · ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+  $('modal-process-map-link').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${location.lat},${location.lng}`)}`;
+
+  modalProcessMap = L.map('modal-process-map', {
+    center: [location.lat, location.lng], zoom: 18, scrollWheelZoom: false
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap', maxZoom: 19
+  }).addTo(modalProcessMap);
+  L.marker([location.lat, location.lng]).addTo(modalProcessMap)
+    .bindPopup(`<b>${esc(location.label)}</b><br>${esc(matchDescription)}`).openPopup();
+}
+
+function initOrUpdateMiniMap(lat, lng, labelText = 'Localização do Exemplar') {
+  const box = $('mini-map-box');
+  const caption = $('mini-map-caption');
+  if (!box || !lat || !lng) return;
+
+  const nLat = parseFloat(lat);
+  const nLng = parseFloat(lng);
+  if (isNaN(nLat) || isNaN(nLng)) return;
+
+  box.hidden = false;
+  if (caption) caption.textContent = `${labelText}: Latitude ${nLat.toFixed(6)}, Longitude ${nLng.toFixed(6)}`;
+
+  if (typeof L !== 'undefined') {
+    const container = $('mini-map-tree');
+    if (!container) return;
+
+    if (!treeMiniMap) {
+      treeMiniMap = L.map('mini-map-tree', {
+        center: [nLat, nLng],
+        zoom: 17
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19
+      }).addTo(treeMiniMap);
+    }
+
+    if (treeMiniMarker) {
+      treeMiniMarker.setLatLng([nLat, nLng]);
+    } else {
+      treeMiniMarker = L.marker([nLat, nLng]).addTo(treeMiniMap);
+    }
+    treeMiniMarker.bindPopup(`<b>${esc(labelText)}</b><br>Coordenadas: ${nLat.toFixed(5)}, ${nLng.toFixed(5)}`).openPopup();
+    treeMiniMap.setView([nLat, nLng], 17);
+    setTimeout(() => treeMiniMap?.invalidateSize(), 150);
+  }
+}
+
+// ── Dados do Fiscal ─────────────────────────────────────────────────────────
+function loadFiscalData() {
+  const fNome = $('fiscal-nome');
+  const fMat = $('fiscal-matricula');
+  const fCargo = $('fiscal-cargo');
+  if (fNome) fNome.value = localStorage.getItem('fiscal_nome') || 'Júlia R. Meira';
+  if (fMat) fMat.value = localStorage.getItem('fiscal_matricula') || '04218';
+  if (fCargo) fCargo.value = localStorage.getItem('fiscal_cargo') || 'Fiscal de Meio Ambiente';
+}
+
+function saveFiscalData() {
+  const nome = val('fiscal-nome');
+  const mat = val('fiscal-matricula');
+  const cargo = val('fiscal-cargo');
+  localStorage.setItem('fiscal_nome', nome);
+  localStorage.setItem('fiscal_matricula', mat);
+  localStorage.setItem('fiscal_cargo', cargo);
+  const btn = $('btn-save-fiscal');
+  if (btn) {
+    btn.textContent = '✓ Dados salvos com sucesso!';
+    setTimeout(() => { btn.textContent = '💾 Salvar meus dados padrão'; }, 2500);
+  }
+}
+
+// ── Configuração do Seletor de Destinação (Parecer vs Ofício) ────────────────
+function setupDestinacaoEvents() {
+  const radios = document.querySelectorAll('input[name="destinacao-tipo"]');
+  const numOficioWrap = $('num-oficio-wrap');
+  const destFormal = $('destinatario-formal');
+  const numOficio = $('num-oficio');
+
+  function updateDestUI() {
+    const chosen = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
+    if (chosen === 'requerente') {
+      if (numOficioWrap) numOficioWrap.hidden = true;
+    } else if (chosen === 'codema') {
+      if (numOficioWrap) numOficioWrap.hidden = false;
+      if (destFormal) destFormal.value = 'Ao Conselho Municipal de Conservação e Defesa do Meio Ambiente - CODEMA';
+      if (numOficio && !numOficio.value) numOficio.value = `___/${new Date().getFullYear()} - DMA/SPUMA`;
+    } else if (chosen === 'obras') {
+      if (numOficioWrap) numOficioWrap.hidden = false;
+      if (destFormal) destFormal.value = 'À Secretaria Municipal de Obras e Serviços Públicos';
+      if (numOficio && !numOficio.value) numOficio.value = `___/${new Date().getFullYear()} - DMA/SPUMA`;
+    }
+    const docEl = $('documento');
+    if (docEl && !docEl.hidden) {
+      generate();
+    }
+  }
+
+  radios.forEach(r => r.addEventListener('change', updateDestUI));
+  updateDestUI();
+}
+
+// ── Controle do Motivo "Outro" ──────────────────────────────────────────────
+function setupMotivoEvents() {
+  const finSelect = $('finalidade');
+  const outroWrap = $('finalidade-outro-wrap');
+  if (finSelect && outroWrap) {
+    const checkOutro = () => {
+      outroWrap.hidden = (finSelect.value !== 'outro');
+    };
+    finSelect.addEventListener('change', checkOutro);
+    checkOutro();
+  }
+}
+
+// ── Persistência Permanente da Chave Pl@ntNet ───────────────────────────────
+async function savePlantNetKey() {
+  const key = val('plantnet-key');
+  const btn = $('save-key');
+  if (!key) {
+    alert('Digite a chave da API do Pl@ntNet para salvá-la.');
+    return;
+  }
+  localStorage.setItem('plantnetApiKey', key);
+  try {
+    const res = await fetch('/api/config/save-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      if (btn) {
+        btn.textContent = '✓ Chave salva permanentemente!';
+        btn.classList.add('btn-ok');
+      }
+    }
+  } catch {
+    if (btn) btn.textContent = '✓ Salva no navegador';
+  }
+  setTimeout(() => {
+    if (btn) {
+      btn.textContent = 'Salvar chave';
+      btn.classList.remove('btn-ok');
+    }
+  }, 2500);
+}
+
+function viewProcessoParecer(procId) {
+  const p = processos.find(x => x.id === procId);
+  if (!p) return;
+  currentViewingProcessId = procId;
+
+  const modal = $('modal-processo');
+  if (!modal) return;
+
+  $('modal-processo-badge').textContent = `Proc. nº ${p.protocolo}`;
+  $('modal-processo-titulo').textContent = `Parecer: ${p.intervencaoLabel || p.intervencao}`;
+  $('modal-processo-sub').textContent = `${p.requerente} · ${p.endereco}`;
+  $('modal-parecer-texto').value = p.parecerTexto || '[Nenhum parecer técnico gerado ainda para este processo.]';
+  $('modal-status-select').value = p.situacao || 'Em Análise';
+
+  const treeInfo = $('modal-tree-info');
+  if (treeInfo) {
+    if (p.arvoreInventarioId) {
+      treeInfo.hidden = false;
+      treeInfo.innerHTML = `
+        <div class="tree-badge-link" style="margin-bottom: 12px;">
+          <span>🌳</span>
+          <span>Vinculado à <b>Árvore #${p.arvoreInventarioId}</b> (${p.arvoreInventarioNome}) do Inventário Municipal</span>
+        </div>
+      `;
+    } else {
+      treeInfo.hidden = true;
+    }
+  }
+
+  modal.showModal();
+  renderModalProcessMap(p);
+  setTimeout(() => modalProcessMap?.invalidateSize(), 120);
+}
+
+function openStatusModal(procId) {
+  viewProcessoParecer(procId);
+}
+
+function updateViewingProcessStatus() {
+  if (!currentViewingProcessId) return;
+  const p = processos.find(x => x.id === currentViewingProcessId);
+  if (!p) return;
+
+  const newStatus = val('modal-status-select');
+  p.situacao = newStatus;
+  p.updatedAt = new Date().toISOString();
+  saveProcessos();
+
+  alert(`✓ Situação do processo atualizada para: ${newStatus}`);
+  $('modal-processo')?.close();
+}
+
+function deleteProcesso(procId) {
+  const p = processos.find(x => x.id === procId);
+  if (!p) return;
+  if (confirm(`Tem certeza que deseja excluir o processo nº ${p.protocolo}?`)) {
+    processos = processos.filter(x => x.id !== procId);
+    saveProcessos();
+  }
+}
+
+// Alternância entre visão de Processos e Nova Solicitação
+function switchMainView(viewName) {
+  const tabProc = $('view-tab-processos');
+  const tabNovo = $('view-tab-novo');
+  const viewProc = $('view-processos');
+  const viewNovo = $('view-novo');
+
+  if (viewName === 'processos') {
+    tabProc?.classList.add('active');
+    tabProc?.setAttribute('aria-selected', 'true');
+    tabNovo?.classList.remove('active');
+    tabNovo?.setAttribute('aria-selected', 'false');
+
+    if (viewProc) viewProc.hidden = false;
+    if (viewNovo) viewNovo.hidden = true;
+    renderProcessos();
+  } else {
+    tabNovo?.classList.add('active');
+    tabNovo?.setAttribute('aria-selected', 'true');
+    tabProc?.classList.remove('active');
+    tabProc?.setAttribute('aria-selected', 'false');
+
+    if (viewProc) viewProc.hidden = true;
+    if (viewNovo) viewNovo.hidden = false;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Parâmetros de URL (Deep Linking)
+function checkUrlDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const treeId = params.get('tree_id') || params.get('arvore_id');
+  const lat = params.get('lat');
+  const lng = params.get('lng');
+  const view = params.get('view');
+
+  if (view === 'novo' || treeId || lat) {
+    switchMainView('novo');
+  }
+
+  if (lat && lng) {
+    if ($('geo-lat')) $('geo-lat').value = lat;
+    if ($('geo-lng')) $('geo-lng').value = lng;
+    initOrUpdateMiniMap(lat, lng, 'Local informado por link');
+  }
+
+  if (treeId && inventoryTrees.length) {
+    const tr = inventoryTrees.find(x => String(x.id) === String(treeId));
+    if (tr) linkInventoryTree(tr);
+  }
+}
+
 // Inicialização dos eventos da aplicação
 function init() {
   const qtdInput = $('quantidade');
@@ -1262,6 +2830,79 @@ function init() {
   document.querySelectorAll('[data-go]').forEach(b => {
     b.addEventListener('click', () => showTab(b.dataset.go));
   });
+
+  // Alternância de visão principal
+  $('view-tab-processos')?.addEventListener('click', () => switchMainView('processos'));
+  $('view-tab-novo')?.addEventListener('click', () => switchMainView('novo'));
+  $('btn-novo-processo')?.addEventListener('click', () => switchMainView('novo'));
+
+  // Salvamentos por etapa e final
+  $('btn-save-etapa1')?.addEventListener('click', saveEtapa1);
+  $('btn-save-etapa2')?.addEventListener('click', saveEtapa2);
+  $('btn-save-final-proc')?.addEventListener('click', saveFinalProcesso);
+  $('btn-save-processo')?.addEventListener('click', saveCurrentProcesso);
+
+  // Fiscal e Configurações
+  $('btn-save-fiscal')?.addEventListener('click', saveFiscalData);
+  loadFiscalData();
+  setupDestinacaoEvents();
+  setupMotivoEvents();
+
+  // GPS & Inventário
+  $('btn-get-gps')?.addEventListener('click', captureGPS);
+  $('btn-search-inventory')?.addEventListener('click', openInventorySearchModal);
+  $('modal-inventory-close')?.addEventListener('click', closeInventorySearchModal);
+  $('inventory-search-input')?.addEventListener('input', e => filterInventoryCatalog(e.target.value));
+
+  // Disparadores dinâmicos do Match Inteligente e do Mini Mapa
+  const onCoordChange = () => {
+    detectInventoryMatch();
+    const lat = val('geo-lat');
+    const lng = val('geo-lng');
+    if (lat && lng) {
+      initOrUpdateMiniMap(lat, lng, val('local') || 'Árvore em vistoria');
+    }
+  };
+
+  $('geo-lat')?.addEventListener('input', onCoordChange);
+  $('geo-lng')?.addEventListener('input', onCoordChange);
+  $('local')?.addEventListener('input', detectInventoryMatch);
+
+  // Botão recentralizar mini mapa
+  $('btn-recenter-mini-map')?.addEventListener('click', () => {
+    const lat = val('geo-lat');
+    const lng = val('geo-lng');
+    if (lat && lng) {
+      initOrUpdateMiniMap(lat, lng, val('local') || 'Árvore em vistoria');
+    }
+  });
+
+  // Filtros de processos
+  $('processos-search')?.addEventListener('input', e => {
+    activeProcessSearch = e.target.value;
+    renderProcessos();
+  });
+
+  document.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      activeProcessFilter = btn.dataset.filter;
+      renderProcessos();
+    });
+  });
+
+  // Modais de parecer e status
+  $('modal-processo-close')?.addEventListener('click', () => $('modal-processo')?.close());
+  $('modal-status-save')?.addEventListener('click', updateViewingProcessStatus);
+  $('modal-btn-copiar')?.addEventListener('click', async () => {
+    const txt = $('modal-parecer-texto')?.value;
+    if (txt) {
+      await navigator.clipboard.writeText(txt);
+      alert('✓ Parecer copiado para a área de transferência!');
+    }
+  });
+  $('modal-btn-imprimir')?.addEventListener('click', () => window.print());
 
   const watchIds = [
     'area', 'grande', 'valor', 'impacto', 'alternativa',
@@ -1299,17 +2940,12 @@ function init() {
   if (saveSheetBtn) saveSheetBtn.addEventListener('click', saveSheet);
 
   const saveKeyBtn = $('save-key');
-  if (saveKeyBtn) {
-    saveKeyBtn.addEventListener('click', () => {
-      localStorage.setItem('plantnetApiKey', val('plantnet-key'));
-      saveKeyBtn.textContent = '✓ Chave salva no navegador';
-      setTimeout(() => { saveKeyBtn.textContent = 'Salvar chave'; }, 2500);
-    });
-  }
+  if (saveKeyBtn) saveKeyBtn.addEventListener('click', savePlantNetKey);
 
   // Preenche dados padrão
   const pk = $('plantnet-key');
-  if (pk) pk.value = localStorage.getItem('plantnetApiKey') || '';
+  const storedKey = localStorage.getItem('plantnetApiKey') || '';
+  if (pk && storedKey) pk.value = storedKey;
 
   const sw = $('sheet-webhook');
   if (sw) sw.value = localStorage.getItem('sheetWebhook') || '';
@@ -1321,25 +2957,282 @@ function init() {
   const dataAut = $('data-autorizacao');
   if (dataAut) dataAut.value = todayIso;
 
-  // Prazo padrão de 60 dias (Art. 5º da DN 09/2026)
   const defaultPrazo = new Date();
   defaultPrazo.setDate(defaultPrazo.getDate() + 60);
   const prazoEl = $('prazo');
   if (prazoEl) prazoEl.value = defaultPrazo.toISOString().slice(0, 10);
 
-  // Consulta configuração de chave no servidor local
+  // Consulta configuração de chave no servidor local (mantém chave salva sem limpar o campo)
   fetch('/api/config')
     .then(r => r.json())
     .then(c => {
       if (c.plantnetConfigured && pk) {
-        pk.value = '';
+        if (!pk.value && c.key) pk.value = c.key;
         pk.placeholder = 'Chave ativa no servidor local (.env)';
-        if (saveKeyBtn) saveKeyBtn.textContent = 'Chave no servidor local';
+        if (saveKeyBtn) saveKeyBtn.title = 'Chave salva e ativa no servidor';
+      }
+      if (c.sheetsWebhookUrl) {
+        if (sw && !sw.value) sw.value = c.sheetsWebhookUrl;
+        if (!localStorage.getItem('sheetWebhook')) {
+          localStorage.setItem('sheetWebhook', c.sheetsWebhookUrl);
+        }
+        if (!localStorage.getItem('mapaWebhookUrl')) {
+          localStorage.setItem('mapaWebhookUrl', c.sheetsWebhookUrl);
+        }
       }
     })
     .catch(() => {});
 
   renderAll(false);
+  loadProcessos();
+  loadInventoryTrees().then(checkUrlDeepLink);
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+/* ══════════════════════════════════════════════════════════════
+   MAPA DE ÁRVORES - Lógica de UI e integração com Leaflet
+══════════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+
+  // Andradas/MG – centro padrão do mapa
+  const DEFAULT_CENTER = [-22.0670, -46.5686];
+  const DEFAULT_ZOOM   = 14;
+
+  // Chave de armazenamento local para a URL do webhook
+  const WEBHOOK_STORAGE_KEY = "mapaWebhookUrl";
+
+  let leafletMap   = null;
+  let markersLayer = null;
+  let isOpen       = false;
+
+  // Elementos do DOM
+  const modal        = document.getElementById("mapa-modal");
+  const closeBtn     = document.getElementById("mapa-close");
+  const openBtn      = document.getElementById("btn-mapa");
+  const statsEl      = document.getElementById("mapa-stats");
+  const statusEl     = document.getElementById("mapa-status");
+  const loadBtn      = document.getElementById("mapa-load-btn");
+  const webhookInput = document.getElementById("mapa-webhook-input");
+
+  // Restaurar URL salva
+  webhookInput.value = localStorage.getItem(WEBHOOK_STORAGE_KEY) || "";
+  // Se o campo está vazio, tenta ler do campo de registro do formulário principal
+  if (!webhookInput.value) {
+    const mainWebhook = document.getElementById("sheet-webhook");
+    if (mainWebhook && mainWebhook.value) webhookInput.value = mainWebhook.value;
+  }
+
+  // ── Abrir / Fechar ──────────────────────────────────────────────────────────
+  function openMapa() {
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    isOpen = true;
+    if (!leafletMap) {
+      initLeafletMap();
+    } else {
+      setTimeout(() => leafletMap.invalidateSize(), 100);
+    }
+    // Buscar dados automaticamente se tiver URL
+    if (webhookInput.value.trim()) {
+      loadTrees(webhookInput.value.trim());
+    } else {
+      showStatus("Cole a URL do seu Google Apps Script e clique em Carregar.", "loading");
+    }
+  }
+
+  function closeMapa() {
+    modal.hidden = true;
+    document.body.style.overflow = "";
+    isOpen = false;
+  }
+
+  if (openBtn)  openBtn.addEventListener("click", openMapa);
+  if (closeBtn) closeBtn.addEventListener("click", closeMapa);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeMapa(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen) closeMapa(); });
+
+  // ── Inicializar Leaflet ─────────────────────────────────────────────────────
+  function initLeafletMap() {
+    if (typeof L === "undefined") {
+      showStatus("Erro: biblioteca Leaflet não carregada. Verifique sua conexão com a internet.", "error");
+      return;
+    }
+
+    leafletMap = L.map("arvores-map", {
+      center: DEFAULT_CENTER,
+      zoom:   DEFAULT_ZOOM,
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(leafletMap);
+
+    markersLayer = L.layerGroup().addTo(leafletMap);
+
+    setTimeout(() => leafletMap.invalidateSize(), 200);
+  }
+
+  // ── Botão Carregar ──────────────────────────────────────────────────────────
+  loadBtn.addEventListener("click", () => {
+    const url = webhookInput.value.trim();
+    if (!url) {
+      showStatus("Cole a URL do Google Apps Script para carregar os dados.", "error");
+      return;
+    }
+    localStorage.setItem(WEBHOOK_STORAGE_KEY, url);
+    loadTrees(url);
+  });
+
+  webhookInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadBtn.click();
+  });
+
+  // ── Carregar árvores via proxy local ────────────────────────────────────────
+  async function loadTrees(webhookUrl) {
+    showStatus("Buscando registros na planilha...", "loading");
+    statsEl.textContent = "Carregando...";
+
+    if (!leafletMap) initLeafletMap();
+    if (markersLayer) markersLayer.clearLayers();
+
+    try {
+      const encoded = encodeURIComponent(webhookUrl);
+      const res = await fetch(`/api/get-trees?url=${encoded}`);
+      const data = await res.json();
+
+      if (!data.ok) {
+        showStatus("Erro ao buscar dados: " + (data.error || "Resposta inválida"), "error");
+        statsEl.textContent = "Erro";
+        return;
+      }
+
+      const trees = data.trees || [];
+      if (trees.length === 0) {
+        showStatus("Nenhum registro com coordenadas encontrado na planilha. Verifique se as colunas de latitude/longitude estão preenchidas.", "loading");
+        statsEl.textContent = "0 registros";
+        return;
+      }
+
+      renderMarkers(trees);
+      hideStatus();
+
+      // Contadores por situação
+      const counts = { total: trees.length };
+      trees.forEach(t => {
+        const s = normalizeSituacao(t.situacao);
+        counts[s] = (counts[s] || 0) + 1;
+      });
+      statsEl.textContent = `${counts.total} registro${counts.total !== 1 ? "s" : ""}  ·  ✅ ${counts.compensado || 0}  ·  ⏳ ${counts.aguardando || 0}  ·  🔵 ${counts.analise || 0}  ·  ❌ ${counts.indeferido || 0}`;
+
+    } catch (err) {
+      showStatus("Erro de conexão: " + err.message, "error");
+      statsEl.textContent = "Erro";
+    }
+  }
+
+  // ── Renderizar marcadores ───────────────────────────────────────────────────
+  function renderMarkers(trees) {
+    const bounds = [];
+
+    trees.forEach(tree => {
+      const s = normalizeSituacao(tree.situacao);
+      const color = situacaoColor(s);
+
+      // Ícone SVG colorido
+      const iconHtml = `
+        <div style="
+          width:28px;height:28px;border-radius:50% 50% 50% 0;
+          background:${color};
+          border:2.5px solid rgba(255,255,255,.85);
+          box-shadow:0 3px 10px rgba(0,0,0,.4);
+          transform:rotate(-45deg);
+          transition:transform .2s;
+        "></div>`;
+
+      const icon = L.divIcon({
+        html: iconHtml,
+        className: "",
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -30]
+      });
+
+      const mapsUrl = `https://www.google.com/maps?q=${tree.lat},${tree.lng}`;
+
+      const popupHtml = `
+        <div class="arvore-popup">
+          <h4>${esc(tree.endereco || "Local não informado")}</h4>
+          <div class="popup-proto">Protocolo: ${esc(tree.protocolo || "–")}</div>
+          <div class="popup-row"><strong>Solicitante</strong>${esc(tree.solicitante || "–")}</div>
+          <div class="popup-row"><strong>Intervenção</strong>${esc(tree.solicitacao || "–")}</div>
+          <div class="popup-row"><strong>Autorização</strong>${esc(tree.autorizacao || "–")}</div>
+          <div class="popup-row"><strong>Compensação</strong>${esc(tree.compensacao || "–")}</div>
+          <div class="popup-row"><strong>Data</strong>${esc(tree.data || "–")}</div>
+          <div>
+            <span class="popup-badge badge-${s}">${esc(tree.situacao || "Aguardando")}</span>
+          </div>
+          <a class="popup-maps" href="${mapsUrl}" target="_blank" rel="noopener">
+            📍 Ver no Google Maps
+          </a>
+        </div>`;
+
+      const marker = L.marker([tree.lat, tree.lng], { icon })
+        .bindPopup(popupHtml, { maxWidth: 300 });
+
+      markersLayer.addLayer(marker);
+      bounds.push([tree.lat, tree.lng]);
+    });
+
+    if (bounds.length > 0) {
+      if (bounds.length === 1) {
+        leafletMap.setView(bounds[0], 16);
+      } else {
+        leafletMap.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function normalizeSituacao(s) {
+    if (!s) return "aguardando";
+    const l = s.toLowerCase();
+    if (l.includes("compensado")) return "compensado";
+    if (l.includes("an")) return "analise";          // "Em Análise"
+    if (l.includes("indeferido")) return "indeferido";
+    return "aguardando";
+  }
+
+  function situacaoColor(s) {
+    const map = {
+      aguardando: "#f59e0b",
+      compensado:  "#22c55e",
+      analise:     "#3b82f6",
+      indeferido:  "#ef4444"
+    };
+    return map[s] || "#94a3b8";
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function showStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className = "mapa-status " + (type || "loading");
+    statusEl.hidden = false;
+  }
+
+  function hideStatus() {
+    statusEl.hidden = true;
+  }
+})();
+

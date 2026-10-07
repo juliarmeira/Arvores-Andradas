@@ -1,14 +1,17 @@
 import http from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 
 const root = process.cwd();
 const port = Number(process.env.PORT) || 4178;
+const VISTORIA_SPREADSHEET_ID = "1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU";
 
 let localKey = "";
+let sheetsWebhookUrl = "";
 try {
   const cfg = await readFile(join(root, ".env"), "utf8");
   localKey = cfg.match(/^PLANTNET_API_KEY=(.+)$/m)?.[1]?.trim() || "";
+  sheetsWebhookUrl = cfg.match(/^SHEETS_WEBHOOK_URL=(.+)$/m)?.[1]?.trim() || "";
 } catch {}
 
 const types = {
@@ -27,6 +30,7 @@ const types = {
 const json = (res, status, data) => {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
     "X-Content-Type-Options": "nosniff"
   });
   res.end(JSON.stringify(data));
@@ -47,7 +51,19 @@ const readBody = (req, limit = 2_000_000) =>
     req.on("error", rej);
   });
 
-// Whitelist of allowed public paths for safe static serving
+const parseCsvLine = (line) => {
+  const values = [];
+  line.replace(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g, (_, cell) => {
+    values.push(cell.startsWith('"') ? cell.slice(1, -1).replace(/""/g, '"') : cell);
+    return "";
+  });
+  return values;
+};
+
+const brDateToIso = (value) => {
+  const match = String(value || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : String(value || "");
+};
 const isAllowedStatic = (relPath) => {
   if (!relPath || relPath.includes("..") || relPath.startsWith(".") || relPath.includes("/.")) {
     return false;
@@ -66,12 +82,89 @@ const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
+    // ── GET /api/config ──────────────────────────────────────────────────────
     if (req.method === "GET" && u.pathname === "/api/config") {
       return json(res, 200, {
-        plantnetConfigured: !!(process.env.PLANTNET_API_KEY || localKey)
+        plantnetConfigured: !!(process.env.PLANTNET_API_KEY || localKey),
+        key: process.env.PLANTNET_API_KEY || localKey || "",
+        sheetsWebhookUrl: process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl || ""
       });
     }
 
+    // ── GET /api/processes (planilha exclusiva da Vistoria) ──────────────────
+    if (req.method === "GET" && u.pathname === "/api/processes") {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${VISTORIA_SPREADSHEET_ID}/export?format=csv&gid=0&_=${Date.now()}`;
+      try {
+        const upstream = await fetch(csvUrl, { redirect: "follow", cache: "no-store" });
+        if (!upstream.ok) return json(res, 502, { ok: false, error: `Planilha respondeu HTTP ${upstream.status}` });
+        const rows = (await upstream.text()).split(/\r?\n/).map(parseCsvLine);
+        const byProtocol = new Map();
+        rows.slice(1).forEach((row, index) => {
+          const protocolo = String(row[1] || "").trim();
+          if (!protocolo) return;
+          byProtocol.set(protocolo, {
+            id: `SHEET-${index + 2}-${protocolo}`,
+            protocolo,
+            data: brDateToIso(row[0]),
+            requerente: String(row[2] || ""),
+            endereco: String(row[3] || ""),
+            intervencao: String(row[4] || ""),
+            intervencaoLabel: String(row[4] || ""),
+            situacao: String(row[14] || "").trim() || "Em Análise",
+            coordenadas: { lat: String(row[5] || ""), lng: String(row[6] || "") },
+            responsavelCorte: String(row[7] || ""),
+            autorizacao: String(row[8] || ""),
+            dataAutorizacao: brDateToIso(row[9]),
+            compensacao: String(row[10] || ""),
+            prazo: brDateToIso(row[11]),
+            coordComp1: String(row[12] || ""),
+            coordComp2: String(row[13] || ""),
+            parecerTexto: ""
+          });
+        });
+        return json(res, 200, { ok: true, processes: [...byProtocol.values()] });
+      } catch (fetchErr) {
+        return json(res, 502, { ok: false, error: `Falha ao consultar a planilha da Vistoria: ${fetchErr.message}` });
+      }
+    }
+    // ── POST /api/config/save-key ──────────────────────────────────────────
+    if (req.method === "POST" && u.pathname === "/api/config/save-key") {
+      const bodyBuffer = await readBody(req);
+      let data;
+      try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
+      const key = String(data.key || "").trim();
+      if (!key) return json(res, 400, { ok: false, error: "Chave não informada" });
+      localKey = key;
+      process.env.PLANTNET_API_KEY = key;
+      try {
+        await writeFile(join(root, ".env"), `PLANTNET_API_KEY=${key}\nSHEETS_WEBHOOK_URL=${sheetsWebhookUrl}\n`, "utf8");
+      } catch (err) {
+        console.warn("[server] Não foi possível salvar no .env:", err.message);
+      }
+      return json(res, 200, { ok: true, message: "Chave salva permanentemente no servidor" });
+    }
+
+    // ── GET /api/get-trees (proxy para Apps Script doGet) ───────────────────
+    if (req.method === "GET" && u.pathname === "/api/get-trees") {
+      const webhookUrl = u.searchParams.get("url") || sheetsWebhookUrl;
+      if (!webhookUrl || !/^https:\/\/script\.google\.com\//i.test(webhookUrl)) {
+        return json(res, 400, { ok: false, error: "URL do Google Apps Script não configurada" });
+      }
+      try {
+        const upstream = await fetch(webhookUrl, {
+          method: "GET",
+          redirect: "follow"
+        });
+        const text = await upstream.text();
+        let result;
+        try { result = JSON.parse(text); } catch { result = { ok: false, raw: text.slice(0, 300) }; }
+        return json(res, upstream.ok ? 200 : 502, result);
+      } catch (fetchErr) {
+        return json(res, 502, { ok: false, error: fetchErr.message });
+      }
+    }
+
+    // ── POST /api/identify (proxy Pl@ntNet) ──────────────────────────────────
     if (req.method === "POST" && u.pathname === "/api/identify") {
       const key = u.searchParams.get("key") || process.env.PLANTNET_API_KEY || localKey;
       if (!key) return json(res, 400, { error: "Chave Pl@ntNet não configurada" });
@@ -96,6 +189,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(body);
     }
 
+    // ── POST /api/sheet (proxy Apps Script doPost) ───────────────────────────
     if (req.method === "POST" && u.pathname === "/api/sheet") {
       const bodyBuffer = await readBody(req);
       let data;
@@ -105,7 +199,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, 400, { ok: false, error: "JSON inválido" });
       }
 
-      const target = data.url || process.env.SHEETS_WEBHOOK_URL;
+      const target = data.url || process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
       if (!target || !/^https:\/\/script\.google\.com\//i.test(target)) {
         return json(res, 400, { ok: false, error: "URL válida do Google Apps Script não configurada" });
       }
@@ -131,7 +225,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 405, { error: "Método não permitido" });
     }
 
-    // Static file serving with strict whitelist & path sanitization
+    // ── Static file serving ───────────────────────────────────────────────────
     const rawPath = decodeURIComponent(u.pathname);
     const rel = rawPath === "/" ? "index.html" : rawPath.replace(/^\/+/, "");
 
@@ -153,17 +247,16 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { error: "Arquivo não encontrado" });
     }
 
-    const body = await readFile(filePath);
+    const fileBody = await readFile(filePath);
     const ext = extname(filePath).toLowerCase();
     res.writeHead(200, {
       "Content-Type": types[ext] || "application/octet-stream",
-      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+      "Cache-Control": [".html", ".js", ".css"].includes(ext) ? "no-store" : "public, max-age=3600",
       "X-Content-Type-Options": "nosniff"
     });
-    if (req.method === "HEAD") {
-      return res.end();
-    }
-    return res.end(body);
+    if (req.method === "HEAD") return res.end();
+    return res.end(fileBody);
+
   } catch (e) {
     console.error("[servidor]", e.message);
     if (!res.headersSent) {
