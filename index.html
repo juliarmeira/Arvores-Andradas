@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#153f34">
+  <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
@@ -11,7 +11,7 @@
   <meta name="description" content="Sistema de Vistoria Ambiental e Emissão de Parecer Técnico - Deliberação Normativa CODEMA nº 09/2026 - Município de Andradas/MG">
   <title>Parecer Ambiental · Vistoria Arbórea · Andradas/MG</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
-  <link rel="stylesheet" href="index.css?v=7">
+  <link rel="stylesheet" href="index.css?v=8">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
@@ -42,9 +42,9 @@
       <div class="connection-card" aria-live="polite"><span id="connection-dot" class="connection-dot"></span><div><strong id="connection-label">Verificando conexão</strong><small id="connection-help">Preparando o modo de campo</small></div></div>
     </div>
     <div class="module-grid" aria-label="Módulos ambientais">
-      <button class="module-card module-water" type="button" data-module="agua"><span class="module-icon">💧</span><span class="module-copy"><small>Monitoramento</small><strong>Análise de Água</strong><span>Coletas, parâmetros e resultados laboratoriais</span></span><span class="module-arrow">→</span></button>
-      <button class="module-card module-inspection" type="button" data-module="vistoria"><span class="module-icon">📋</span><span class="module-copy"><small>Fiscalização</small><strong>Vistorias Ambientais</strong><span>Processos, trabalho de campo e pareceres</span></span><span class="module-arrow">→</span></button>
-      <button class="module-card module-trees" type="button" data-module="inventario"><span class="module-icon">🌳</span><span class="module-copy"><small>Arborização urbana</small><strong>Inventário de Árvores</strong><span>Catálogo, localização e condição dos exemplares</span></span><span class="module-arrow">→</span></button>
+      <button class="module-card module-water" type="button" data-module="agua"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5S5 10.1 5 15a7 7 0 0 0 14 0c0-4.9-7-12.5-7-12.5Z"/><path d="M8.5 15.5a3.5 3.5 0 0 0 3.5 3"/></svg></span><span class="module-copy"><small>Monitoramento</small><strong>Análise de Água</strong><span>Coletas, parâmetros e resultados laboratoriais</span></span><span class="module-arrow">→</span></button>
+      <button class="module-card module-inspection" type="button" data-module="vistoria"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5h6"/><path d="M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="m8 13 2 2 5-5"/></svg></span><span class="module-copy"><small>Fiscalização</small><strong>Vistorias Ambientais</strong><span>Processos, trabalho de campo e pareceres</span></span><span class="module-arrow">→</span></button>
+      <button class="module-card module-trees" type="button" data-module="inventario"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22V10"/><path d="M8 22h8"/><path d="M12 3c-4 0-7 3-7 7 0 3 2 5 5 5 1 0 2-.3 2-.3s1 .3 2 .3c3 0 5-2 5-5 0-4-3-7-7-7Z"/></svg></span><span class="module-copy"><small>Arborização urbana</small><strong>Inventário de Árvores</strong><span>Catálogo, localização e condição dos exemplares</span></span><span class="module-arrow">→</span></button>
     </div>
     <div class="home-actions"><button id="btn-install-app" class="install-app" type="button" hidden>Instalar no Android</button><small>Os módulos de água e inventário serão incorporados gradualmente a este aplicativo.</small></div>
   </section>
