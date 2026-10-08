@@ -8,6 +8,29 @@ const WATER_SHEET_NAME = 'Todos';
 function doPost(e) {
   try {
     const p = JSON.parse(e.postData.contents);
+    if (p.action === 'saveWaterPoint') {
+      const pointsSheet = SpreadsheetApp.openById(WATER_SPREADSHEET_ID).getSheetByName('Pontos');
+      if (!pointsSheet) throw new Error('Aba Pontos não encontrada');
+      ['district', 'type', 'location', 'coordinates'].forEach(function(key) { if (!String(p[key] || '').trim()) throw new Error('Campo obrigatório ausente: ' + key); });
+      const lock = LockService.getScriptLock(); lock.waitLock(15000);
+      try {
+        const lastRow = pointsSheet.getLastRow();
+        const ids = lastRow > 1 ? pointsSheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues() : [];
+        let row = 0;
+        if (p.id) for (let i = 0; i < ids.length; i++) if (String(ids[i][0]).trim() === String(p.id).trim()) { row = i + 2; break; }
+        if (p.id && !row) throw new Error('Ponto não encontrado: ' + p.id);
+        if (!row) {
+          const nextId = ids.reduce(function(max, item) { const n = Number(item[0]); return isNaN(n) ? max : Math.max(max, n); }, 0) + 1;
+          pointsSheet.appendRow([nextId, p.district, '', p.type, p.location, p.coordinates, p.source || '']);
+          row = pointsSheet.getLastRow();
+        } else {
+          pointsSheet.getRange(row, 2).setValue(p.district);
+          pointsSheet.getRange(row, 4, 1, 4).setValues([[p.type, p.location, p.coordinates, p.source || '']]);
+        }
+        SpreadsheetApp.flush();
+        return ContentService.createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: row, id: pointsSheet.getRange(row, 1).getDisplayValue() })).setMimeType(ContentService.MimeType.JSON);
+      } finally { lock.releaseLock(); }
+    }
     if (p.action === 'addWaterRecord' || p.module === 'water') {
       const required = ['clientId', 'date', 'district', 'pointType', 'location'];
       required.forEach(function(key) { if (!String(p[key] || '').trim()) throw new Error('Campo obrigatório ausente: ' + key); });

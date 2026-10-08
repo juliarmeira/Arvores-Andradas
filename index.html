@@ -11,7 +11,7 @@
   <meta name="description" content="Sistema de Vistoria Ambiental e Emissão de Parecer Técnico - Deliberação Normativa CODEMA nº 09/2026 - Município de Andradas/MG">
   <title>Parecer Ambiental · Vistoria Arbórea · Andradas/MG</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
-  <link rel="stylesheet" href="index.css?v=8">
+  <link rel="stylesheet" href="index.css?v=9">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
@@ -52,8 +52,34 @@
     <div class="module-page-head">
       <button id="water-back" class="back-button" type="button">← Início</button>
       <div><p class="eyebrow">Monitoramento municipal</p><h1 id="water-title">Análise de Água</h1><p>Registro de coletas compatível com a planilha Controle de água.</p></div>
-      <span id="water-pending-count" class="pending-badge">0 registros locais</span>
+      <div class="water-head-actions"><span id="water-pending-count" class="pending-badge">0 registros locais</span><button id="water-manage-points" type="button">Gerenciar pontos</button></div>
     </div>
+    <section class="water-dashboard" aria-labelledby="water-dashboard-title">
+      <div class="water-dashboard-head">
+        <div><p class="eyebrow">Indicadores da qualidade</p><h2 id="water-dashboard-title">Visão geral e variação</h2><p id="water-dashboard-period">Histórico disponível na planilha</p></div>
+        <div class="water-dashboard-filters">
+          <label>Período<select id="water-dashboard-range"><option value="30">Últimos 30 dias</option><option value="90" selected>Últimos 90 dias</option><option value="365">Último ano</option><option value="all">Todo o histórico</option></select></label>
+          <label>Distrito<select id="water-dashboard-district"><option value="all">Todos os distritos</option></select></label>
+        </div>
+      </div>
+      <div id="water-dashboard-kpis" class="water-dashboard-kpis" aria-live="polite"></div>
+      <div id="water-dashboard-charts" class="water-dashboard-charts"></div>
+      <div id="water-dashboard-empty" class="water-dashboard-empty" hidden>Nenhuma coleta encontrada para este período e distrito.</div>
+    </section>    <section id="water-points-panel" class="water-points-panel" hidden>
+      <div class="water-history-head"><div><p class="eyebrow">Cadastro georreferenciado</p><h2>Pontos de coleta</h2></div><button id="water-points-close" type="button">Fechar</button></div>
+      <form id="water-point-form" class="water-point-form">
+        <input id="water-point-id" type="hidden">
+        <div class="form-grid">
+          <label>Distrito<select id="water-point-district" required><option value="">Selecione</option><option>Andradas</option><option>Campestrinho</option><option>Gramínea</option></select></label>
+          <label>Tipo do ponto<select id="water-point-kind" required><option value="">Selecione</option><option>Água Bruta</option><option>Rede de Distribuição</option><option>Água Bruta , Rede de Distribuição</option></select></label>
+          <label>Local da coleta<input id="water-point-location" required placeholder="Ex.: UBS, Escola, Poço 1"></label>
+          <label>Coordenadas<input id="water-point-coordinates" required placeholder="-22.000000, -46.000000"></label>
+          <label class="full">Fonte / observação<input id="water-point-source" placeholder="Ex.: Nascente 1 ou Reservatório 02"></label>
+        </div>
+        <div class="water-form-actions"><button class="primary" type="submit">Salvar ponto</button><button id="water-point-cancel" type="button" hidden>Cancelar edição</button><span id="water-point-status" role="status"></span></div>
+      </form>
+      <div id="water-points-list" class="water-points-list"></div>
+    </section>
     <form id="water-form" class="water-form">
       <section class="water-form-section"><h2>Identificação da coleta</h2><div class="form-grid">
         <label>Data da coleta<input id="water-date" type="date" required></label>
@@ -664,7 +690,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=12"></script>
+<script defer src="index.js?v=13"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">

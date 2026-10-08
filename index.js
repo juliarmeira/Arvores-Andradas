@@ -3051,7 +3051,7 @@ function init() {
 
 
 const WATER_STORAGE_KEY = 'ambiental_water_records';
-const WATER_POINTS = [
+let WATER_POINTS = [
   {id:1,district:'Andradas',type:'Água Bruta',location:'UBS',coordinates:'-22.070994, -46.573896'},
   {id:2,district:'Campestrinho',type:'Água Bruta',location:'Reservatório 01',coordinates:'-22.134108, -46.449506'},
   {id:3,district:'Gramínea',type:'Rede de Distribuição',location:'UBS',coordinates:'-22.168785, -46.624831'},
@@ -3080,7 +3080,7 @@ function formatWaterValue(value,unit){return value==null?'—':`${Number(value).
 function legacy_renderWaterRecords(){const records=getWaterRecords(),box=$('water-records');if($('water-pending-count'))$('water-pending-count').textContent=`${records.length} registro${records.length===1?'':'s'} local${records.length===1?'':'is'}`;if(!box)return;if(!records.length){box.innerHTML='<div class="water-empty">Nenhuma coleta salva neste aparelho.</div>';return}box.innerHTML=records.map(r=>`<article class="water-record"><div><strong>${new Date(r.date+'T12:00:00').toLocaleDateString('pt-BR')}</strong><small>#${esc(r.pointId)}</small></div><div><strong>${esc(r.district)} · ${esc(r.location)}</strong><small>${esc(r.pointType)}${r.chlorinator?' · '+esc(r.chlorinator):''}</small></div><div class="water-values">Turbidez ${formatWaterValue(r.turbidity,'uT')} · Cor ${formatWaterValue(r.color,'uC')} · Cloro ${formatWaterValue(r.chlorine,'mg/L')}</div><button type="button" data-water-delete="${esc(r.localId)}" aria-label="Excluir registro">Excluir</button></article>`).join('');box.querySelectorAll('[data-water-delete]').forEach(button=>button.addEventListener('click',()=>deleteWaterRecord(button.dataset.waterDelete)))}
 function deleteWaterRecord(id){if(!confirm('Excluir esta coleta salva no aparelho?'))return;localStorage.setItem(WATER_STORAGE_KEY,JSON.stringify(getWaterRecords().filter(r=>r.localId!==id)));renderWaterRecords()}
 function legacy_exportWaterCsv(){const records=getWaterRecords();if(!records.length){alert('Não há registros locais para exportar.');return}const headers=['ID','Data','Distrito','Ponto','Local da Coleta','Clorador','Turbidez (uT)','Cor (uC)','Cloro Residual (mg/L)','pH','SDT (mV)','Temperatura (°C)'];const rows=records.map((r,i)=>[r.sheetId||i+1,r.date,r.district,r.pointType,r.location,r.chlorinator,r.turbidity,r.color,r.chlorine,r.ph,r.sdt,r.temperature]);const csv=[headers,...rows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`analises-agua-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url)}
-function setupWaterModule(){$('water-back')?.addEventListener('click',closeWaterModule);$('water-form')?.addEventListener('submit',saveWaterRecord);$('water-district')?.addEventListener('change',refreshWaterLocations);$('water-point-type')?.addEventListener('change',refreshWaterLocations);$('water-location')?.addEventListener('change',()=>{const point=WATER_POINTS.find(p=>String(p.id)===val('water-location'));if($('water-coordinates'))$('water-coordinates').value=point?.coordinates||''});$('water-refresh')?.addEventListener('click',()=>loadWaterSheet(true));$('water-export')?.addEventListener('click',exportWaterCsv);if($('water-date'))$('water-date').value=new Date().toISOString().slice(0,10);renderWaterRecords()}
+function setupWaterModule(){$('water-back')?.addEventListener('click',closeWaterModule);$('water-form')?.addEventListener('submit',saveWaterRecord);$('water-district')?.addEventListener('change',refreshWaterLocations);$('water-point-type')?.addEventListener('change',refreshWaterLocations);$('water-location')?.addEventListener('change',()=>{const point=WATER_POINTS.find(p=>String(p.id)===val('water-location'));if($('water-coordinates'))$('water-coordinates').value=point?.coordinates||''});$('water-refresh')?.addEventListener('click',()=>loadWaterSheet(true));$('water-export')?.addEventListener('click',exportWaterCsv);$('water-dashboard-range')?.addEventListener('change',renderWaterDashboard);$('water-dashboard-district')?.addEventListener('change',renderWaterDashboard);if($('water-date'))$('water-date').value=new Date().toISOString().slice(0,10);renderWaterRecords()}
 
 // Integracao online da planilha Controle de agua
 const WATER_REMOTE_CACHE_KEY = 'ambiental_water_remote_cache';
@@ -3139,7 +3139,62 @@ async function saveWaterRecord(event){
   if(!navigator.onLine){$('water-save-status').textContent='Sem internet: coleta salva e aguardando sincronização.';return}
   $('water-save-status').textContent='Enviando para a planilha…'; await syncPendingWaterRecords();
 }
+const WATER_DASHBOARD_PARAMETERS = [
+  { key:'turbidity', label:'Turbidez', unit:'uT', color:'#0ea5e9' },
+  { key:'color', label:'Cor', unit:'uC', color:'#8b5cf6' },
+  { key:'chlorine', label:'Cloro residual', unit:'mg/L', color:'#14b8a6' },
+  { key:'ph', label:'pH', unit:'', color:'#f59e0b' },
+  { key:'sdt', label:'SDT', unit:'mV', color:'#6366f1' },
+  { key:'temperature', label:'Temperatura', unit:'°C', color:'#f97316' }
+];
+function waterDashboardRecords(){
+  const range=$('water-dashboard-range')?.value||'90', district=$('water-dashboard-district')?.value||'all';
+  const cutoff=range==='all'?null:new Date(Date.now()-Number(range)*86400000);
+  return allWaterRecords().filter(record=>{
+    const date=record.date?new Date(record.date+'T12:00:00'):null;
+    return (!cutoff||(date&&!Number.isNaN(date.getTime())&&date>=cutoff))&&(district==='all'||record.district===district);
+  }).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+}
+function formatDashboardNumber(value, digits=2){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:digits}).format(value)}
+function dashboardSparkline(values,color,label){
+  if(!values.length)return '<div class="water-chart-no-data">Sem medições no período</div>';
+  const series=values.slice(-60), width=520, height=150, pad=12;
+  let min=Math.min(...series),max=Math.max(...series);if(min===max){min-=.5;max+=.5}
+  const points=series.map((value,index)=>{const x=pad+(index*(width-pad*2)/Math.max(series.length-1,1));const y=height-pad-((value-min)/(max-min))*(height-pad*2);return `${x.toFixed(1)},${y.toFixed(1)}`}).join(' ');
+  const area=`${pad},${height-pad} ${points} ${width-pad},${height-pad}`;
+  return `<svg class="water-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Variação de ${esc(label)}"><line x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}" class="water-chart-axis"/><polygon points="${area}" fill="${color}" opacity=".09"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function populateWaterDashboardDistricts(records){
+  const select=$('water-dashboard-district');if(!select)return;const current=select.value;
+  const districts=[...new Set(records.map(r=>String(r.district||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  select.innerHTML='<option value="all">Todos os distritos</option>'+districts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  select.value=districts.includes(current)?current:'all';
+}
+function renderWaterDashboard(){
+  const all=allWaterRecords();populateWaterDashboardDistricts(all);const records=waterDashboardRecords();
+  const kpis=$('water-dashboard-kpis'),charts=$('water-dashboard-charts'),empty=$('water-dashboard-empty');if(!kpis||!charts||!empty)return;
+  empty.hidden=records.length>0;kpis.hidden=!records.length;charts.hidden=!records.length;
+  const rangeLabel=$('water-dashboard-range')?.selectedOptions[0]?.textContent||'Período';
+  const districtLabel=$('water-dashboard-district')?.value==='all'?'todos os distritos':$('water-dashboard-district')?.selectedOptions[0]?.textContent;
+  if($('water-dashboard-period'))$('water-dashboard-period').textContent=`${rangeLabel} · ${districtLabel}`;
+  if(!records.length){kpis.innerHTML='';charts.innerHTML='';return}
+  const latest=records[records.length-1],locations=new Set(records.map(r=>`${r.district}|${r.location}`)).size;
+  const measured=records.reduce((sum,r)=>sum+WATER_DASHBOARD_PARAMETERS.filter(p=>r[p.key]!==null&&r[p.key]!==''&&Number.isFinite(Number(r[p.key]))).length,0);
+  const completeness=Math.round(measured/(records.length*WATER_DASHBOARD_PARAMETERS.length)*100);
+  kpis.innerHTML=`<article><small>Coletas</small><strong>${records.length}</strong><span>No período selecionado</span></article><article><small>Pontos monitorados</small><strong>${locations}</strong><span>Locais com registro</span></article><article><small>Última coleta</small><strong>${latest.date?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(latest.date+'T12:00:00')):'—'}</strong><span>${esc(latest.location||'Local não informado')}</span></article><article><small>Dados preenchidos</small><strong>${completeness}%</strong><span>Dos 6 parâmetros</span></article>`;
+  charts.innerHTML=WATER_DASHBOARD_PARAMETERS.map(param=>{
+    const samples=records.filter(r=>r[param.key]!==null&&r[param.key]!==''&&Number.isFinite(Number(r[param.key]))).map(r=>({date:r.date,value:Number(r[param.key])}));
+    const values=samples.map(item=>item.value),first=values[0],last=values[values.length-1];
+    const average=values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null,delta=values.length>1?last-first:null;
+    const trend=delta===null?'Sem comparação':Math.abs(delta)<.0001?'Estável':`${delta>0?'↑':'↓'} ${formatDashboardNumber(Math.abs(delta))} ${param.unit}`.trim();
+    const trendClass=delta===null||Math.abs(delta)<.0001?'neutral':delta>0?'up':'down';
+    const firstDate=samples[0]?.date?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(samples[0].date+'T12:00:00')):'—';
+    const lastDate=samples.at(-1)?.date?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(samples.at(-1).date+'T12:00:00')):'—';
+    return `<article class="water-chart-card"><header><div><small>${param.label}</small><strong>${last===undefined?'—':formatDashboardNumber(last)} <em>${param.unit}</em></strong></div><span class="water-trend ${trendClass}">${trend}</span></header>${dashboardSparkline(values,param.color,param.label)}<footer><span>${firstDate}</span><span>${values.length?`Média ${formatDashboardNumber(average)} ${param.unit}`:'Sem dados'}</span><span>${lastDate}</span></footer></article>`;
+  }).join('');
+}
 function renderWaterRecords(){
+  renderWaterDashboard();
   const pending=getWaterRecords(), records=allWaterRecords(), box=$('water-records');
   if($('water-pending-count'))$('water-pending-count').textContent=pending.length?`${pending.length} aguardando envio`:`${waterRemoteRecords.length} na planilha`;
   if(!box)return;if(!records.length){box.innerHTML='<div class="water-empty">Nenhuma coleta disponível neste aparelho.</div>';return}
@@ -3147,6 +3202,20 @@ function renderWaterRecords(){
   box.querySelectorAll('[data-water-delete]').forEach(button=>button.addEventListener('click',()=>deleteWaterRecord(button.dataset.waterDelete)));
 }
 function exportWaterCsv(){const records=allWaterRecords();if(!records.length){alert('Não há registros para exportar.');return}const headers=['ID','Data','Distrito','Ponto','Local da Coleta','Clorador','Turbidez (uT)','Cor (uC)','Cloro Residual (mg/L)','pH','SDT (mV)','Temperatura (°C)'];const rows=records.map((r,i)=>[r.sheetId||`LOCAL-${i+1}`,r.date,r.district,r.pointType,r.location,r.chlorinator,r.turbidity,r.color,r.chlorine,r.ph,r.sdt,r.temperature]);const csv=[headers,...rows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`analises-agua-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url)}
+
+// Consulta e manutencao da aba Pontos
+const WATER_POINTS_CACHE_KEY = 'ambiental_water_points_cache';
+async function loadWaterPoints(showFeedback = false){
+  try{
+    const response=await fetch('/api/water?resource=points&refresh='+Date.now(),{cache:'no-store'});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Falha ao consultar pontos');
+    WATER_POINTS.splice(0,WATER_POINTS.length,...result.points);localStorage.setItem(WATER_POINTS_CACHE_KEY,JSON.stringify(result.points));refreshWaterLocations();renderWaterPoints();if(showFeedback&&$('water-point-status'))$('water-point-status').textContent=`${result.points.length} pontos carregados da planilha.`;
+  }catch(error){try{const cached=JSON.parse(localStorage.getItem(WATER_POINTS_CACHE_KEY)||'[]');if(cached.length)WATER_POINTS.splice(0,WATER_POINTS.length,...cached)}catch{}renderWaterPoints();if(showFeedback&&$('water-point-status'))$('water-point-status').textContent='Usando cadastro offline: '+error.message;}
+}
+function renderWaterPoints(){const box=$('water-points-list');if(!box)return;const sorted=[...WATER_POINTS].sort((a,b)=>`${a.district} ${a.location}`.localeCompare(`${b.district} ${b.location}`,'pt-BR'));box.innerHTML=sorted.map(point=>`<article class="water-point-item"><div><strong>#${esc(point.id)} · ${esc(point.district)} · ${esc(point.location)}</strong><small>${esc(point.type)} · ${esc(point.coordinates||'Sem coordenadas')}${point.source?' · '+esc(point.source):''}</small></div><button type="button" data-edit-water-point="${esc(point.id)}">Editar</button></article>`).join('');box.querySelectorAll('[data-edit-water-point]').forEach(button=>button.addEventListener('click',()=>editWaterPoint(button.dataset.editWaterPoint)))}
+function editWaterPoint(id){const point=WATER_POINTS.find(item=>String(item.id)===String(id));if(!point)return;$('water-point-id').value=point.id;$('water-point-district').value=point.district;$('water-point-kind').value=point.type;$('water-point-location').value=point.location;$('water-point-coordinates').value=point.coordinates;$('water-point-source').value=point.source||'';$('water-point-cancel').hidden=false;$('water-point-location').focus();}
+function resetWaterPointForm(){$('water-point-form')?.reset();if($('water-point-id'))$('water-point-id').value='';if($('water-point-cancel'))$('water-point-cancel').hidden=true;}
+async function saveWaterPoint(event){event.preventDefault();if(!navigator.onLine){$('water-point-status').textContent='É necessário estar online para alterar o cadastro de pontos.';return}const payload={action:'saveWaterPoint',id:val('water-point-id'),district:val('water-point-district'),type:val('water-point-kind'),location:val('water-point-location'),coordinates:val('water-point-coordinates'),source:val('water-point-source')};$('water-point-status').textContent='Salvando na planilha…';try{const response=await fetch('/api/water',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Não foi possível salvar');resetWaterPointForm();$('water-point-status').textContent=payload.id?'Ponto atualizado na planilha.':'Novo ponto cadastrado na planilha.';await loadWaterPoints(false)}catch(error){$('water-point-status').textContent='Erro: '+error.message}}
+function setupWaterPointManager(){$('water-manage-points')?.addEventListener('click',()=>{$('water-points-panel').hidden=false;loadWaterPoints(true);$('water-points-panel').scrollIntoView({behavior:'smooth'})});$('water-points-close')?.addEventListener('click',()=>{$('water-points-panel').hidden=true;resetWaterPointForm()});$('water-point-cancel')?.addEventListener('click',resetWaterPointForm);$('water-point-form')?.addEventListener('submit',saveWaterPoint);loadWaterPoints(false)}
 // Home municipal, conectividade e instalacao como aplicativo
 let deferredInstallPrompt = null;
 function showMunicipalHome() {
@@ -3188,7 +3257,7 @@ function setupOfflineApp() {
   $('btn-install-app')?.addEventListener('click', async () => { if (!deferredInstallPrompt) return; deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; $('btn-install-app').hidden = true; });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(error => console.warn('[offline] Service worker:', error.message));
 }
-document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp(); setupWaterModule(); });
+document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp(); setupWaterModule(); setupWaterPointManager(); });
 
 /* ══════════════════════════════════════════════════════════════
    MAPA DE ÁRVORES - Lógica de UI e integração com Leaflet

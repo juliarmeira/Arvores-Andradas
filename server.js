@@ -137,6 +137,16 @@ const server = http.createServer(async (req, res) => {
 
     // GET/POST /api/water - leitura da planilha e gravacao via Apps Script
     if (u.pathname === "/api/water" && req.method === "GET") {
+      if (u.searchParams.get("resource") === "points") {
+        const pointsUrl = `https://docs.google.com/spreadsheets/d/${WATER_SPREADSHEET_ID}/export?format=csv&gid=602322873&_=${Date.now()}`;
+        try {
+          const upstream = await fetch(pointsUrl, { redirect: "follow", cache: "no-store" });
+          if (!upstream.ok) return json(res, 502, { ok: false, error: `Cadastro de pontos respondeu HTTP ${upstream.status}` });
+          const rows = (await upstream.text()).split(/\r?\n/).map(parseCsvLine);
+          const points = rows.slice(1).filter(row => String(row[0] || "").trim()).map(row => ({ id: String(row[0]), district: String(row[1] || ""), image: String(row[2] || ""), type: String(row[3] || ""), location: String(row[4] || ""), coordinates: String(row[5] || ""), source: String(row[6] || "") }));
+          return json(res, 200, { ok: true, points });
+        } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
+      }
       const csvUrl = `https://docs.google.com/spreadsheets/d/${WATER_SPREADSHEET_ID}/export?format=csv&gid=1745208866&_=${Date.now()}`;
       try {
         const upstream = await fetch(csvUrl, { redirect: "follow", cache: "no-store" });
@@ -161,7 +171,7 @@ const server = http.createServer(async (req, res) => {
       const target = process.env.WATER_SHEETS_WEBHOOK_URL || DEFAULT_WATER_WEBHOOK || process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
       if (!target || !/^https:\/\/script\.google\.com\//i.test(target)) return json(res, 503, { ok: false, error: "Google Apps Script da agua ainda nao configurado" });
       try {
-        const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...data, action: "addWaterRecord", module: "water" }), redirect: "follow" });
+        const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...data, action: data.action === "saveWaterPoint" ? "saveWaterPoint" : "addWaterRecord", module: "water" }), redirect: "follow" });
         const text = await upstream.text(); let result; try { result = JSON.parse(text); } catch { result = { ok: false, error: "Resposta invalida do Google Apps Script" }; }
         return json(res, upstream.ok && result.ok ? 200 : 502, result);
       } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
