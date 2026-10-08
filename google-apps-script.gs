@@ -1,11 +1,33 @@
 const SPREADSHEET_ID = '1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU';
 const SHEET_NAME = 'Página1';
-const API_VERSION = 2;
+const API_VERSION = 3;
+const WATER_SPREADSHEET_ID = '1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y';
+const WATER_SHEET_NAME = 'Todos';
 
 // ─── doPost: grava uma nova linha na planilha ──────────────────────────────────────────
 function doPost(e) {
   try {
     const p = JSON.parse(e.postData.contents);
+    if (p.action === 'addWaterRecord' || p.module === 'water') {
+      const required = ['clientId', 'date', 'district', 'pointType', 'location'];
+      required.forEach(function(key) { if (!String(p[key] || '').trim()) throw new Error('Campo obrigatório ausente: ' + key); });
+      const properties = PropertiesService.getScriptProperties();
+      const propertyKey = 'water_' + String(p.clientId).replace(/[^a-zA-Z0-9_-]/g, '');
+      const existingRow = properties.getProperty(propertyKey);
+      if (existingRow) return ContentService.createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: Number(existingRow), duplicate: true })).setMimeType(ContentService.MimeType.JSON);
+      const waterSheet = SpreadsheetApp.openById(WATER_SPREADSHEET_ID).getSheetByName(WATER_SHEET_NAME);
+      if (!waterSheet) throw new Error('Aba Todos não encontrada na planilha de água');
+      const lock = LockService.getScriptLock(); lock.waitLock(15000);
+      try {
+        const lastRow = waterSheet.getLastRow();
+        const ids = lastRow > 1 ? waterSheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+        const nextId = ids.reduce(function(max, row) { const n = Number(row[0]); return isNaN(n) ? max : Math.max(max, n); }, 0) + 1;
+        const date = Utilities.parseDate(String(p.date), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        waterSheet.appendRow([nextId, date, p.district, p.pointType, p.location, p.chlorinator || '', p.turbidity === null ? '' : p.turbidity, p.color === null ? '' : p.color, p.chlorine === null ? '' : p.chlorine, p.ph === null ? '' : p.ph, p.sdt === null ? '' : p.sdt, p.temperature === null ? '' : p.temperature]);
+        const row = waterSheet.getLastRow(); properties.setProperty(propertyKey, String(row)); SpreadsheetApp.flush();
+        return ContentService.createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: row, id: nextId })).setMimeType(ContentService.MimeType.JSON);
+      } finally { lock.releaseLock(); }
+    }
     const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error('Aba Página1 não encontrada');
     if (p.action === 'updateStatus') {

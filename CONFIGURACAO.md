@@ -25,3 +25,17 @@ A planilha configurada é `Controle de compensação - Corte de Árvore`, aba `P
 ## 3. Abrir o aplicativo
 
 Dê dois cliques em `start.bat`. O servidor será iniciado minimizado e o navegador abrirá em http://127.0.0.1:4178.
+## 4. Integração da planilha Controle de água
+
+O aplicativo consulta automaticamente a aba `Todos` da planilha `Controle de água` (ID `1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y`).
+
+Para habilitar a inclusão de novas coletas:
+
+1. Abra o projeto do Google Apps Script já usado pelo aplicativo.
+2. Substitua o código pelo conteúdo atualizado de `google-apps-script.gs`.
+3. Clique em **Implantar > Gerenciar implantações**.
+4. Edite a implantação, selecione **Nova versão** e clique em **Implantar**.
+5. Mantenha **Executar como: você** e **Quem pode acessar: qualquer pessoa com o link**.
+6. A URL `/exec` pode continuar a mesma. O aplicativo envia `action: addWaterRecord` para separar as coletas de água dos registros de vistoria.
+
+Se for utilizada uma implantação separada, configure `WATER_SHEETS_WEBHOOK_URL` no ambiente do servidor/Vercel. Sem essa variável, o sistema reutiliza `SHEETS_WEBHOOK_URL`.

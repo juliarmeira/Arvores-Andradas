@@ -4,12 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#153f34">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="app-icon.svg" type="image/svg+xml">
   <meta name="description" content="Sistema de Vistoria Ambiental e Emissão de Parecer Técnico - Deliberação Normativa CODEMA nº 09/2026 - Município de Andradas/MG">
   <title>Parecer Ambiental · Vistoria Arbórea · Andradas/MG</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
-  <link rel="stylesheet" href="index.css?v=6">
+  <link rel="stylesheet" href="index.css?v=7">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark">PA</span>
@@ -30,22 +35,63 @@
   </div>
 </header>
 
-<main>
+<main id="main-content">
+  <section id="view-home" class="municipal-home" aria-labelledby="home-title">
+    <div class="home-welcome">
+      <div><p class="eyebrow">Prefeitura Municipal de Andradas</p><h1 id="home-title">Gestão Ambiental em Campo</h1><p>Registre informações mesmo sem internet. Os dados ficam protegidos neste aparelho e podem ser sincronizados quando a conexão voltar.</p></div>
+      <div class="connection-card" aria-live="polite"><span id="connection-dot" class="connection-dot"></span><div><strong id="connection-label">Verificando conexão</strong><small id="connection-help">Preparando o modo de campo</small></div></div>
+    </div>
+    <div class="module-grid" aria-label="Módulos ambientais">
+      <button class="module-card module-water" type="button" data-module="agua"><span class="module-icon">💧</span><span class="module-copy"><small>Monitoramento</small><strong>Análise de Água</strong><span>Coletas, parâmetros e resultados laboratoriais</span></span><span class="module-arrow">→</span></button>
+      <button class="module-card module-inspection" type="button" data-module="vistoria"><span class="module-icon">📋</span><span class="module-copy"><small>Fiscalização</small><strong>Vistorias Ambientais</strong><span>Processos, trabalho de campo e pareceres</span></span><span class="module-arrow">→</span></button>
+      <button class="module-card module-trees" type="button" data-module="inventario"><span class="module-icon">🌳</span><span class="module-copy"><small>Arborização urbana</small><strong>Inventário de Árvores</strong><span>Catálogo, localização e condição dos exemplares</span></span><span class="module-arrow">→</span></button>
+    </div>
+    <div class="home-actions"><button id="btn-install-app" class="install-app" type="button" hidden>Instalar no Android</button><small>Os módulos de água e inventário serão incorporados gradualmente a este aplicativo.</small></div>
+  </section>
+  <section id="view-water" class="water-module" hidden aria-labelledby="water-title">
+    <div class="module-page-head">
+      <button id="water-back" class="back-button" type="button">← Início</button>
+      <div><p class="eyebrow">Monitoramento municipal</p><h1 id="water-title">Análise de Água</h1><p>Registro de coletas compatível com a planilha Controle de água.</p></div>
+      <span id="water-pending-count" class="pending-badge">0 registros locais</span>
+    </div>
+    <form id="water-form" class="water-form">
+      <section class="water-form-section"><h2>Identificação da coleta</h2><div class="form-grid">
+        <label>Data da coleta<input id="water-date" type="date" required></label>
+        <label>Distrito<select id="water-district" required><option value="">Selecione</option><option>Andradas</option><option>Campestrinho</option><option>Gramínea</option></select></label>
+        <label>Tipo do ponto<select id="water-point-type" required><option value="">Selecione</option><option>Água Bruta</option><option>Rede de Distribuição</option><option>Água Bruta , Rede de Distribuição</option></select></label>
+        <label>Local da coleta<select id="water-location" required><option value="">Selecione distrito e tipo</option></select></label>
+        <label>Clorador<select id="water-chlorinator"><option value="">Não informado</option><option>Antes</option><option>Depois</option></select></label>
+        <label>Coordenadas<input id="water-coordinates" readonly placeholder="Preenchidas pelo ponto cadastrado"></label>
+      </div></section>
+      <section class="water-form-section"><h2>Resultados da análise</h2><div class="parameter-grid">
+        <label>Turbidez <small>uT</small><input id="water-turbidity" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label>Cor <small>uC</small><input id="water-color" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label>Cloro residual <small>mg/L</small><input id="water-chlorine" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label>pH<input id="water-ph" type="number" min="0" max="14" step="0.01" inputmode="decimal"></label>
+        <label>SDT <small>mV</small><input id="water-sdt" type="number" step="0.01" inputmode="decimal"></label>
+        <label>Temperatura <small>°C</small><input id="water-temperature" type="number" step="0.01" inputmode="decimal"></label>
+      </div></section>
+      <div class="water-form-actions"><button class="primary" type="submit">Salvar coleta no aparelho</button><span id="water-save-status" role="status"></span></div>
+    </form>
+    <section class="water-history"><div class="water-history-head"><div><p class="eyebrow">Modo offline</p><h2>Registros neste aparelho</h2></div><div class="water-history-actions"><button id="water-refresh" type="button">Atualizar planilha</button><button id="water-export" type="button">Exportar CSV</button></div></div><div id="water-records" class="water-records"></div></section>
+  </section>
+  <div id="environment-module" hidden>
   <!-- NAVEGAÇÃO PRINCIPAL ENTRE PROCESSOS E NOVA SOLICITAÇÃO -->
   <nav class="main-tabs" aria-label="Navegação Geral" role="tablist">
-    <button id="view-tab-processos" class="main-tab active" type="button" role="tab" aria-selected="true">
+    <button id="view-tab-home" class="main-tab main-tab-home" type="button">← Início</button>
+    <button id="view-tab-processos" class="main-tab active" type="button" role="tab" aria-selected="true" aria-controls="view-processos">
       <span class="tab-icon">📋</span>
       <span>Processos em Andamento</span>
       <span id="badge-total-processos" class="tab-badge">0</span>
     </button>
-    <button id="view-tab-novo" class="main-tab" type="button" role="tab" aria-selected="false">
+    <button id="view-tab-novo" class="main-tab" type="button" role="tab" aria-selected="false" aria-controls="view-novo">
       <span class="tab-icon">➕</span>
       <span>Nova Solicitação</span>
     </button>
   </nav>
 
   <!-- PAINEL 1: PROCESSOS EM ANDAMENTO -->
-  <section id="view-processos" class="view-panel">
+  <section id="view-processos" class="view-panel" role="tabpanel" aria-labelledby="view-tab-processos">
     <header class="processos-head">
       <div>
         <p class="eyebrow">Gestão Municipal de Arborização</p>
@@ -83,7 +129,8 @@
     <div class="processos-toolbar">
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input id="processos-search" type="search" placeholder="Filtrar por protocolo, solicitante, rua ou ID da árvore..." autocomplete="off">
+        <label class="sr-only" for="processos-search">Buscar processos</label>
+        <input id="processos-search" type="search" aria-label="Buscar por protocolo, solicitante, rua ou ID da árvore" placeholder="Filtrar por protocolo, solicitante, rua ou ID da árvore..." autocomplete="off">
       </div>
       <div class="filter-pills" role="group" aria-label="Filtro de situação">
         <button class="filter-pill active" data-filter="todos" type="button">Todos</button>
@@ -101,7 +148,7 @@
   </section>
 
   <!-- PAINEL 2: NOVA SOLICITAÇÃO (WIZARD DE VISTORIA) -->
-  <div id="view-novo" class="view-panel" hidden>
+  <div id="view-novo" class="view-panel" role="tabpanel" aria-labelledby="view-tab-novo" hidden>
     <section class="hero">
       <div>
         <p class="eyebrow">Secretaria de Planejamento Urbano e Meio Ambiente</p>
@@ -119,7 +166,7 @@
         <b>2</b><span>Vistoria a Campo</span>
       </button>
       <button class="step" data-tab="parecer" role="tab" aria-selected="false" id="step-parecer">
-        <b>3</b><span>Parecer e Expedição</span>
+        <b>3</b><span>Decisão e parecer</span>
       </button>
     </nav>
 
@@ -258,8 +305,8 @@
         <span>03</span>
         <div>
           <p class="eyebrow">Decisão técnica · Expedição oficial</p>
-          <h2>Parecer Técnico e Compensação Ambiental</h2>
-          <p>Defina a destinação do documento, confira a compensação e emita o ato administrativo.</p>
+          <h2>Decisão Técnica e Parecer</h2>
+          <p>Registre a decisão técnica e gere o documento oficial do processo.</p>
         </div>
       </header>
 
@@ -523,6 +570,7 @@
       </section>
     </section>
   </div> <!-- fim #view-novo -->
+  </div><!-- fim #environment-module -->
 </main>
 
 <!-- MODAL: DETALHES E PARECER DO PROCESSO -->
@@ -616,7 +664,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=11"></script>
+<script defer src="index.js?v=12"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">

@@ -5,6 +5,8 @@ import { extname, join, normalize, resolve } from "node:path";
 const root = process.cwd();
 const port = Number(process.env.PORT) || 4178;
 const VISTORIA_SPREADSHEET_ID = "1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU";
+const WATER_SPREADSHEET_ID = "1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y";
+const DEFAULT_WATER_WEBHOOK = "https://script.google.com/macros/s/AKfycbxKCAT7elYq-msoEF9vMPss9TOdu7jlW-ze8xUqUAMs_z4NZHI21psoD-GJEMJJv518/exec";
 
 let localKey = "";
 let sheetsWebhookUrl = "";
@@ -24,7 +26,8 @@ const types = {
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
-  ".ico": "image/x-icon"
+  ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json; charset=utf-8"
 };
 
 const json = (res, status, data) => {
@@ -61,15 +64,19 @@ const parseCsvLine = (line) => {
 };
 
 const brDateToIso = (value) => {
-  const match = String(value || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  return match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : String(value || "");
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  const months = { janeiro: 1, fevereiro: 2, "março": 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+  const long = text.toLowerCase().match(/^(\d{1,2}) de ([a-zç]+) de (\d{4})$/);
+  return long && months[long[2]] ? `${long[3]}-${String(months[long[2]]).padStart(2, "0")}-${long[1].padStart(2, "0")}` : text;
 };
 const isAllowedStatic = (relPath) => {
   if (!relPath || relPath.includes("..") || relPath.startsWith(".") || relPath.includes("/.")) {
     return false;
   }
   const clean = relPath.toLowerCase().replace(/\\/g, "/");
-  if (clean === "index.html" || clean === "index.css" || clean === "index.js" || clean === "favicon.ico") {
+  if (clean === "index.html" || clean === "index.css" || clean === "index.js" || clean === "favicon.ico" || clean === "manifest.webmanifest" || clean === "app-icon.svg" || clean === "sw.js") {
     return true;
   }
   if (clean.startsWith("data/") && (clean.endsWith(".js") || clean.endsWith(".json"))) {
@@ -127,7 +134,38 @@ const server = http.createServer(async (req, res) => {
         return json(res, 502, { ok: false, error: `Falha ao consultar a planilha da Vistoria: ${fetchErr.message}` });
       }
     }
-    // ── POST /api/config/save-key ──────────────────────────────────────────
+
+    // GET/POST /api/water - leitura da planilha e gravacao via Apps Script
+    if (u.pathname === "/api/water" && req.method === "GET") {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${WATER_SPREADSHEET_ID}/export?format=csv&gid=1745208866&_=${Date.now()}`;
+      try {
+        const upstream = await fetch(csvUrl, { redirect: "follow", cache: "no-store" });
+        if (!upstream.ok) return json(res, 502, { ok: false, error: `Planilha de agua respondeu HTTP ${upstream.status}` });
+        const rows = (await upstream.text()).split(/\r?\n/).map(parseCsvLine);
+        const records = rows.slice(1).filter(row => String(row[0] || "").trim()).map(row => ({
+          sheetId: String(row[0] || ""), date: brDateToIso(row[1]), district: String(row[2] || ""),
+          pointType: String(row[3] || ""), location: String(row[4] || ""), chlorinator: String(row[5] || ""),
+          turbidity: row[6] === "" ? null : Number(String(row[6]).replace(",", ".")),
+          color: row[7] === "" ? null : Number(String(row[7]).replace(",", ".")),
+          chlorine: row[8] === "" ? null : Number(String(row[8]).replace(",", ".")),
+          ph: row[9] === "" ? null : Number(String(row[9]).replace(",", ".")),
+          sdt: row[10] === "" ? null : Number(String(row[10]).replace(",", ".")),
+          temperature: row[11] === "" ? null : Number(String(row[11]).replace(",", ".")), syncStatus: "synced"
+        }));
+        return json(res, 200, { ok: true, records });
+      } catch (error) { return json(res, 502, { ok: false, error: `Falha ao consultar a planilha de agua: ${error.message}` }); }
+    }
+    if (u.pathname === "/api/water" && req.method === "POST") {
+      const bodyBuffer = await readBody(req);
+      let data; try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON invalido" }); }
+      const target = process.env.WATER_SHEETS_WEBHOOK_URL || DEFAULT_WATER_WEBHOOK || process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
+      if (!target || !/^https:\/\/script\.google\.com\//i.test(target)) return json(res, 503, { ok: false, error: "Google Apps Script da agua ainda nao configurado" });
+      try {
+        const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...data, action: "addWaterRecord", module: "water" }), redirect: "follow" });
+        const text = await upstream.text(); let result; try { result = JSON.parse(text); } catch { result = { ok: false, error: "Resposta invalida do Google Apps Script" }; }
+        return json(res, upstream.ok && result.ok ? 200 : 502, result);
+      } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
+    }    // ── POST /api/config/save-key ──────────────────────────────────────────
     if (req.method === "POST" && u.pathname === "/api/config/save-key") {
       const bodyBuffer = await readBody(req);
       let data;

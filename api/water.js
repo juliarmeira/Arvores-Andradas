@@ -1,0 +1,14 @@
+const SPREADSHEET_ID = "1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y";
+const DEFAULT_WEBHOOK = "https://script.google.com/macros/s/AKfycbxKCAT7elYq-msoEF9vMPss9TOdu7jlW-ze8xUqUAMs_z4NZHI21psoD-GJEMJJv518/exec";
+const parseCsvLine = line => { const out=[]; let value='', quoted=false; for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(quoted&&line[i+1]==='"'){value+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){out.push(value);value='';}else value+=c;}out.push(value);return out; };
+const brDateToIso = value => { const text=String(value||'').trim(); const numeric=text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(numeric)return `${numeric[3]}-${numeric[2].padStart(2,'0')}-${numeric[1].padStart(2,'0')}`; const months={janeiro:1,fevereiro:2,'março':3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12}; const long=text.toLowerCase().match(/^(\d{1,2}) de ([a-zç]+) de (\d{4})$/); return long&&months[long[2]]?`${long[3]}-${String(months[long[2]]).padStart(2,'0')}-${long[1].padStart(2,'0')}`:text; };
+const numberOrNull = value => value === '' ? null : Number(String(value).replace(',', '.'));
+export default async function handler(req,res){
+  if(req.method==='GET'){
+    try{const upstream=await fetch(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=1745208866&_=${Date.now()}`,{redirect:'follow',cache:'no-store'});if(!upstream.ok)return res.status(502).json({ok:false,error:`Planilha respondeu HTTP ${upstream.status}`});const rows=(await upstream.text()).split(/\r?\n/).map(parseCsvLine);const records=rows.slice(1).filter(r=>String(r[0]||'').trim()).map(r=>({sheetId:String(r[0]||''),date:brDateToIso(r[1]),district:String(r[2]||''),pointType:String(r[3]||''),location:String(r[4]||''),chlorinator:String(r[5]||''),turbidity:numberOrNull(r[6]),color:numberOrNull(r[7]),chlorine:numberOrNull(r[8]),ph:numberOrNull(r[9]),sdt:numberOrNull(r[10]),temperature:numberOrNull(r[11]),syncStatus:'synced'}));return res.status(200).json({ok:true,records});}catch(error){return res.status(502).json({ok:false,error:error.message});}
+  }
+  if(req.method==='POST'){
+    const target=process.env.WATER_SHEETS_WEBHOOK_URL||DEFAULT_WEBHOOK||process.env.SHEETS_WEBHOOK_URL;if(!target)return res.status(503).json({ok:false,error:'Google Apps Script da água ainda não configurado'});try{const upstream=await fetch(target,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...req.body,action:'addWaterRecord',module:'water'}),redirect:'follow'});const text=await upstream.text();let result;try{result=JSON.parse(text)}catch{result={ok:false,error:'Resposta inválida do Google Apps Script'}}return res.status(upstream.ok&&result.ok?200:502).json(result);}catch(error){return res.status(502).json({ok:false,error:error.message});}
+  }
+  return res.status(405).json({ok:false,error:'Método não permitido'});
+}
