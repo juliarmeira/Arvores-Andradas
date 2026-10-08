@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = '1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU';
 const SHEET_NAME = 'Página1';
+const API_VERSION = 2;
 
 // ─── doPost: grava uma nova linha na planilha ──────────────────────────────────────────
 function doPost(e) {
@@ -27,7 +28,7 @@ function doPost(e) {
       if (p.compensacao) sheet.getRange(targetRow, 11).setValue(String(p.compensacao));
       SpreadsheetApp.flush();
       return ContentService
-        .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, row: targetRow, protocolo: protocolo, situacao: situacao }))
+        .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: targetRow, protocolo: protocolo, situacao: situacao }))
         .setMimeType(ContentService.MimeType.JSON);
     }
     const brDate = value => value ? Utilities.parseDate(value, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
@@ -38,7 +39,7 @@ function doPost(e) {
       p.coordComp2 || '', p.situacao || 'Aguardando Compensação'
     ]);
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, row: sheet.getLastRow() }))
+      .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: sheet.getLastRow() }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService
@@ -49,6 +50,11 @@ function doPost(e) {
 
 // ─── doGet: retorna todos os registros como JSON para o Mapa de Árvores ──────
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'capabilities') {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
   try {
     const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error('Aba não encontrada');
@@ -56,7 +62,7 @@ function doGet(e) {
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) {
       return ContentService
-        .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, trees: [], processes: [] }))
+        .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, trees: [], processes: [] }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -119,7 +125,7 @@ function doGet(e) {
     }
 
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, apiVersion: 2, trees: trees, processes: processes }))
+      .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, trees: trees, processes: processes }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
