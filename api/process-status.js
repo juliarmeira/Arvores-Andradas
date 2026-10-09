@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método não permitido" });
   const protocolo = String(req.body?.protocolo || "").trim();
   const situacao = String(req.body?.situacao || "").trim();
-  const allowedStatuses = new Set(["Aguardando Vistoria", "Aguardando Compensação", "Compensado"]);
+  const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
   if (!protocolo || !situacao) return res.status(400).json({ ok: false, error: "Protocolo e situação são obrigatórios" });
   if (!allowedStatuses.has(situacao)) return res.status(400).json({ ok: false, error: "Andamento inválido para a planilha" });
 

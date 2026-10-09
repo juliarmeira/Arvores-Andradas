@@ -1925,6 +1925,7 @@ function captureGPS() {
 
       $('geo-lat').value = lat;
       $('geo-lng').value = lng;
+      if ($('location-source')) $('location-source').textContent = 'GPS capturado';
 
       const c1 = $('coord-corte-1');
       const c2 = $('coord-corte-2');
@@ -2058,20 +2059,27 @@ function saveProcessos() {
 function updateProcessosBadge() {
   const badge = $('badge-total-processos');
   if (badge) {
-    const activeCount = processos.filter(p => statusForSheet(p.situacao) !== 'Compensado').length;
+    const activeCount = processos.filter(p => !['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
     badge.textContent = String(activeCount || processos.length);
   }
 }
 
-const SHEET_PROCESS_STATUSES = ['Aguardando Vistoria', 'Aguardando Compensação', 'Compensado'];
+const SHEET_PROCESS_STATUSES = [
+  'Aguardando Vistoria', 'Parecer em Elaboração', 'Enviado para Deliberação do CODEMA',
+  'Encaminhado para Corte pela Secretaria de Obras', 'Aguardando Compensação',
+  'Compensado', 'Indeferido / Arquivado'
+];
 
 function statusForSheet(status) {
   const normalized = normalizeText(status || '');
+  if (normalized.includes('indeferido') || normalized.includes('arquivado')) return 'Indeferido / Arquivado';
   if (normalized.includes('compensado') || normalized.includes('concluido')) return 'Compensado';
+  if (normalized.includes('codema')) return 'Enviado para Deliberação do CODEMA';
+  if (normalized.includes('obras')) return 'Encaminhado para Corte pela Secretaria de Obras';
   if (normalized.includes('compensacao') || normalized.includes('autorizado')) return 'Aguardando Compensação';
+  if (normalized.includes('parecer') || normalized.includes('vistoriado') || normalized.includes('diligencia')) return 'Parecer em Elaboração';
   return 'Aguardando Vistoria';
 }
-
 function isPendingInspection(process) {
   return statusForSheet(process?.situacao) === 'Aguardando Vistoria';
 }
@@ -2082,8 +2090,8 @@ function renderProcessos() {
 
   const total = processos.length;
   const analise = processos.filter(p => statusForSheet(p.situacao) === 'Aguardando Vistoria').length;
-  const autorizados = processos.filter(p => statusForSheet(p.situacao) === 'Aguardando Compensação').length;
-  const concluidos = processos.filter(p => statusForSheet(p.situacao) === 'Compensado').length;
+  const autorizados = processos.filter(p => ['Parecer em Elaboração', 'Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras'].includes(statusForSheet(p.situacao))).length;
+  const concluidos = processos.filter(p => ['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
 
   if ($('stat-total')) $('stat-total').textContent = String(total);
   if ($('stat-analise')) $('stat-analise').textContent = String(analise);
@@ -2092,10 +2100,13 @@ function renderProcessos() {
 
   const s = normalizeText(activeProcessSearch);
   const filtered = processos.filter(p => {
-    if (activeProcessFilter === 'vistoria' && !isPendingInspection(p)) return false;
-    if (activeProcessFilter === 'compensacao' && statusForSheet(p.situacao) !== 'Aguardando Compensação') return false;
-    if (activeProcessFilter === 'concluido' && statusForSheet(p.situacao) !== 'Compensado') return false;
-
+    const processStatus = statusForSheet(p.situacao);
+    if (activeProcessFilter === 'vistoria' && processStatus !== 'Aguardando Vistoria') return false;
+    if (activeProcessFilter === 'parecer' && processStatus !== 'Parecer em Elaboração') return false;
+    if (activeProcessFilter === 'codema' && processStatus !== 'Enviado para Deliberação do CODEMA') return false;
+    if (activeProcessFilter === 'obras' && processStatus !== 'Encaminhado para Corte pela Secretaria de Obras') return false;
+    if (activeProcessFilter === 'compensacao' && processStatus !== 'Aguardando Compensação') return false;
+    if (activeProcessFilter === 'concluido' && !['Compensado', 'Indeferido / Arquivado'].includes(processStatus)) return false;
     if (s) {
       const matchProt = normalizeText(p.protocolo).includes(s);
       const matchReq = normalizeText(p.requerente).includes(s);
@@ -2124,11 +2135,11 @@ function renderProcessos() {
 
   listEl.innerHTML = filtered.map(p => {
     const sheetStatus = statusForSheet(p.situacao);
-    const badgeClass = sheetStatus === 'Compensado'
-      ? 'concluido'
-      : sheetStatus === 'Aguardando Compensação' ? 'compensacao' : 'analise';
+    const badgeClass = sheetStatus === 'Compensado' ? 'concluido'
+      : sheetStatus === 'Indeferido / Arquivado' ? 'indeferido'
+      : sheetStatus === 'Aguardando Compensação' ? 'compensacao'
+      : sheetStatus.includes('CODEMA') || sheetStatus.includes('Obras') ? 'autorizado' : 'analise';
     const canConfirmCompensation = sheetStatus === 'Aguardando Compensação';
-
     return `
       <article class="processo-card">
         <header class="processo-header">
@@ -2371,7 +2382,7 @@ async function saveEtapa2() {
     finalidade: finalidadeTxt,
     finalidadeVal: finalidadeVal,
     finalidadeOutroDetalhe: outroDetalhe,
-    situacao: 'Aguardando Vistoria',
+    situacao: 'Parecer em Elaboração',
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
@@ -2395,7 +2406,7 @@ async function saveEtapa2() {
 
   saveProcessos();
   await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Vistoria do processo nº ${prot} salva. O andamento permanece como "Aguardando Vistoria" até a emissão do parecer.`);
+  alert(`✓ Vistoria do processo nº ${prot} salva. O andamento agora é "Parecer em Elaboração".`);
 }
 
 // ── Salvamento da Etapa 3 / Conclusão: Parecer e Expedição ──────────────────
@@ -2406,9 +2417,11 @@ async function saveFinalProcesso() {
 
   const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
   const concl = val('conclusao');
-  const sit = concl === 'deferir' && destinacaoTipo === 'requerente'
-    ? 'Aguardando Compensação'
-    : 'Aguardando Vistoria';
+  let sit = 'Parecer em Elaboração';
+  if (concl === 'indeferir') sit = 'Indeferido / Arquivado';
+  else if (destinacaoTipo === 'codema') sit = 'Enviado para Deliberação do CODEMA';
+  else if (destinacaoTipo === 'obras') sit = 'Encaminhado para Corte pela Secretaria de Obras';
+  else if (concl === 'deferir') sit = 'Aguardando Compensação';
 
   const prot = val('processo') || `PROC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
   const req = val('requerente') || 'Requerente não informado';
@@ -3004,6 +3017,7 @@ function init() {
 
   // Disparadores dinâmicos do Match Inteligente e do Mini Mapa
   const onCoordChange = () => {
+    if ($('location-source')) $('location-source').textContent = 'Entrada manual';
     detectInventoryMatch();
     const lat = val('geo-lat');
     const lng = val('geo-lng');

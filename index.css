@@ -2633,3 +2633,77 @@ input:focus, select:focus, textarea:focus { border-color: #14b8a6; box-shadow: 0
   .dialog-status-changer { grid-template-columns: 1fr; align-items: stretch; }
   .status-feedback { grid-column: auto; }
 }
+/* Localização da vistoria */
+.location-panel {
+  margin: 0 0 22px;
+  padding: 20px;
+  border: 1px solid #d7e2df;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, .05);
+}
+.location-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #e7eeec;
+}
+.location-header .eyebrow { margin: 0 0 3px; }
+.location-header h3 { margin: 0; color: #173d34; font-size: 1.05rem; letter-spacing: 0; }
+.location-source {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #eef7f4;
+  color: #276b5a;
+  font-size: .72rem;
+  font-weight: 800;
+}
+.location-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.coordinate-field { min-width: 0; }
+.coordinate-field > span { display: block; margin-bottom: 7px; color: #475569; font-size: .74rem; font-weight: 800; text-transform: uppercase; }
+.coordinate-control {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  min-height: 48px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+.coordinate-control:focus-within { border-color: #0f9d88; box-shadow: 0 0 0 3px rgba(15,157,136,.12); }
+.coordinate-control b { display: grid; align-self: stretch; place-items: center; border-right: 1px solid #dbe4e1; background: #f4f8f7; color: #527069; font-size: .68rem; }
+.coordinate-control input { min-width: 0; min-height: 46px; border: 0; border-radius: 0; box-shadow: none; font-variant-numeric: tabular-nums; }
+.coordinate-control input:focus { border: 0; box-shadow: none; }
+.location-actions { display: flex; gap: 10px; margin-top: 14px; }
+.location-actions button { min-height: 42px; }
+.location-panel .gps-status { margin: 12px 0 0; padding: 9px 11px; border-radius: 6px; background: #f1f5f4; color: #334155; }
+.location-panel .mini-map-box { margin-top: 16px; padding: 0; overflow: hidden; border: 1px solid #d7e2df; border-radius: 8px; background: #fff; }
+.location-panel .mini-map-header { margin: 0; padding: 10px 12px; color: #173d34; background: #f7faf9; border-bottom: 1px solid #e5ecea; }
+.location-panel .mini-map-tree { width: 100%; height: 240px; border-radius: 0; }
+.location-panel #mini-map-caption { display: block; padding: 9px 12px; }
+@media (max-width: 700px) {
+  .location-panel { padding: 16px; }
+  .location-header { align-items: center; }
+  .location-fields { grid-template-columns: 1fr; }
+  .location-actions { display: grid; grid-template-columns: 1fr; }
+  .location-actions button { width: 100%; min-height: 46px; }
+}
+/* Etapas internas do parecer */
+.workflow-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dfe8e5;
+}
+.workflow-heading b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #173d34; color: #fff; font-size: .78rem; }
+.workflow-heading strong, .workflow-heading small { display: block; }
+.workflow-heading strong { color: #173d34; font-size: .92rem; }
+.workflow-heading small { margin-top: 2px; color: #64748b; font-size: .75rem; }
+.workflow-heading-final { margin-top: 24px; }

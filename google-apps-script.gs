@@ -3,6 +3,20 @@ const SHEET_NAME = 'Página1';
 const API_VERSION = 3;
 const WATER_SPREADSHEET_ID = '1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y';
 const WATER_SHEET_NAME = 'Todos';
+const PROCESS_STATUSES = [
+  'Aguardando Vistoria', 'Parecer em Elaboração', 'Enviado para Deliberação do CODEMA',
+  'Encaminhado para Corte pela Secretaria de Obras', 'Aguardando Compensação',
+  'Compensado', 'Indeferido / Arquivado'
+];
+
+function ensureProcessStatusValidation(sheet) {
+  const rows = Math.max(sheet.getMaxRows() - 1, 1);
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(PROCESS_STATUSES, true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, 15, rows, 1).setDataValidation(rule);
+}
 
 // ─── doPost: grava uma nova linha na planilha ──────────────────────────────────────────
 function doPost(e) {
@@ -69,6 +83,7 @@ function doPost(e) {
       }
       if (!targetRow) throw new Error('Processo não encontrado: ' + protocolo);
 
+      ensureProcessStatusValidation(sheet);
       sheet.getRange(targetRow, 15).setValue(situacao);
       if (p.compensacao) sheet.getRange(targetRow, 11).setValue(String(p.compensacao));
       SpreadsheetApp.flush();
@@ -77,6 +92,7 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
     const brDate = value => value ? Utilities.parseDate(value, Session.getScriptTimeZone(), 'dd/MM/yyyy') : '';
+    ensureProcessStatusValidation(sheet);
     sheet.appendRow([
       brDate(p.data), p.protocolo || '', p.solicitante || '', p.endereco || '', p.solicitacao || '',
       p.coordCorte1 || '', p.coordCorte2 || '', p.responsavelCorte || '', p.autorizacao || '',

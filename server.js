@@ -268,7 +268,7 @@ const server = http.createServer(async (req, res) => {
       catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
       const protocolo = String(data.protocolo || "").trim();
       const situacao = String(data.situacao || "").trim();
-      const allowedStatuses = new Set(["Aguardando Vistoria", "Aguardando Compensação", "Compensado"]);
+      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
       if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
       if (!allowedStatuses.has(situacao)) return json(res, 400, { ok: false, error: "Andamento inválido para a planilha" });
 

@@ -145,14 +145,14 @@
         <span class="metric-desc">Aguardando parecer</span>
       </div>
       <div class="metric-card">
-        <small>Aguardando Compensação</small>
+        <small>Em tramitação</small>
         <strong id="stat-autorizados">0</strong>
-        <span class="metric-desc">Cumprimento pendente</span>
+        <span class="metric-desc">Parecer, CODEMA ou Obras</span>
       </div>
       <div class="metric-card">
-        <small>Compensados</small>
+        <small>Finalizados</small>
         <strong id="stat-concluidos">0</strong>
-        <span class="metric-desc">Cumprimento confirmado</span>
+        <span class="metric-desc">Compensados ou arquivados</span>
       </div>
     </div>
 
@@ -169,9 +169,12 @@
       </div>
       <div class="filter-pills" role="group" aria-label="Filtro de situação">
         <button class="filter-pill active" data-filter="todos" type="button">Todos</button>
-        <button class="filter-pill" data-filter="vistoria" type="button">Aguardando Vistoria</button>
-        <button class="filter-pill" data-filter="compensacao" type="button">Aguardando Compensação</button>
-        <button class="filter-pill" data-filter="concluido" type="button">Compensados</button>
+        <button class="filter-pill" data-filter="vistoria" type="button">Vistoria</button>
+        <button class="filter-pill" data-filter="parecer" type="button">Parecer</button>
+        <button class="filter-pill" data-filter="codema" type="button">CODEMA</button>
+        <button class="filter-pill" data-filter="obras" type="button">Obras</button>
+        <button class="filter-pill" data-filter="compensacao" type="button">Compensação</button>
+        <button class="filter-pill" data-filter="concluido" type="button">Finalizados</button>
       </div>
     </div>
 
@@ -270,45 +273,43 @@
         </div>
       </header>
 
-      <!-- SEÇÃO DE COORDENADAS, GPS E MAPINHA -->
-      <div class="coord-box full" style="margin-bottom: 22px;">
-        <div class="coord-box-header">
+      <!-- LOCALIZAÇÃO DA VISTORIA -->
+      <section class="location-panel" aria-labelledby="location-title">
+        <header class="location-header">
           <div>
-            <strong>📍 Coordenadas Geográficas & Cruzamento com Inventário</strong>
-            <small class="text-muted">Capture o GPS no local ou informe as coordenadas para verificar árvores já cadastradas no Inventário Municipal.</small>
+            <p class="eyebrow">Localização da vistoria</p>
+            <h3 id="location-title">Coordenadas do exemplar</h3>
           </div>
-          <div class="coord-actions">
-            <button id="btn-get-gps" type="button" class="btn-sm">
-              <span class="icon">📍</span> Capturar meu GPS
-            </button>
-            <button id="btn-search-inventory" type="button" class="btn-sm">
-              <span class="icon">🔍</span> Buscar no Inventário
-            </button>
-          </div>
+          <span class="location-source" id="location-source">Entrada manual</span>
+        </header>
+
+        <div class="location-fields">
+          <label class="coordinate-field" for="geo-lat">
+            <span>Latitude</span>
+            <div class="coordinate-control"><b>LAT</b><input id="geo-lat" inputmode="decimal" placeholder="-22.067420" autocomplete="off"></div>
+          </label>
+          <label class="coordinate-field" for="geo-lng">
+            <span>Longitude</span>
+            <div class="coordinate-control"><b>LNG</b><input id="geo-lng" inputmode="decimal" placeholder="-46.568910" autocomplete="off"></div>
+          </label>
         </div>
-        <div class="grid two coord-inputs">
-          <label>Latitude
-            <input id="geo-lat" placeholder="Ex.: -22.067420" autocomplete="off">
-          </label>
-          <label>Longitude
-            <input id="geo-lng" placeholder="Ex.: -46.568910" autocomplete="off">
-          </label>
+
+        <div class="location-actions">
+          <button id="btn-get-gps" type="button" class="primary location-primary">Capturar localização atual</button>
+          <button id="btn-search-inventory" type="button" class="button-outline">Buscar no Inventário</button>
         </div>
         <p id="gps-status" class="gps-status" hidden></p>
-
-        <!-- RECIPIENTE DO MATCH INTELIGENTE DO INVENTÁRIO -->
         <div id="inventory-match-container" class="inventory-match-container" hidden></div>
 
-        <!-- MINI MAPA DA ÁRVORE -->
         <div id="mini-map-box" class="mini-map-box" hidden>
           <div class="mini-map-header">
-            <span>🗺️ Localização Geográfica do Exemplar</span>
+            <strong>Localização confirmada</strong>
             <button type="button" class="btn-sm button-outline" id="btn-recenter-mini-map">Recentralizar</button>
           </div>
-          <div id="mini-map-tree" class="mini-map-tree" style="height: 220px; width: 100%; border-radius: 12px; margin-top: 8px;"></div>
-          <small id="mini-map-caption" class="text-muted" style="display:block; margin-top: 6px;"></small>
+          <div id="mini-map-tree" class="mini-map-tree"></div>
+          <small id="mini-map-caption" class="text-muted"></small>
         </div>
-      </div>
+      </section>
 
       <!-- API DO PLANTNET SALVA UMA ÚNICA VEZ -->
       <div class="api-box">
@@ -368,55 +369,7 @@
         </div>
       </div>
 
-      <!-- SELETOR CLARO DE DESTINAÇÃO DO DOCUMENTO -->
-      <div class="destinacao-card">
-        <div class="destinacao-head">
-          <strong>Tipo de Documento e Destinação Oficial:</strong>
-          <small class="text-muted">O sistema indica a rota recomendada pela DN 09/2026, mas você pode definir o destinatário com um clique.</small>
-        </div>
-        <div class="destinacao-selector">
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="requerente" checked>
-            <div class="destinacao-box">
-              <span class="dest-icon">📄</span>
-              <div>
-                <strong>Parecer / Autorização ao Requerente</strong>
-                <small>Endereçado ao solicitante com linguagem direta, clara e acessível (sem juridiquês desnecessário).</small>
-              </div>
-            </div>
-          </label>
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="codema">
-            <div class="destinacao-box">
-              <span class="dest-icon">🏛️</span>
-              <div>
-                <strong>Ofício de Encaminhamento ao CODEMA</strong>
-                <small>Para deliberação da Plenária (espécies protegidas, grande porte, área pública, etc.).</small>
-              </div>
-            </div>
-          </label>
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="obras">
-            <div class="destinacao-box">
-              <span class="dest-icon">🚜</span>
-              <div>
-                <strong>Ofício à Secretaria de Obras</strong>
-                <small>Para execução de corte ou poda pelo maquinário municipal (via pública ou risco iminente).</small>
-              </div>
-            </div>
-          </label>
-        </div>
-
-        <div id="num-oficio-wrap" class="grid two" style="margin-top: 16px;" hidden>
-          <label>Número do Ofício
-            <input id="num-oficio" placeholder="Ex.: 042/2026 - DMA/SPUMA" autocomplete="off">
-          </label>
-          <label>Destinatário Formal
-            <input id="destinatario-formal" readonly>
-          </label>
-        </div>
-      </div>
-
+      <div class="workflow-heading"><b>1</b><div><strong>Conclusão técnica</strong><small>Defina o resultado da análise e registre a justificativa.</small></div></div>
       <!-- ENQUADRAMENTO DA ÁREA E CONCLUSÃO -->
       <div class="grid three" style="margin-top: 20px;">
         <label>Enquadramento da área
@@ -493,6 +446,58 @@
         <textarea id="diagnostico" rows="4" placeholder="Descreva os achados da vistoria: fitossanidade, interferências radiculares, fiação, risco estrutural, funções ambientais e justificativa da alternativa adotada."></textarea>
       </label>
 
+      <div class="workflow-heading"><b>2</b><div><strong>Encaminhamento</strong><small>Escolha quem receberá o parecer após a conclusão.</small></div></div>
+      <!-- SELETOR CLARO DE DESTINAÇÃO DO DOCUMENTO -->
+      <div class="destinacao-card">
+        <div class="destinacao-head">
+          <strong>Tipo de Documento e Destinação Oficial:</strong>
+          <small class="text-muted">O sistema indica a rota recomendada pela DN 09/2026, mas você pode definir o destinatário com um clique.</small>
+        </div>
+        <div class="destinacao-selector">
+          <label class="destinacao-opt">
+            <input type="radio" name="destinacao-tipo" value="requerente" checked>
+            <div class="destinacao-box">
+              <span class="dest-icon">📄</span>
+              <div>
+                <strong>Parecer / Autorização ao Requerente</strong>
+                <small>Endereçado ao solicitante com linguagem direta, clara e acessível (sem juridiquês desnecessário).</small>
+              </div>
+            </div>
+          </label>
+          <label class="destinacao-opt">
+            <input type="radio" name="destinacao-tipo" value="codema">
+            <div class="destinacao-box">
+              <span class="dest-icon">🏛️</span>
+              <div>
+                <strong>Ofício de Encaminhamento ao CODEMA</strong>
+                <small>Para deliberação da Plenária (espécies protegidas, grande porte, área pública, etc.).</small>
+              </div>
+            </div>
+          </label>
+          <label class="destinacao-opt">
+            <input type="radio" name="destinacao-tipo" value="obras">
+            <div class="destinacao-box">
+              <span class="dest-icon">🚜</span>
+              <div>
+                <strong>Ofício à Secretaria de Obras</strong>
+                <small>Para execução de corte ou poda pelo maquinário municipal (via pública ou risco iminente).</small>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div id="num-oficio-wrap" class="grid two" style="margin-top: 16px;" hidden>
+          <label>Número do Ofício
+            <input id="num-oficio" placeholder="Ex.: 042/2026 - DMA/SPUMA" autocomplete="off">
+          </label>
+          <label>Destinatário Formal
+            <input id="destinatario-formal" readonly>
+          </label>
+        </div>
+      </div>
+
+
+
       <!-- SUMÁRIO DA DN 09/2026 -->
       <div class="summary" style="margin-top: 22px;">
         <article id="rota">
@@ -511,6 +516,7 @@
 
       <div id="alertas" class="alerts" hidden></div>
 
+      <div class="workflow-heading workflow-heading-final"><b>3</b><div><strong>Documento oficial</strong><small>Confira o resumo e gere o parecer ou ofício.</small></div></div>
       <div class="actions">
         <button id="gerar" class="primary" type="button">Gerar Documento (Parecer / Ofício)</button>
         <button data-go="vistoria" type="button">← Revisar Vistoria</button>
@@ -585,9 +591,13 @@
           </label>
           <label>Situação do processo
             <select id="situacao">
-              <option>Aguardando Vistoria</option>
-              <option>Aguardando Compensação</option>
-              <option>Compensado</option>
+          <option value="Aguardando Vistoria">Aguardando Vistoria</option>
+          <option value="Parecer em Elaboração">Parecer em Elaboração</option>
+          <option value="Enviado para Deliberação do CODEMA">Enviado para Deliberação do CODEMA</option>
+          <option value="Encaminhado para Corte pela Secretaria de Obras">Encaminhado para Corte pela Secretaria de Obras</option>
+          <option value="Aguardando Compensação">Aguardando Compensação</option>
+          <option value="Compensado">Compensado</option>
+          <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
             </select>
           </label>
           <label class="full">URL do Webhook do Google Apps Script
@@ -659,8 +669,12 @@
         </div>
         <select id="modal-status-select">
           <option value="Aguardando Vistoria">Aguardando Vistoria</option>
+          <option value="Parecer em Elaboração">Parecer em Elaboração</option>
+          <option value="Enviado para Deliberação do CODEMA">Enviado para Deliberação do CODEMA</option>
+          <option value="Encaminhado para Corte pela Secretaria de Obras">Encaminhado para Corte pela Secretaria de Obras</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
+          <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
         </select>
         <button id="modal-status-save" type="button" class="btn-sm primary">Salvar andamento</button>
         <span id="modal-status-feedback" class="status-feedback" role="status" aria-live="polite"></span>
@@ -712,8 +726,8 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=15"></script>
-<script defer src="pending-map.js?v=2"></script>
+<script defer src="index.js?v=16"></script>
+<script defer src="pending-map.js?v=3"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">
