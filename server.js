@@ -6,6 +6,7 @@ const root = process.cwd();
 const port = Number(process.env.PORT) || 4178;
 const VISTORIA_SPREADSHEET_ID = "1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU";
 const WATER_SPREADSHEET_ID = "1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y";
+const geocodeCache = new Map();
 const DEFAULT_WATER_WEBHOOK = "https://script.google.com/macros/s/AKfycbxKCAT7elYq-msoEF9vMPss9TOdu7jlW-ze8xUqUAMs_z4NZHI21psoD-GJEMJJv518/exec";
 
 let localKey = "";
@@ -76,7 +77,7 @@ const isAllowedStatic = (relPath) => {
     return false;
   }
   const clean = relPath.toLowerCase().replace(/\\/g, "/");
-  if (clean === "index.html" || clean === "index.css" || clean === "index.js" || clean === "favicon.ico" || clean === "manifest.webmanifest" || clean === "app-icon.svg" || clean === "sw.js") {
+  if (clean === "index.html" || clean === "index.css" || clean === "index.js" || clean === "pending-map.js" || clean === "favicon.ico" || clean === "manifest.webmanifest" || clean === "app-icon.svg" || clean === "sw.js") {
     return true;
   }
   if (clean.startsWith("data/") && (clean.endsWith(".js") || clean.endsWith(".json"))) {
@@ -98,6 +99,28 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (req.method === "GET" && u.pathname === "/api/geocode") {
+      const address = String(u.searchParams.get("address") || "").trim();
+      if (!address || address.length > 300) return json(res, 400, { ok: false, error: "Endereço inválido" });
+      const key = address.toLowerCase();
+      if (geocodeCache.has(key)) return json(res, 200, { ok: true, location: geocodeCache.get(key), cached: true });
+      const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(address)}`;
+      try {
+        const upstream = await fetch(searchUrl, { headers: { "User-Agent": "GestaoAmbientalAndradas/1.0 (Prefeitura Municipal de Andradas)" } });
+        let places = await upstream.json();
+        if ((!upstream.ok || !Array.isArray(places) || !places.length) && address.includes(",")) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const street = address.split(",")[0].replace(/^Av\.?\s+/i, "Avenida ").trim();
+          const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(`${street}, Andradas, MG, Brasil`)}`;
+          const fallback = await fetch(fallbackUrl, { headers: { "User-Agent": "GestaoAmbientalAndradas/1.0 (Prefeitura Municipal de Andradas)" } });
+          places = await fallback.json();
+        }
+        if (!Array.isArray(places) || !places.length) return json(res, 404, { ok: false, error: "Endereço não localizado no mapa" });
+        const location = { lat: Number(places[0].lat), lng: Number(places[0].lon), displayName: String(places[0].display_name || address) };
+        geocodeCache.set(key, location);
+        return json(res, 200, { ok: true, location });
+      } catch (error) { return json(res, 502, { ok: false, error: `Falha ao localizar endereço: ${error.message}` }); }
+    }
     // ── GET /api/processes (planilha exclusiva da Vistoria) ──────────────────
     if (req.method === "GET" && u.pathname === "/api/processes") {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${VISTORIA_SPREADSHEET_ID}/export?format=csv&gid=0&_=${Date.now()}`;

@@ -124,9 +124,13 @@
         <h2>Processos e Solicitações de Intervenção</h2>
         <p>Acompanhamento de pedidos de corte, poda e supressão vinculados ao Inventário Arbóreo.</p>
       </div>
-      <button id="btn-novo-processo" class="primary" type="button">
-        ➕ Nova Solicitação
-      </button>
+      <div class="processos-head-actions">
+        <button id="btn-mapa-vistorias" class="button-outline" type="button">Mapa de vistorias pendentes</button>
+        <a class="button-outline process-sheet-link" href="https://docs.google.com/spreadsheets/d/1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU/edit" target="_blank" rel="noopener" title="Abrir a planilha oficial de compensação ambiental">
+          Abrir planilha de compensação
+        </a>
+        <button id="btn-novo-processo" class="primary" type="button">Nova Solicitação</button>
+      </div>
     </header>
 
     <div class="metrics-grid">
@@ -152,6 +156,11 @@
       </div>
     </div>
 
+        <div class="process-refresh-row">
+      <button id="btn-refresh-processos" class="button-outline" type="button">Atualizar planilha</button>
+      <span id="process-refresh-status" class="text-muted" role="status"></span>
+    </div>
+
     <div class="processos-toolbar">
       <div class="search-box">
         <span class="search-icon">🔍</span>
@@ -160,6 +169,7 @@
       </div>
       <div class="filter-pills" role="group" aria-label="Filtro de situação">
         <button class="filter-pill active" data-filter="todos" type="button">Todos</button>
+        <button class="filter-pill" data-filter="vistoria" type="button">Falta fazer vistoria</button>
         <button class="filter-pill" data-filter="analise" type="button">Em Análise</button>
         <button class="filter-pill" data-filter="autorizado" type="button">Autorizados</button>
         <button class="filter-pill" data-filter="compensacao" type="button">Compensação Pendente</button>
@@ -689,9 +699,20 @@
   <small>A identificação por imagem e os cálculos automáticos servem de subsídio e devem ser validados pelo fiscal/responsável técnico habilitado.</small>
 </footer>
 
+<div id="vistoria-map-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de vistorias pendentes">
+  <div class="mapa-container">
+    <div class="mapa-header">
+      <div class="mapa-title"><div><h2>Vistorias pendentes</h2><p>Processos que ainda aguardam vistoria de campo</p></div></div>
+      <div class="mapa-header-actions"><div id="vistoria-map-stats" class="mapa-stats">Carregando...</div><button id="vistoria-map-close" class="mapa-close" type="button" title="Fechar">&times;</button></div>
+    </div>
+    <div id="vistoria-map" class="arvores-map" aria-label="Mapa com endereços das vistorias pendentes"></div>
+    <div id="vistoria-map-status" class="mapa-status" hidden></div>
+  </div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=13"></script>
+<script defer src="index.js?v=14"></script>
+<script defer src="pending-map.js?v=1"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">

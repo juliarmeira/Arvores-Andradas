@@ -844,6 +844,8 @@ textarea {
   margin-bottom: 24px;
   gap: 16px;
 }
+.processos-head-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.process-sheet-link { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; text-decoration: none; white-space: nowrap; }
 .processos-head h2 {
   margin: 0 0 6px;
   font-size: 1.85rem;
@@ -888,6 +890,10 @@ textarea {
   font-size: 0.76rem;
   color: var(--muted);
 }
+
+.process-refresh-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-bottom: 10px; }
+.process-refresh-row button { min-height: 40px; }
+.process-refresh-row span { min-height: 20px; font-size: .78rem; }
 
 .processos-toolbar {
   display: flex;
@@ -1702,7 +1708,7 @@ footer p {
 .dot-indeferido  { background: #ef4444; }
 
 /* Mapa Leaflet */
-#arvores-map {
+#arvores-map, #vistoria-map {
   flex: 1;
   min-height: 420px;
   z-index: 1;
@@ -1715,6 +1721,8 @@ footer p {
   text-align: center;
   border-top: 1px solid rgba(255,255,255,.08);
 }
+.popup-route-link { display: inline-flex; margin-top: 10px; color: #86efac; font-weight: 700; }
+
 .mapa-status.loading { color: #86efac; }
 .mapa-status.error   { color: #f87171; }
 
@@ -2137,9 +2145,10 @@ main { max-width: 1180px; padding: 24px 20px 64px; }
 .processo-actions > .btn-view-parecer { order: 1; }
 .processo-actions > .btn-confirm-compensacao { order: 0; margin-right: auto; }
 .process-more { position: relative; order: 2; }
-.process-more summary { min-height: 42px; display: grid; place-items: center; padding: 9px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--forest); cursor: pointer; font-size: .78rem; font-weight: 800; list-style: none; }
+.process-more summary { width: 44px; min-width: 44px; min-height: 42px; display: grid; place-items: center; padding: 9px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--forest); cursor: pointer; font-size: .78rem; font-weight: 800; list-style: none; }
 .process-more summary::-webkit-details-marker { display: none; }
-.process-more summary::after { content: " ···"; letter-spacing: .08em; }
+.process-more summary span { font-size: 1.35rem; line-height: 1; }
+.process-more summary::after { content: none; }
 .process-more[open] summary { border-color: var(--green); box-shadow: 0 0 0 3px rgba(35,107,82,.12); }
 .process-more-menu { position: absolute; z-index: 20; right: 0; bottom: calc(100% + 8px); width: 210px; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 16px 40px rgba(20,61,50,.16); }
 .process-more-menu button { width: 100%; text-align: left; }
@@ -2185,7 +2194,8 @@ main { max-width: 1180px; padding: 24px 20px 64px; }
   .main-tab .tab-icon { display: none; }
   .tab-badge { min-width: 22px; }
   .processos-head { flex-direction: column; align-items: stretch; gap: 14px; }
-  .processos-head > button { width: 100%; min-height: 46px; }
+  .processos-head-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .processos-head-actions > button, .processos-head-actions > a { width: 100%; min-height: 46px; }
   .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
   .metric-card { min-width: 0; padding: 12px; }
   .metric-card small { font-size: .63rem; line-height: 1.25; }
@@ -2199,7 +2209,7 @@ main { max-width: 1180px; padding: 24px 20px 64px; }
   .processo-actions > button, .processo-actions > details { min-width: 0; width: 100%; }
   .processo-actions > .btn-confirm-compensacao { grid-column: 1 / -1; min-height: 46px; }
   .processo-actions > .btn-view-parecer { min-height: 44px; }
-  .process-more summary { min-height: 44px; }
+  .process-more summary { width: 100%; min-height: 44px; }
   .process-more-menu { position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); width: auto; padding: 12px; border-radius: 14px; }
   .process-more-menu button { min-height: 46px; }
   .panel { padding: 20px 16px; }
@@ -2234,7 +2244,7 @@ main { max-width: 1180px; padding: 24px 20px 64px; }
   .topbar-map-btn, .topbar-link-btn { width: 40px; min-width: 40px; height: 40px; }
   .brand strong { font-size: .84rem; }
   .main-tab { font-size: .76rem; padding-inline: 9px; }
-  .processos-head h2 { font-size: 1.48rem; }
+.processos-head h2 { font-size: 1.48rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

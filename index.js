@@ -2042,8 +2042,10 @@ async function loadProcessos() {
       updateProcessosBadge();
       renderProcessos();
     }
+    return true;
   } catch (error) {
     console.warn('[vistoria] Falha ao carregar processos da planilha:', error.message);
+    return false;
   }
 }
 
@@ -2061,12 +2063,17 @@ function updateProcessosBadge() {
   }
 }
 
+function isPendingInspection(process) {
+  const status = normalizeText(process?.situacao || '');
+  return status === 'aguardando vistoria' || status === 'falta fazer vistoria';
+}
+
 function renderProcessos() {
   const listEl = $('processos-list');
   if (!listEl) return;
 
   const total = processos.length;
-  const analise = processos.filter(p => p.situacao === 'Em Análise' || p.situacao === 'Vistoriado').length;
+  const analise = processos.filter(p => isPendingInspection(p) || p.situacao === 'Em Análise' || p.situacao === 'Vistoriado').length;
   const autorizados = processos.filter(p => p.situacao.includes('Autorizado')).length;
   const concluidos = processos.filter(p => p.situacao.includes('Compensado') || p.situacao === 'Concluído').length;
 
@@ -2077,6 +2084,7 @@ function renderProcessos() {
 
   const s = normalizeText(activeProcessSearch);
   const filtered = processos.filter(p => {
+    if (activeProcessFilter === 'vistoria' && !isPendingInspection(p)) return false;
     if (activeProcessFilter === 'analise' && p.situacao !== 'Em Análise' && p.situacao !== 'Vistoriado') return false;
     if (activeProcessFilter === 'autorizado' && !p.situacao.includes('Autorizado')) return false;
     if (activeProcessFilter === 'compensacao' && p.situacao !== 'Aguardando Compensação') return false;
@@ -2091,6 +2099,9 @@ function renderProcessos() {
       return matchProt || matchReq || matchEnd || matchTree;
     }
     return true;
+  }).sort((a, b) => {
+    const pendingOrder = Number(isPendingInspection(b)) - Number(isPendingInspection(a));
+    return pendingOrder || String(b.data || '').localeCompare(String(a.data || ''));
   });
 
   if (!filtered.length) {
@@ -2161,7 +2172,7 @@ function renderProcessos() {
             Ver detalhes
           </button>
           <details class="process-more">
-            <summary>Mais ações</summary>
+            <summary title="Mais ações" aria-label="Mais ações"><span aria-hidden="true">⋮</span></summary>
             <div class="process-more-menu">
               <button type="button" class="btn-sm button-outline btn-resume-proc" data-id="${esc(p.id)}">Continuar ou editar</button>
               <button type="button" class="btn-sm button-outline btn-change-status" data-id="${esc(p.id)}">Atualizar andamento</button>
@@ -2984,6 +2995,24 @@ function init() {
   });
 
   // Filtros de processos
+  $('btn-refresh-processos')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const status = $('process-refresh-status');
+    button.disabled = true;
+    button.textContent = 'Atualizando...';
+    if (status) status.textContent = 'Buscando os processos mais recentes.';
+    try {
+      const updated = await loadProcessos();
+      if (!updated) throw new Error('a planilha não respondeu');
+      const pending = processos.filter(isPendingInspection).length;
+      if (status) status.textContent = `${processos.length} processos carregados. ${pending} aguardando vistoria.`;
+    } catch (error) {
+      if (status) status.textContent = `Não foi possível atualizar: ${error.message}`;
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Atualizar planilha';
+    }
+  });
   $('processos-search')?.addEventListener('input', e => {
     activeProcessSearch = e.target.value;
     renderProcessos();
