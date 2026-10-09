@@ -268,7 +268,9 @@ const server = http.createServer(async (req, res) => {
       catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
       const protocolo = String(data.protocolo || "").trim();
       const situacao = String(data.situacao || "").trim();
+      const allowedStatuses = new Set(["Aguardando Vistoria", "Aguardando Compensação", "Compensado"]);
       if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
+      if (!allowedStatuses.has(situacao)) return json(res, 400, { ok: false, error: "Andamento inválido para a planilha" });
 
       const target = process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
       try {

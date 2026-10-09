@@ -2610,3 +2610,26 @@ input:focus, select:focus, textarea:focus { border-color: #14b8a6; box-shadow: 0
   .water-dashboard-filters { grid-template-columns: 1fr; }
   .water-dashboard-kpis strong { font-size: 1.4rem; }
 }
+/* Fluxo administrativo do processo */
+.parecer-empty {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.parecer-empty strong { display: block; color: var(--forest); margin-bottom: 4px; }
+.parecer-empty p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+.dialog-status-changer {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(210px, 1fr) auto;
+  align-items: end;
+  flex: 1 1 520px;
+}
+.status-field-copy label { display: block; color: var(--forest); font-weight: 800; }
+.status-field-copy small { display: block; color: var(--muted); margin-top: 3px; }
+.status-feedback { grid-column: 1 / -1; min-height: 18px; font-size: .8rem; }
+.dialog-status-changer select, .dialog-status-changer button { min-height: 42px; }
+@media (max-width: 850px) {
+  .dialog-status-changer { grid-template-columns: 1fr; align-items: stretch; }
+  .status-feedback { grid-column: auto; }
+}

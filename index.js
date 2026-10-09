@@ -2058,14 +2058,22 @@ function saveProcessos() {
 function updateProcessosBadge() {
   const badge = $('badge-total-processos');
   if (badge) {
-    const activeCount = processos.filter(p => p.situacao !== 'Concluído' && p.situacao !== 'Indeferido').length;
+    const activeCount = processos.filter(p => statusForSheet(p.situacao) !== 'Compensado').length;
     badge.textContent = String(activeCount || processos.length);
   }
 }
 
+const SHEET_PROCESS_STATUSES = ['Aguardando Vistoria', 'Aguardando Compensação', 'Compensado'];
+
+function statusForSheet(status) {
+  const normalized = normalizeText(status || '');
+  if (normalized.includes('compensado') || normalized.includes('concluido')) return 'Compensado';
+  if (normalized.includes('compensacao') || normalized.includes('autorizado')) return 'Aguardando Compensação';
+  return 'Aguardando Vistoria';
+}
+
 function isPendingInspection(process) {
-  const status = normalizeText(process?.situacao || '');
-  return status === 'aguardando vistoria' || status === 'falta fazer vistoria';
+  return statusForSheet(process?.situacao) === 'Aguardando Vistoria';
 }
 
 function renderProcessos() {
@@ -2073,9 +2081,9 @@ function renderProcessos() {
   if (!listEl) return;
 
   const total = processos.length;
-  const analise = processos.filter(p => isPendingInspection(p) || p.situacao === 'Em Análise' || p.situacao === 'Vistoriado').length;
-  const autorizados = processos.filter(p => p.situacao.includes('Autorizado')).length;
-  const concluidos = processos.filter(p => p.situacao.includes('Compensado') || p.situacao === 'Concluído').length;
+  const analise = processos.filter(p => statusForSheet(p.situacao) === 'Aguardando Vistoria').length;
+  const autorizados = processos.filter(p => statusForSheet(p.situacao) === 'Aguardando Compensação').length;
+  const concluidos = processos.filter(p => statusForSheet(p.situacao) === 'Compensado').length;
 
   if ($('stat-total')) $('stat-total').textContent = String(total);
   if ($('stat-analise')) $('stat-analise').textContent = String(analise);
@@ -2085,11 +2093,8 @@ function renderProcessos() {
   const s = normalizeText(activeProcessSearch);
   const filtered = processos.filter(p => {
     if (activeProcessFilter === 'vistoria' && !isPendingInspection(p)) return false;
-    if (activeProcessFilter === 'analise' && p.situacao !== 'Em Análise' && p.situacao !== 'Vistoriado') return false;
-    if (activeProcessFilter === 'autorizado' && !p.situacao.includes('Autorizado')) return false;
-    if (activeProcessFilter === 'compensacao' && p.situacao !== 'Aguardando Compensação') return false;
-    if (activeProcessFilter === 'concluido' && p.situacao !== 'Concluído' && p.situacao !== 'Compensado') return false;
-    if (activeProcessFilter === 'indeferido' && p.situacao !== 'Indeferido') return false;
+    if (activeProcessFilter === 'compensacao' && statusForSheet(p.situacao) !== 'Aguardando Compensação') return false;
+    if (activeProcessFilter === 'concluido' && statusForSheet(p.situacao) !== 'Compensado') return false;
 
     if (s) {
       const matchProt = normalizeText(p.protocolo).includes(s);
@@ -2118,19 +2123,18 @@ function renderProcessos() {
   }
 
   listEl.innerHTML = filtered.map(p => {
-    let badgeClass = 'analise';
-    if (p.situacao.includes('Autorizado')) badgeClass = 'autorizado';
-    else if (p.situacao.includes('Compensação')) badgeClass = 'compensacao';
-    else if (p.situacao === 'Concluído' || p.situacao === 'Compensado') badgeClass = 'concluido';
-    else if (p.situacao === 'Indeferido') badgeClass = 'indeferido';
-    const canConfirmCompensation = /Aguardando Compensação|Autorizado/i.test(p.situacao || '');
+    const sheetStatus = statusForSheet(p.situacao);
+    const badgeClass = sheetStatus === 'Compensado'
+      ? 'concluido'
+      : sheetStatus === 'Aguardando Compensação' ? 'compensacao' : 'analise';
+    const canConfirmCompensation = sheetStatus === 'Aguardando Compensação';
 
     return `
       <article class="processo-card">
         <header class="processo-header">
           <div class="proc-id-wrap">
             <span class="proc-num">Proc. nº ${esc(p.protocolo || 'S/N')}</span>
-            <span class="status-badge ${badgeClass}">${esc(p.situacao)}</span>
+            <span class="status-badge ${badgeClass}">${esc(sheetStatus)}</span>
           </div>
           <span class="proc-date">📅 ${isoToBr(p.data)}</span>
         </header>
@@ -2224,7 +2228,7 @@ async function syncNewProcessoVistoria(proc, isNew) {
     prazo: toBr(proc.prazo),
     coordComp1: proc.coordComp1 || '',
     coordComp2: proc.coordComp2 || '',
-    situacao: proc.situacao || 'Em Análise'
+    situacao: statusForSheet(proc.situacao)
   };
 
   try {
@@ -2247,7 +2251,7 @@ async function saveCurrentProcesso() {
   const req = val('requerente') || 'Não informado';
   const end = val('local') || 'Andradas/MG';
   const inter = val('intervencao');
-  const sit = val('situacao') || 'Em Análise';
+  const sit = statusForSheet(val('situacao'));
   const parecerText = val('saida') || '';
 
   const proc = {
@@ -2367,7 +2371,7 @@ async function saveEtapa2() {
     finalidade: finalidadeTxt,
     finalidadeVal: finalidadeVal,
     finalidadeOutroDetalhe: outroDetalhe,
-    situacao: 'Vistoriado',
+    situacao: 'Aguardando Vistoria',
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
@@ -2391,7 +2395,7 @@ async function saveEtapa2() {
 
   saveProcessos();
   await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Etapa 2 salva com sucesso! Processo nº ${prot} atualizado para a situação "Vistoriado".`);
+  alert(`✓ Vistoria do processo nº ${prot} salva. O andamento permanece como "Aguardando Vistoria" até a emissão do parecer.`);
 }
 
 // ── Salvamento da Etapa 3 / Conclusão: Parecer e Expedição ──────────────────
@@ -2402,19 +2406,9 @@ async function saveFinalProcesso() {
 
   const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
   const concl = val('conclusao');
-  let sit = 'Concluído';
-
-  if (destinacaoTipo === 'codema') {
-    sit = 'Encaminhado ao CODEMA';
-  } else if (destinacaoTipo === 'obras') {
-    sit = 'Encaminhado para Obras';
-  } else if (concl === 'deferir') {
-    sit = 'Autorizado (Aguardando Compensação)';
-  } else if (concl === 'indeferir') {
-    sit = 'Indeferido';
-  } else if (concl === 'diligencia') {
-    sit = 'Em Diligência';
-  }
+  const sit = concl === 'deferir' && destinacaoTipo === 'requerente'
+    ? 'Aguardando Compensação'
+    : 'Aguardando Vistoria';
 
   const prot = val('processo') || `PROC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
   const req = val('requerente') || 'Requerente não informado';
@@ -2466,8 +2460,18 @@ async function saveFinalProcesso() {
   }
 
   saveProcessos();
-  await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Processo nº ${prot} concluído e salvo com sucesso! Situação: "${sit}".`);
+  let synced = false;
+  if (isNewProcess) {
+    synced = await syncNewProcessoVistoria(proc, true);
+  } else {
+    try {
+      await syncProcessStatus(processos[existingIdx], sit, proc.compensacao);
+      synced = true;
+    } catch (error) {
+      alert(`O parecer foi salvo neste aparelho, mas o andamento não foi atualizado na planilha: ${error.message}`);
+    }
+  }
+  if (synced) alert(`✓ Parecer do processo nº ${prot} salvo. Andamento na planilha: "${sit}".`);
   switchMainView('processos');
 }
 
@@ -2553,12 +2557,10 @@ function resumeProcesso(id) {
   switchMainView('novo');
 
   // Abre a etapa mais relevante para continuar o trabalho
-  if (p.situacao === 'Aguardando Vistoria') {
+  if (statusForSheet(p.situacao) === 'Aguardando Vistoria' && !p.diagnostico && !p.parecerTexto) {
     showTab('vistoria');
-  } else if (p.situacao === 'Vistoriado' || p.situacao.includes('Autorizado') || p.situacao.includes('Compensado') || p.situacao === 'Concluído') {
-    showTab('parecer');
   } else {
-    showTab('requerimento');
+    showTab('parecer');
   }
 }
 
@@ -2815,20 +2817,23 @@ function viewProcessoParecer(procId) {
   if (!modal) return;
 
   const hasParecer = Boolean(String(p.parecerTexto || '').trim());
+  const sheetStatus = statusForSheet(p.situacao);
   $('modal-processo-badge').textContent = `Proc. nº ${p.protocolo}`;
   $('modal-processo-titulo').textContent = 'Detalhes do processo';
   $('modal-processo-sub').textContent = `${p.requerente || 'Requerente não informado'} · ${p.endereco || 'Endereço não informado'}`;
-  $('modal-resumo-situacao').textContent = p.situacao || 'Em Análise';
+  $('modal-resumo-situacao').textContent = sheetStatus;
   $('modal-resumo-objeto').textContent = p.intervencaoLabel || p.intervencao || 'Não informado';
+  const resultLabels = { deferir: 'Favorável', indeferir: 'Desfavorável', diligencia: 'Diligência necessária' };
+  $('modal-resumo-conclusao').textContent = resultLabels[p.conclusao] || 'Ainda não definido';
   $('modal-resumo-compensacao').textContent = p.compensacao || 'Não informada';
-  $('modal-parecer-aviso').textContent = hasParecer
-    ? 'Documento técnico salvo para este processo.'
-    : 'Este processo veio da planilha e ainda não possui texto de parecer salvo no aplicativo.';
+  $('modal-parecer-aviso').textContent = hasParecer ? 'Documento técnico salvo.' : 'Documento técnico pendente.';
   $('modal-parecer-texto').value = hasParecer ? p.parecerTexto : '';
   $('modal-parecer-texto').hidden = !hasParecer;
+  $('modal-parecer-vazio').hidden = hasParecer;
   $('modal-btn-copiar').disabled = !hasParecer;
   $('modal-btn-imprimir').disabled = !hasParecer;
-  $('modal-status-select').value = p.situacao || 'Em Análise';
+  $('modal-status-select').value = sheetStatus;
+  $('modal-status-feedback').textContent = '';
 
   const treeInfo = $('modal-tree-info');
   if (treeInfo) {
@@ -2852,6 +2857,13 @@ function viewProcessoParecer(procId) {
 
 function openStatusModal(procId) {
   viewProcessoParecer(procId);
+  setTimeout(() => $('modal-status-select')?.focus(), 80);
+}
+
+function continueViewingProcess() {
+  const id = currentViewingProcessId;
+  $('modal-processo')?.close();
+  if (id) resumeProcesso(id);
 }
 
 async function updateViewingProcessStatus() {
@@ -2860,18 +2872,37 @@ async function updateViewingProcessStatus() {
   if (!p) return;
 
   const newStatus = val('modal-status-select');
+  const feedback = $('modal-status-feedback');
+  const button = $('modal-status-save');
+  if (!SHEET_PROCESS_STATUSES.includes(newStatus)) {
+    if (feedback) feedback.textContent = 'Selecione um andamento válido.';
+    return;
+  }
+
+  if (button) button.disabled = true;
+  if (feedback) {
+    feedback.textContent = 'Salvando na planilha...';
+    feedback.className = 'status-feedback text-muted';
+  }
   try {
     await syncProcessStatus(p, newStatus, p.compensacao);
     p.situacao = newStatus;
     p.updatedAt = new Date().toISOString();
     saveProcessos();
-    alert(`✓ Situação atualizada na planilha para: ${newStatus}`);
-    $('modal-processo')?.close();
+    $('modal-resumo-situacao').textContent = newStatus;
+    if (feedback) {
+      feedback.textContent = 'Andamento salvo na planilha.';
+      feedback.className = 'status-feedback text-success';
+    }
   } catch (error) {
-    alert(`Não foi possível atualizar a situação: ${error.message}`);
+    if (feedback) {
+      feedback.textContent = `Não foi possível salvar: ${error.message}`;
+      feedback.className = 'status-feedback text-danger';
+    }
+  } finally {
+    if (button) button.disabled = false;
   }
 }
-
 function deleteProcesso(procId) {
   const p = processos.find(x => x.id === procId);
   if (!p) return;

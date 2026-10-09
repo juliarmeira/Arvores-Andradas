@@ -140,19 +140,19 @@
         <span class="metric-desc">Cadastrados no sistema</span>
       </div>
       <div class="metric-card">
-        <small>Em Análise / Vistoria</small>
+        <small>Aguardando Vistoria</small>
         <strong id="stat-analise">0</strong>
         <span class="metric-desc">Aguardando parecer</span>
       </div>
       <div class="metric-card">
-        <small>Cortes / Podas Autorizados</small>
+        <small>Aguardando Compensação</small>
         <strong id="stat-autorizados">0</strong>
-        <span class="metric-desc">Parecer favorável</span>
+        <span class="metric-desc">Cumprimento pendente</span>
       </div>
       <div class="metric-card">
-        <small>Compensação / Concluídos</small>
+        <small>Compensados</small>
         <strong id="stat-concluidos">0</strong>
-        <span class="metric-desc">Plantio ou finalizado</span>
+        <span class="metric-desc">Cumprimento confirmado</span>
       </div>
     </div>
 
@@ -169,12 +169,9 @@
       </div>
       <div class="filter-pills" role="group" aria-label="Filtro de situação">
         <button class="filter-pill active" data-filter="todos" type="button">Todos</button>
-        <button class="filter-pill" data-filter="vistoria" type="button">Falta fazer vistoria</button>
-        <button class="filter-pill" data-filter="analise" type="button">Em Análise</button>
-        <button class="filter-pill" data-filter="autorizado" type="button">Autorizados</button>
-        <button class="filter-pill" data-filter="compensacao" type="button">Compensação Pendente</button>
-        <button class="filter-pill" data-filter="concluido" type="button">Concluídos</button>
-        <button class="filter-pill" data-filter="indeferido" type="button">Indeferidos</button>
+        <button class="filter-pill" data-filter="vistoria" type="button">Aguardando Vistoria</button>
+        <button class="filter-pill" data-filter="compensacao" type="button">Aguardando Compensação</button>
+        <button class="filter-pill" data-filter="concluido" type="button">Compensados</button>
       </div>
     </div>
 
@@ -534,7 +531,7 @@
           <button id="copiar" class="primary" type="button">Copiar texto</button>
           <button id="baixar" type="button">Baixar parecer (.txt)</button>
           <button id="imprimir" type="button">Imprimir / Salvar PDF</button>
-          <button id="btn-save-final-proc" class="button-outline" type="button">💾 Salvar Processo Concluído</button>
+          <button id="btn-save-final-proc" class="button-outline" type="button">Salvar parecer e andamento</button>
         </div>
       </div>
 
@@ -588,10 +585,9 @@
           </label>
           <label>Situação do processo
             <select id="situacao">
+              <option>Aguardando Vistoria</option>
               <option>Aguardando Compensação</option>
               <option>Compensado</option>
-              <option>Em Análise</option>
-              <option>Indeferido</option>
             </select>
           </label>
           <label class="full">URL do Webhook do Google Apps Script
@@ -625,7 +621,8 @@
       <section class="process-summary" aria-label="Resumo do processo">
         <article><small>Situação atual</small><strong id="modal-resumo-situacao">—</strong></article>
         <article><small>Solicitação</small><strong id="modal-resumo-objeto">—</strong></article>
-        <article class="process-summary-wide"><small>Compensação ambiental</small><strong id="modal-resumo-compensacao">—</strong></article>
+        <article><small>Resultado do parecer</small><strong id="modal-resumo-conclusao">Não informado</strong></article>
+        <article><small>Compensação ambiental</small><strong id="modal-resumo-compensacao">—</strong></article>
       </section>      <div id="modal-tree-info" class="modal-tree-info" hidden></div>
       <section id="modal-process-map-section" class="process-map-section" hidden aria-label="Localização da árvore">
         <div class="process-map-heading">
@@ -647,22 +644,26 @@
           <small id="modal-parecer-aviso" class="text-muted"></small>
         </div>
         <textarea id="modal-parecer-texto" class="output" rows="18" readonly></textarea>
+        <div id="modal-parecer-vazio" class="parecer-empty" hidden>
+          <strong>Parecer ainda não preenchido</strong>
+          <p>Continue o processo para registrar a vistoria, definir a conclusão técnica e gerar o documento.</p>
+          <button id="modal-btn-continuar" type="button" class="btn-sm primary">Continuar preenchimento</button>
+        </div>
       </section>
     </div>
     <footer class="dialog-footer">
       <div class="dialog-status-changer">
-        <label for="modal-status-select">Situação:</label>
+        <div class="status-field-copy">
+          <label for="modal-status-select">Andamento na planilha</label>
+          <small>Escolha apenas a etapa administrativa atual.</small>
+        </div>
         <select id="modal-status-select">
-          <option value="Em Análise">Em Análise</option>
-          <option value="Vistoriado">Vistoriado</option>
-          <option value="Corte Autorizado">Corte Autorizado</option>
-          <option value="Poda Autorizada">Poda Autorizada</option>
+          <option value="Aguardando Vistoria">Aguardando Vistoria</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
-          <option value="Concluído">Concluído</option>
-          <option value="Indeferido">Indeferido</option>
         </select>
-        <button id="modal-status-save" type="button" class="btn-sm primary">Atualizar</button>
+        <button id="modal-status-save" type="button" class="btn-sm primary">Salvar andamento</button>
+        <span id="modal-status-feedback" class="status-feedback" role="status" aria-live="polite"></span>
       </div>
       <div class="dialog-actions">
         <button id="modal-btn-copiar" type="button" class="btn-sm">Copiar Parecer</button>
@@ -711,8 +712,8 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=14"></script>
-<script defer src="pending-map.js?v=1"></script>
+<script defer src="index.js?v=15"></script>
+<script defer src="pending-map.js?v=2"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">
