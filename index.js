@@ -25,6 +25,25 @@ const organs = [
   ['fruto', 'Fruto']
 ];
 
+const URBAN_CONFLICTS = [
+  ['fiacao', 'Fiação / rede aérea'],
+  ['edificacao', 'Danos ou interferência em edificação, muro ou telhado'],
+  ['calcada', 'Danos ou interferência em calçada / passeio público'],
+  ['encanamento', 'Danos ou interferência em encanamento / rede subterrânea'],
+  ['viario', 'Tráfego viário / sinalização'],
+  ['obra', 'Interferência com obra autorizada']
+];
+
+function selectedConflicts(t) {
+  if (Array.isArray(t.conflitos)) return t.conflitos.filter(Boolean);
+  return t.conflito && t.conflito !== 'nenhum' ? [t.conflito] : [];
+}
+
+function conflictText(t) {
+  const selected = selectedConflicts(t);
+  if (!selected.length) return 'Nenhum conflito relevante';
+  return selected.map(value => URBAN_CONFLICTS.find(([key]) => key === value)?.[1] || value).join('; ');
+}
 const INVENTORY_API_URL = 'https://script.google.com/macros/s/AKfycbzYaVf1-1iWrUVNZZkvNwPH1TvNqEqS7EYqu2goz-gNTO7tw5ZvKVPXz-HIZB6jrHiB/exec';
 let inventoryTrees = [];
 let linkedTree = null;
@@ -51,6 +70,7 @@ const defaultTree = i => ({
   condicao: 'viva',
   doenca: 'ausente',
   conflito: 'nenhum',
+  conflitos: [],
   risco: 'nao',
   observacao: '',
   inventoryId: null
@@ -399,16 +419,18 @@ function speciesTemplate(t, i) {
               </select>
             </label>
 
-            <label>Conflito urbano constatado
-              <select class="conflito">
-                <option value="nenhum" ${t.conflito === 'nenhum' ? 'selected' : ''}>Nenhum conflito relevante</option>
-                <option value="fiacao" ${t.conflito === 'fiacao' ? 'selected' : ''}>Fiação / rede aérea</option>
-                <option value="edificacao" ${t.conflito === 'edificacao' ? 'selected' : ''}>Edificação / muro / telhado</option>
-                <option value="calcada" ${t.conflito === 'calcada' ? 'selected' : ''}>Passeio público / encanamento</option>
-                <option value="viario" ${t.conflito === 'viario' ? 'selected' : ''}>Tráfego viário / sinalização</option>
-                <option value="obra" ${t.conflito === 'obra' ? 'selected' : ''}>Interferência com obra autorizada</option>
-              </select>
-            </label>
+            <fieldset class="urban-conflicts">
+              <legend>Conflito urbano constatado</legend>
+              <div class="conflict-checklist">
+                ${URBAN_CONFLICTS.map(([value, text]) => `
+                  <label>
+                    <input class="conflito-option" type="checkbox" value="${value}" ${selectedConflicts(t).includes(value) ? 'checked' : ''}>
+                    <span>${text}</span>
+                  </label>
+                `).join('')}
+              </div>
+              <small>Marque todos os conflitos observados. Deixe desmarcado quando não houver conflito relevante.</small>
+            </fieldset>
 
             <label>Risco de queda (Art. 2º VII e Art. 10º)
               <select class="risco">
@@ -444,10 +466,12 @@ function syncSpecies() {
   document.querySelectorAll('#trees-container .tree-card').forEach((c, i) => {
     if (!trees[i]) return;
     const t = trees[i];
-    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
+    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'risco', 'observacao']) {
       const el = c.querySelector('.' + k);
       if (el) t[k] = el.value;
     }
+    t.conflitos = [...c.querySelectorAll('.conflito-option:checked')].map(el => el.value);
+    t.conflito = t.conflitos[0] || 'nenhum';
     const dapEl = c.querySelector('.dap');
     if (dapEl) t.dap = Math.max(0, Number(dapEl.value) || 0);
     const altEl = c.querySelector('.altura');
@@ -463,10 +487,12 @@ function syncAssessment() {
 function syncCard(i) {
   const sc = document.getElementById(`species-card-${i}`);
   if (sc && trees[i]) {
-    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'conflito', 'risco', 'observacao']) {
+    for (const k of ['popular', 'cientifico', 'familia', 'certeza', 'origem', 'protegida', 'condicao', 'doenca', 'risco', 'observacao']) {
       const el = sc.querySelector('.' + k);
       if (el) trees[i][k] = el.value;
     }
+    trees[i].conflitos = [...sc.querySelectorAll('.conflito-option:checked')].map(el => el.value);
+    trees[i].conflito = trees[i].conflitos[0] || 'nenhum';
     const dapEl = sc.querySelector('.dap');
     if (dapEl) trees[i].dap = Math.max(0, Number(dapEl.value) || 0);
     const altEl = sc.querySelector('.altura');
@@ -1214,7 +1240,7 @@ function generate() {
 
     return `  • Exemplar nº ${t.numero}: ${pop} (${sci}), ${fam}.
     - Origem: ${orig} | Estado Sanitário: ${cond}
-    - Sinais de pragas/podridão: ${t.doenca} | Conflitos urbanos: ${t.conflito} | Risco de queda: ${risco}
+    - Sinais de pragas/podridão: ${t.doenca} | Conflitos urbanos: ${conflictText(t)} | Risco de queda: ${risco}
     ${specs ? `    - Enquadramento especial: ${specs}\n` : ''}${t.observacao ? `    - Observações: ${t.observacao}\n` : ''}`;
   }).join('\n');
 
@@ -1443,6 +1469,7 @@ Prefeitura Municipal de Andradas / MG
 
   const saidaEl = $('saida');
   if (saidaEl) saidaEl.value = doc;
+  renderOfficialDocument(doc);
 
   const titEl = $('titulo-modelo');
   if (titEl) titEl.textContent = model(e);
@@ -1460,6 +1487,30 @@ Prefeitura Municipal de Andradas / MG
   }
 }
 
+function renderOfficialDocument(text = val('saida')) {
+  const preview = $('documento-impressao');
+  if (!preview) return;
+
+  const bodyText = String(text || '').replace(/^={20,}\s*\nPREFEITURA MUNICIPAL DE ANDRADAS\s*\nSECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE\s*\nDIVISÃO DE MEIO AMBIENTE\s*\n={20,}\s*\n?/i, '');
+  const galleries = trees.map((tree, index) => {
+    const photos = organs
+      .filter(([key]) => tree.photos?.[key])
+      .map(([key, title]) => `<figure><img src="${tree.photos[key]}" alt="${esc(title)} do exemplar ${index + 1}"><figcaption>${esc(title)}</figcaption></figure>`)
+      .join('');
+    if (!photos) return '';
+    const name = tree.popular || tree.cientifico || `Exemplar nº ${index + 1}`;
+    return `<section class="official-photo-section"><h2>Registro fotográfico - Exemplar nº ${index + 1}: ${esc(name)}</h2><div class="official-photo-grid">${photos}</div></section>`;
+  }).join('');
+
+  preview.innerHTML = `
+    <header class="official-letterhead">
+      <img src="app-icon.svg" alt="Identidade visual da Prefeitura Municipal de Andradas">
+      <div><strong>PREFEITURA MUNICIPAL DE ANDRADAS</strong><span>Secretaria Municipal de Planejamento Urbano e Meio Ambiente</span><span>Divisão de Meio Ambiente</span></div>
+    </header>
+    <div class="official-document-text">${esc(bodyText)}</div>
+    ${galleries}
+  `;
+}
 // Navegação entre etapas (tabs)
 function showTab(name) {
   syncSpecies();
@@ -2994,7 +3045,11 @@ function init() {
   if (baixarBtn) baixarBtn.addEventListener('click', downloadTxt);
 
   const imprimirBtn = $('imprimir');
-  if (imprimirBtn) imprimirBtn.addEventListener('click', () => window.print());
+  if (imprimirBtn) imprimirBtn.addEventListener('click', () => {
+    renderOfficialDocument();
+    window.print();
+  });
+  saida?.addEventListener('input', e => renderOfficialDocument(e.target.value));
 
   const saveSheetBtn = $('save-sheet');
   if (saveSheetBtn) saveSheetBtn.addEventListener('click', saveSheet);
