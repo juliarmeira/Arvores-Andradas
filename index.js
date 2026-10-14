@@ -11,7 +11,107 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
   "'": "&#39;"
 }[c]));
 
+const safeImageSource = value => {
+  const source = String(value || '').trim();
+  return /^(https?:\/\/|data:image\/(?:jpeg|png|webp|gif);base64,|blob:)/i.test(source) ? esc(source) : '';
+};
+
 const val = id => $(id)?.value?.trim?.() ?? $(id)?.value ?? "";
+const KNOWN_ACRONYMS = ['APP', 'ART', 'CAU', 'CEMIG', 'CEP', 'CNPJ', 'CODEMA', 'CPF', 'CREA', 'DN', 'EPP', 'FMMA', 'IPTU', 'LTDA', 'ME', 'MG', 'RRT', 'SPUMA', 'UFM'];
+const NAME_PARTICLES = new Set(['a', 'as', 'da', 'das', 'de', 'do', 'dos', 'e']);
+
+function hasPredominantlyUppercaseLetters(text) {
+  const letters = String(text || '').match(/\p{L}/gu) || [];
+  if (letters.length < 2) return false;
+  const upper = letters.filter(letter => letter === letter.toLocaleUpperCase('pt-BR') && letter !== letter.toLocaleLowerCase('pt-BR')).length;
+  return upper / letters.length >= 0.8;
+}
+
+function restoreKnownAcronyms(text) {
+  let result = text;
+  KNOWN_ACRONYMS.forEach(acronym => {
+    result = result.replace(new RegExp(`\\b${acronym}\\b`, 'gi'), acronym);
+  });
+  return result;
+}
+
+function capitalizeWord(word) {
+  return word.replace(/(^|[-'’])([\p{L}])/gu, (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase('pt-BR')}`);
+}
+
+function normalizeNameCase(text) {
+  const lowered = String(text || '').toLocaleLowerCase('pt-BR');
+  const words = lowered.split(/(\s+)/);
+  let wordIndex = 0;
+  const normalized = words.map(part => {
+    if (/^\s+$/.test(part) || !part) return part;
+    const clean = part.replace(/^[^\p{L}]+|[^\p{L}.]+$/gu, '');
+    const acronym = KNOWN_ACRONYMS.find(item => item.toLocaleLowerCase('pt-BR') === clean.replace(/\./g, '').toLocaleLowerCase('pt-BR'));
+    const isParticle = wordIndex > 0 && NAME_PARTICLES.has(clean.toLocaleLowerCase('pt-BR'));
+    wordIndex += 1;
+    if (acronym) return part.replace(clean, `${acronym}${clean.endsWith('.') ? '.' : ''}`);
+    if (isParticle) return part;
+    return capitalizeWord(part);
+  }).join('');
+  return restoreKnownAcronyms(normalized);
+}
+
+function capitalizeSentences(text) {
+  const lowered = String(text || '').toLocaleLowerCase('pt-BR');
+  let shouldCapitalize = true;
+  let result = '';
+  for (const char of lowered) {
+    if (shouldCapitalize && /\p{L}/u.test(char)) {
+      result += char.toLocaleUpperCase('pt-BR');
+      shouldCapitalize = false;
+    } else {
+      result += char;
+    }
+    if (/[.!?]/.test(char) || char === '\n') shouldCapitalize = true;
+  }
+  result = restoreKnownAcronyms(result);
+  const properPhrases = [val('requerente'), val('local'), 'Andradas', 'Minas Gerais', 'Prefeitura Municipal de Andradas'];
+  properPhrases.filter(Boolean).forEach(phrase => {
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(escaped, 'gi'), phrase);
+  });
+  return result;
+}
+
+function normalizeUppercaseField(element) {
+  if (!element || !hasPredominantlyUppercaseLetters(element.value)) return;
+  const mode = element.dataset.caseNormalize || 'sentence';
+  const normalized = mode === 'name' ? normalizeNameCase(element.value) : capitalizeSentences(element.value);
+  if (normalized !== element.value) {
+    element.value = normalized;
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function setupCaseNormalization() {
+  document.addEventListener('paste', event => {
+    const element = event.target.closest?.('[data-case-normalize]');
+    if (element) setTimeout(() => normalizeUppercaseField(element), 0);
+  });
+  document.addEventListener('blur', event => {
+    const element = event.target.closest?.('[data-case-normalize]');
+    if (element) normalizeUppercaseField(element);
+  }, true);
+}
+
+function normalizeAllUppercaseFields() {
+  document.querySelectorAll('[data-case-normalize]').forEach(normalizeUppercaseField);
+}
+const normalizeCoordinateValue = value => {
+  const text = String(value || '').trim().replace(',', '.');
+  const number = Number(text);
+  return Number.isFinite(number) ? number.toFixed(6) : text;
+};
+const validCoordinatePair = (lat, lng) => {
+  const latitude = Number(String(lat || '').replace(',', '.'));
+  const longitude = Number(String(lng || '').replace(',', '.'));
+  return Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+};
 const label = id => {
   const e = $(id);
   return e?.options ? e.options[e.selectedIndex]?.text || "" : e?.value || "";
@@ -50,7 +150,14 @@ let linkedTree = null;
 let processos = [];
 let activeProcessFilter = 'todos';
 let activeProcessSearch = '';
+let fiscalProfiles = [];
+let selectedProcessFiscalFilter = '';
 let currentViewingProcessId = null;
+let parecerNeedsRegeneration = true;
+
+const FISCAL_PROFILES_KEY = 'vistoria_fiscais';
+const SELECTED_FISCAL_KEY = 'vistoria_fiscal_selecionado';
+const PROCESS_FISCAL_FILTER_KEY = 'vistoria_filtro_fiscal';
 
 let trees = [];
 
@@ -67,6 +174,10 @@ const defaultTree = i => ({
   predictions: [],
   dap: 0,
   altura: 0,
+  latitude: '',
+  longitude: '',
+  gpsAccuracy: null,
+  inventorySync: 'pending',
   condicao: 'viva',
   doenca: 'ausente',
   conflito: 'nenhum',
@@ -281,14 +392,23 @@ const MUNICIPAL_RECOMMENDED_TREES = [
 ];
 
 function photoSlots(t, i) {
-  return organs.map(([key, title]) => `
-    <label class="photo-slot" title="Adicionar foto: ${title}">
-      <input type="file" data-tree="${i}" data-organ="${key}" accept="image/jpeg,image/png,image/webp" capture="environment">
-      <div>
-        ${t.photos[key] ? `<img src="${t.photos[key]}" alt="${title}">` : `<span>+<br>${title}</span>`}
-      </div>
-    </label>
-  `).join('');
+  return organs.map(([key, title]) => {
+    const photo = safeImageSource(t.photos[key]);
+    return `
+    <div class="photo-slot-wrap">
+      <label class="photo-slot" title="Escolher da galeria: ${title}">
+        <input type="file" data-tree="${i}" data-organ="${key}" data-photo-source="gallery" accept="image/*">
+        <div>
+          ${photo ? `<img src="${photo}" width="900" height="675" loading="lazy" alt="${title}">` : `<span>+<br>${title}</span>`}
+        </div>
+      </label>
+      <label class="photo-camera-action" title="Tirar foto de ${title}">
+        <input type="file" data-tree="${i}" data-organ="${key}" data-photo-source="camera" accept="image/*" capture="environment">
+        <span>📷 Câmera</span>
+      </label>
+    </div>
+  `;
+  }).join('');
 }
 
 // Template unificado de cada exemplar para a Etapa 2 (Vistoria a Campo)
@@ -391,7 +511,7 @@ function speciesTemplate(t, i) {
         </div>
 
         <!-- BLOCO 3: AVALIAÇÃO DE CAMPO, BIOMETRIA E RISCOS -->
-        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--line);">
           <div class="subhead" style="margin-bottom: 12px;">
             <h3 style="font-size: 0.98rem; display:flex; align-items:center; gap:6px;">
               <span>🩺</span> Avaliação Fitossanitária e Biometria de Campo
@@ -400,6 +520,22 @@ function speciesTemplate(t, i) {
           </div>
 
           <div class="grid three">
+            <div class="tree-coordinate-panel full" data-tree-coordinate="${i}">
+              <div class="tree-coordinate-head">
+                <div><strong>Coordenada do exemplar nº ${i + 1}</strong><small>Cada árvore recebe seu próprio ponto no Inventário Arbóreo.</small></div>
+                <button type="button" class="button-outline capture-tree-gps">Capturar GPS desta árvore</button>
+              </div>
+              <div class="grid two">
+                <label>Latitude
+                  <input class="tree-lat" inputmode="decimal" value="${esc(t.latitude || '')}" placeholder="-22.067420">
+                </label>
+                <label>Longitude
+                  <input class="tree-lng" inputmode="decimal" value="${esc(t.longitude || '')}" placeholder="-46.568910">
+                </label>
+              </div>
+              <small class="tree-gps-status">${t.latitude && t.longitude ? `Ponto registrado${t.gpsAccuracy ? ` (precisão ±${t.gpsAccuracy} m)` : ''}.` : 'Ponto ainda não registrado.'}</small>
+            </div>
+
             <label>Condição biológica (Art. 2º VI e Art. 9º)
               <select class="condicao">
                 <option value="viva" ${t.condicao === 'viva' ? 'selected' : ''}>Viva e viável</option>
@@ -452,7 +588,7 @@ function speciesTemplate(t, i) {
             </label>
 
             <label class="full">Observações específicas deste exemplar
-              <textarea class="observacao" rows="2" placeholder="Descreva particularidades do exemplar, tais como inclinação do fuste, necroses, podridão do colo ou proximidade com rede.">${esc(t.observacao)}</textarea>
+              <textarea class="observacao" data-case-normalize="sentence" rows="2" placeholder="Descreva particularidades do exemplar, tais como inclinação do fuste, necroses, podridão do colo ou proximidade com rede.">${esc(t.observacao)}</textarea>
             </label>
           </div>
         </div>
@@ -476,6 +612,10 @@ function syncSpecies() {
     if (dapEl) t.dap = Math.max(0, Number(dapEl.value) || 0);
     const altEl = c.querySelector('.altura');
     if (altEl) t.altura = Math.max(0, Number(altEl.value) || 0);
+    const latEl = c.querySelector('.tree-lat');
+    const lngEl = c.querySelector('.tree-lng');
+    if (latEl) t.latitude = normalizeCoordinateValue(latEl.value);
+    if (lngEl) t.longitude = normalizeCoordinateValue(lngEl.value);
   });
 }
 
@@ -497,6 +637,10 @@ function syncCard(i) {
     if (dapEl) trees[i].dap = Math.max(0, Number(dapEl.value) || 0);
     const altEl = sc.querySelector('.altura');
     if (altEl) trees[i].altura = Math.max(0, Number(altEl.value) || 0);
+    const latEl = sc.querySelector('.tree-lat');
+    const lngEl = sc.querySelector('.tree-lng');
+    if (latEl) trees[i].latitude = normalizeCoordinateValue(latEl.value);
+    if (lngEl) trees[i].longitude = normalizeCoordinateValue(lngEl.value);
   }
 }
 
@@ -518,15 +662,15 @@ function renderAll(capture = true) {
 function bindSpecies() {
   document.querySelectorAll('#trees-container .tree-card').forEach((card, i) => {
     // Carregamento de imagens
-    card.querySelectorAll('.photo-slot input').forEach(inp => {
+    card.querySelectorAll('.photo-slot-wrap input[type="file"]').forEach(inp => {
       inp.addEventListener('change', e => {
         const file = e.target.files?.[0];
         if (!file) return;
         loadPhoto(file, src => {
           trees[i].photos[e.target.dataset.organ] = src;
-          const slot = inp.closest('.photo-slot');
+          const slot = inp.closest('.photo-slot-wrap')?.querySelector('.photo-slot');
           if (slot) {
-            slot.querySelector('div').innerHTML = `<img src="${src}" alt="Foto">`;
+            slot.querySelector('div').innerHTML = `<img src="${safeImageSource(src)}" width="900" height="675" loading="lazy" alt="Foto adicionada">`;
           }
           const idBtn = card.querySelector('.identify');
           if (idBtn) idBtn.disabled = false;
@@ -541,6 +685,7 @@ function bindSpecies() {
     if (idBtn) {
       idBtn.addEventListener('click', () => identifyTree(i, card));
     }
+    card.querySelector('.capture-tree-gps')?.addEventListener('click', () => captureTreeGPS(i, card));
 
     // Consulta na Flora do Brasil
     const lookBtn = card.querySelector('.lookup');
@@ -671,21 +816,27 @@ function bindAssessment() {
 // Comprime imagem usando Canvas para manter a requisição rápida e leve
 function loadPhoto(file, done) {
   if (!file) return;
+  if (!String(file.type || '').startsWith('image/')) {
+    alert('Selecione um arquivo de imagem da câmera ou da galeria.');
+    return;
+  }
   const r = new FileReader();
   r.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 1200;
+      const max = 900;
       const s = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas');
       c.width = Math.round(img.width * s);
       c.height = Math.round(img.height * s);
       const ctx = c.getContext('2d');
       ctx.drawImage(img, 0, 0, c.width, c.height);
-      done(c.toDataURL('image/jpeg', 0.82));
+      done(c.toDataURL('image/jpeg', 0.76));
     };
+    img.onerror = () => alert('Não foi possível abrir esta imagem. Se ela estiver em HEIC, escolha a versão JPG/PNG da galeria.');
     img.src = r.result;
   };
+  r.onerror = () => alert('Não foi possível ler a imagem selecionada.');
   r.readAsDataURL(file);
 }
 
@@ -1026,7 +1177,7 @@ function calculateCompensation() {
   }
 
   // Caso: Obra pública municipal (Art. 16º)
-  if (especial === 'obra' || val('executor') === 'municipio') {
+  if (especial === 'obra' || val('executor') === 'obras') {
     const qtd = trees.length;
     const mudas = qtd * 1;
     const ufm = qtd * 80;
@@ -1131,6 +1282,9 @@ function model(e) {
   if (destinacao === 'obras') {
     return 'Ofício à Secretaria de Obras (Execução com Maquinário Público)';
   }
+  if (destinacao === 'planejamento') {
+    return 'Encaminhamento à Secretaria de Planejamento Urbano';
+  }
   if (e.conclusao === 'diligencia' || e.doubts) {
     return 'Parecer de Diligência Técnica / Complementação';
   }
@@ -1198,19 +1352,22 @@ function update() {
 
 // Gera o Parecer Técnico Ambiental ou Ofício oficial
 function generate() {
+  normalizeAllUppercaseFields();
   const e = evaluate();
   const comp = calculateCompensation();
   const proc = val('processo') || '[NÚMERO NÃO INFORMADO]';
   const req = val('requerente') || '[REQUERENTE NÃO INFORMADO]';
   const endereco = val('local') || '[ENDEREÇO NÃO INFORMADO]';
+  const solicitacaoRequerente = val('requerente-solicita');
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   const latCoord = val('geo-lat') || val('coord-corte-1') || '-';
   const lngCoord = val('geo-lng') || val('coord-corte-2') || '-';
 
   // Identificação do Fiscal
-  const fiscalNome = val('fiscal-nome') || localStorage.getItem('fiscal_nome') || 'Júlia R. Meira';
-  const fiscalMatricula = val('fiscal-matricula') || localStorage.getItem('fiscal_matricula') || '04218';
-  const fiscalCargo = val('fiscal-cargo') || localStorage.getItem('fiscal_cargo') || 'Fiscal de Meio Ambiente';
+  const fiscalAtual = selectedFiscal();
+  const fiscalNome = fiscalAtual.nome || 'Fiscal não informado';
+  const fiscalMatricula = fiscalAtual.matricula || '0';
+  const fiscalCargo = fiscalAtual.cargo || 'Fiscal de Meio Ambiente';
 
   // Destinação do documento
   const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || 'requerente';
@@ -1223,250 +1380,53 @@ function generate() {
     motivoSolicitacao = outroTxt ? `Outro motivo tecnicamente justificado: ${outroTxt}` : 'Outro motivo tecnicamente justificado';
   }
 
-  // Lista formatada oficial de mudas sugeridas pelo município de Andradas
-  const listaMudasFormatada = MUNICIPAL_RECOMMENDED_TREES.map((arv, idx) =>
-    `    ${String(idx + 1).padStart(2, ' ')}. ${arv.nome} (${arv.cientifico}) — ${arv.desc}`
-  ).join('\n');
+  const conditionLabels = { viva: 'vivo e aparentemente viável', declinio: 'em declínio severo', semvida: 'sem vida biológica ou inviável', duvida: 'com condição biológica inconclusiva' };
+  const diseaseLabels = { ausente: 'sem sinais aparentes de pragas ou podridão', leve: 'com sinais leves passíveis de tratamento', ativa: 'com infestação ativa ou presença de cavidades', severa: 'com sinais de podridão basal ou ataque severo de brocas', duvida: 'sem avaliação conclusiva quanto a pragas ou podridão' };
+  const riskLabels = { sim: 'com risco atual ou iminente de queda', monitorar: 'com condição que recomenda monitoramento', nao: 'sem risco aparente de queda', duvida: 'sem conclusão quanto ao risco de queda' };
+  const quantityText = trees.length === 1 ? '01 (um) exemplar arbóreo' : `${String(trees.length).padStart(2, '0')} (${trees.length}) exemplares arbóreos`;
+  const interventionText = label('intervencao').toLowerCase();
+  const subjectText = `${label('intervencao')} de ${quantityText} - ${endereco}`;
+  const diagnostic = String(val('diagnostico') || '').trim();
 
-  // Inventário técnico dos exemplares: SEM DAP E SEM ALTURA no documento!
-  const inventorySemDap = trees.map(t => {
-    const pop = t.popular ? `"${t.popular}"` : 'Nome popular não informado';
-    const sci = t.cientifico ? `${t.cientifico}` : 'Espécie não identificada';
-    const fam = t.familia ? `família ${t.familia}` : 'Família não informada';
-    const orig = t.origem === 'nativa' ? 'Nativa' : t.origem === 'exotica' ? 'Exótica' : 'Origem em apuração';
-    const cond = t.condicao === 'viva' ? 'Viva e viável' : t.condicao === 'semvida' ? 'Sem vida biológica (morta/inviável)' : t.condicao;
-    const risco = t.risco === 'sim' ? 'SIM (Risco atual/iminente)' : t.risco === 'monitorar' ? 'Potencial (monitorar)' : 'Sem risco aparente';
-    const specs = specialFor(t).join('; ');
+  const inspectionNarrative = trees.map((t, index) => {
+    const common = t.popular || 'espécie de nome popular não informado';
+    const scientific = t.cientifico ? ` (${t.cientifico})` : '';
+    const origin = t.origem === 'nativa' ? 'de origem nativa' : t.origem === 'exotica' ? 'de origem exótica' : 'com origem ainda não determinada';
+    const conflicts = selectedConflicts(t);
+    const conflictSentence = conflicts.length ? ` Foram constatados os seguintes conflitos urbanos: ${conflictText(t).toLowerCase()}.` : ' Não foram registrados conflitos urbanos relevantes no formulário de vistoria.';
+    const note = String(t.observacao || '').trim();
+    const treeLocation = t.latitude && t.longitude ? ` Coordenadas individuais: ${t.latitude}, ${t.longitude}.${t.inventoryId ? ` Inventário Arbóreo ID nº ${t.inventoryId}.` : ''}` : '';
+    return `O exemplar nº ${index + 1} foi identificado como ${common}${scientific}, ${origin}, ${conditionLabels[t.condicao] || 'com condição não informada'}, ${diseaseLabels[t.doenca] || 'sem informação fitossanitária'} e ${riskLabels[t.risco] || 'sem informação de risco'}.${treeLocation}${conflictSentence}${note ? ` Observações de campo: ${note}.` : ''}`;
+  }).join('\n\n');
 
-    return `  • Exemplar nº ${t.numero}: ${pop} (${sci}), ${fam}.
-    - Origem: ${orig} | Estado Sanitário: ${cond}
-    - Sinais de pragas/podridão: ${t.doenca} | Conflitos urbanos: ${conflictText(t)} | Risco de queda: ${risco}
-    ${specs ? `    - Enquadramento especial: ${specs}\n` : ''}${t.observacao ? `    - Observações: ${t.observacao}\n` : ''}`;
-  }).join('\n');
-
-  const compDetails = comp.detalhes.length
-    ? comp.detalhes.map(d => `  - ${d}`).join('\n')
-    : `  - ${comp.text}`;
+  const technicalFindings = [inspectionNarrative, diagnostic ? `Síntese técnica da fiscalização: ${diagnostic}` : ''].filter(Boolean).join('\n\n');
+  const protocolNarrative = solicitacaoRequerente
+    ? `Solicitação do requerente registrada no protocolo: ${solicitacaoRequerente}`
+    : '';
+  const photoReference = trees.some(t => Object.keys(t.photos || {}).length) ? 'O registro fotográfico apresentado ao final deste documento integra a vistoria e demonstra as condições observadas no local.' : '';
+  const identificationLine = linkedTree ? `O exemplar está vinculado ao Inventário Arbóreo Municipal sob o ID nº ${linkedTree.id}${linkedTree.especie ? `, identificado como ${linkedTree.especie}` : ''}.` : '';
+  const coordinatesLine = latCoord !== '-' && lngCoord !== '-' ? `A vistoria foi registrada nas coordenadas ${latCoord}, ${lngCoord}.` : '';
+  const compensationText = e.conclusao === 'deferir' ? `A intervenção fica condicionada ao cumprimento da compensação ambiental indicada no processo: ${comp.text}. Modalidade registrada: ${label('forma').toLowerCase()}.` : '';
+  const signature = `Atenciosamente.\n\n\nAndradas-MG, ${dataHoje}.\n\n\n________________________________\n${fiscalNome}\n${fiscalCargo}\nMatrícula: ${fiscalMatricula}`;
 
   let doc = '';
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // MODELO 1: PARECER TÉCNICO / AUTORIZAÇÃO AO REQUERENTE (LINGUAGEM SIMPLES)
-  // ═════════════════════════════════════════════════════════════════════════════
   if (destinacaoTipo === 'requerente') {
-    const deferido = e.conclusao === 'deferir';
-    const indeferido = e.conclusao === 'indeferir';
+    let decisionParagraph = '';
+    if (e.conclusao === 'deferir') decisionParagraph = `Diante das condições constatadas, fica o(a) requerente autorizado(a) a realizar ${interventionText} de ${quantityText}, observadas as condições descritas neste documento e as demais exigências aplicáveis.`;
+    else if (e.conclusao === 'indeferir') decisionParagraph = `Diante das condições constatadas e da justificativa técnica acima registrada, o pedido de ${interventionText} não é autorizado.`;
+    else decisionParagraph = 'Diante dos elementos disponíveis, não é possível concluir o pedido neste momento. O processo deverá permanecer em diligência até a apresentação ou obtenção das informações técnicas complementares indicadas pela fiscalização.';
 
-    doc = `================================================================================
-PREFEITURA MUNICIPAL DE ANDRADAS
-SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
-DIVISÃO DE MEIO AMBIENTE
-================================================================================
-
-PARECER TÉCNICO DE VISTORIA AMBIENTAL
-Deliberação Normativa CODEMA nº 09/2026 · Lei Complementar nº 163/2015
-
-Ao(À) Requerente: ${req}
-Processo / Protocolo nº: ${proc}
-Data da Vistoria: ${dataHoje}
-Endereço da Vistoria: ${endereco}
-Coordenadas da Árvore: Lat ${latCoord}, Long ${lngCoord}
-${linkedTree ? `Árvore no Inventário Arbóreo Municipal: ID #${linkedTree.id} - ${linkedTree.especie || 'Cadastrada'}\n` : ''}
-Prezado(a) Senhor(a),
-
-Informamos que a equipe técnica da Divisão de Meio Ambiente realizou vistoria no
-endereço acima para analisar o seu pedido de ${label('intervencao').toLowerCase()} de ${trees.length} exemplar(es) arbóreo(s),
-tendo como motivo: ${motivoSolicitacao}.
-
-1. O QUE FOI OBSERVADO NA VISTORIA
---------------------------------------------------------------------------------
-${inventorySemDap}
-
-Diagnóstico Técnico da Equipe:
-${val('diagnostico') || 'Avaliação realizada no local para verificação da saúde biológica, estabilidade da árvore e compatibilidade com as estruturas urbanas existentes.'}
-
-2. DECISÃO TÉCNICA DA PREFEITURA
---------------------------------------------------------------------------------
-Após análise detalhada no local, o parecer da fiscalização ambiental é:
->> ${label('conclusao').toUpperCase()} <<
-
-${deferido
-  ? `Seu pedido foi APROVADO. A autorização é concedida com a condição obrigatória
-de realizar o plantio compensatório de mudas de árvores, conforme explicado abaixo.`
-  : indeferido
-  ? `Seu pedido foi INDEFERIDO. Constatou-se que a árvore possui boas condições de saúde,
-não oferece perigo iminente e deve ser preservada para a qualidade ambiental da cidade.`
-  : `O processo aguarda complementação ou realização de nova diligência técnica para decisão final.`}
-
-${deferido ? `3. COMPENSAÇÃO AMBIENTAL OBRIGATÓRIA (Art. 6º e 7º da DN 09/2026)
---------------------------------------------------------------------------------
-Pela retirada da árvore, é obrigatório repor novas árvores para a nossa cidade:
-Quantidade exigida: ${comp.text}
-
-Opção escolhida: ${label('forma')}
-Plantio no próprio imóvel ou calçada: ${label('proprio')}
-Responsável pelo corte/remoção: ${label('executor')}
-
-Como deve ser feito o plantio das novas mudas:
-  • A muda deve ter pelo menos 1,5 metro de altura.
-  • O plantio deve ser feito na calçada (com abertura de canteiro adequado) ou no quintal.
-  • A pessoa responsável deve molhar, cuidar e manter a árvore por pelo menos 2 anos (24 meses).
-  • Se a mudinha secar ou morrer nesse período, deverá ser plantada uma nova no mesmo lugar.
-
-ÁRVORES RECOMENDADAS PELA PREFEITURA DE ANDRADAS PARA PLANTIO:
-Para facilitar sua escolha, a Prefeitura recomenda as seguintes espécies ideais para a nossa cidade:
-${listaMudasFormatada}
-
-4. PRAZO DE VALIDADE DA AUTORIZAÇÃO
---------------------------------------------------------------------------------
-Esta autorização é válida por 60 (sessenta) dias a contar da data de entrega.` : ''}
-
-Andradas/MG, ${dataHoje}.
-
-
-____________________________________________________________
-${fiscalNome}
-Matrícula: ${fiscalMatricula} · ${fiscalCargo}
-Divisão de Meio Ambiente
-Secretaria Municipal de Planejamento Urbano e Meio Ambiente
-Prefeitura Municipal de Andradas / MG
-`;
+    doc = `Processo nº: ${proc}\n\nOfício nº: ${numOficio}\nAssunto: ${subjectText}\n\nIlmo.(a) Sr.(a)\n${req}\n\nEm atenção ao processo acima citado, referente à solicitação de ${interventionText} de ${quantityText}, localizado(s) em ${endereco}, informo que foi realizada vistoria técnica no local. O pedido foi apresentado com a finalidade de ${motivoSolicitacao.toLowerCase()}.${protocolNarrative ? `\n\n${protocolNarrative}` : ''}\n\n${technicalFindings}\n\n${[coordinatesLine, identificationLine, photoReference].filter(Boolean).join(' ')}\n\n${decisionParagraph}${compensationText ? `\n\n${compensationText}` : ''}\n\nOs resíduos resultantes da intervenção deverão receber destinação adequada e não poderão permanecer em vias, calçadas ou demais áreas públicas, de modo a evitar obstáculos à circulação e riscos à coletividade.\n\n${signature}`;
+  } else if (destinacaoTipo === 'codema') {
+    const triggerText = e.triggers.length ? `O encaminhamento ao Conselho decorre do seguinte enquadramento: ${e.triggers.join('; ')}.` : 'O processo é encaminhado ao Conselho para análise e deliberação quanto à intervenção pretendida.';
+    doc = `Processo nº: ${proc}\n\nOfício nº: ${numOficio}\nAssunto: ${subjectText}\n\nAo Conselho Municipal de Defesa e Conservação do Meio Ambiente - CODEMA\n\nEm atenção ao processo acima citado, referente à solicitação de ${interventionText} de ${quantityText}, localizado(s) em ${endereco}, informo que foi realizada vistoria técnica no local. Segundo o requerimento, a intervenção é pretendida em razão de ${motivoSolicitacao.toLowerCase()}.${protocolNarrative ? `\n\n${protocolNarrative}` : ''}\n\n${technicalFindings}\n\n${[coordinatesLine, identificationLine, photoReference].filter(Boolean).join(' ')}\n\n${triggerText}\n\nDiante do exposto, encaminho o presente processo para análise e deliberação do CODEMA quanto ao pedido de ${interventionText}${e.conclusao === 'deferir' ? `, bem como para apreciação da compensação ambiental calculada em ${comp.text}` : ''}. O posicionamento técnico registrado pela fiscalização é ${label('conclusao').toLowerCase()}.\n\n${signature}`;
+  } else if (destinacaoTipo === 'obras') {
+    const serviceName = label('intervencao').toUpperCase();
+    doc = `Processo nº: ${proc}\n\nOfício nº: ${numOficio}\nAssunto: ${subjectText}\n\nÀ Secretaria Municipal de Serviços Públicos e Transporte Interno\n\nEm atenção ao processo acima citado, referente à solicitação de ${interventionText} de ${quantityText}, localizado(s) em ${endereco}, informo que foi realizada vistoria técnica no local.${protocolNarrative ? `\n\n${protocolNarrative}` : ''}\n\n${technicalFindings}\n\n${[coordinatesLine, identificationLine, photoReference].filter(Boolean).join(' ')}\n\nDiante do exposto, encaminho o presente processo para inclusão no Cronograma de Execução e realização do serviço de ${serviceName} indicado no parecer técnico.\n\nCaso, no momento da execução, seja constatado impedimento relacionado à rede elétrica que demande atuação da concessionária, deverá ser realizado contato prévio com a CEMIG. Durante o serviço, deverão ser adotadas as medidas necessárias para sinalização e isolamento da área.\n\nOs resíduos gerados deverão receber destinação adequada e não poderão permanecer em vias, calçadas ou demais áreas públicas, de modo a evitar obstáculos à circulação e riscos à coletividade.${compensationText ? `\n\n${compensationText}` : ''}\n\n${signature}`;
+  } else if (destinacaoTipo === 'planejamento') {
+    doc = `Processo nº: ${proc}\n\nMemorando nº: ${numOficio}\nAssunto: ${subjectText}\n\nÀ Secretaria Municipal de Planejamento Urbano e Meio Ambiente\n\nEncaminho, separadamente da Secretaria de Obras, o resultado da vistoria in loco referente à solicitação de ${interventionText} de ${quantityText}, localizado(s) em ${endereco}, para as providências administrativas e urbanísticas cabíveis.${protocolNarrative ? `\n\n${protocolNarrative}` : ''}\n\n${technicalFindings}\n\n${[coordinatesLine, identificationLine, photoReference].filter(Boolean).join(' ')}\n\nO posicionamento técnico registrado pela fiscalização é ${label('conclusao').toLowerCase()}.${compensationText ? `\n\n${compensationText}` : ''}\n\n${signature}`;
   }
-
-  // ═════════════════════════════════════════════════════════════════════════════
-  // MODELO 2: OFÍCIO DE ENCAMINHAMENTO AO CODEMA
-  // ═════════════════════════════════════════════════════════════════════════════
-  else if (destinacaoTipo === 'codema') {
-    doc = `================================================================================
-PREFEITURA MUNICIPAL DE ANDRADAS
-SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
-DIVISÃO DE MEIO AMBIENTE
-================================================================================
-
-OFÍCIO Nº ${numOficio}
-
-Andradas/MG, ${dataHoje}.
-
-Ao
-Conselho Municipal de Conservação e Defesa do Meio Ambiente - CODEMA
-Prefeitura Municipal de Andradas / MG
-
-Assunto: Encaminhamento de Laudo de Vistoria Técnica para Deliberação Colegiada
-Referência: Processo / Protocolo nº ${proc}
-Requerente: ${req}
-Local da Vistoria: ${endereco} (Coordenadas: Lat ${latCoord}, Long ${lngCoord})
-${linkedTree ? `Tombamento Arbóreo: ID #${linkedTree.id} - ${linkedTree.especie || 'Inventário Municipal'}\n` : ''}
-Senhor(a) Presidente e Senhores(as) Conselheiros(as),
-
-1. CUMPRIMENTOS E ENQUADRAMENTO DA MATÉRIA
-Cumprimentando-os cordialmente, encaminhamos a este respeitável colegiado o presente
-Laudo Técnico de Vistoria Ambiental referente à solicitação de ${label('intervencao').toLowerCase()}
-de ${trees.length} exemplar(es) arbóreo(s) no endereço supracitado, motivada por: ${motivoSolicitacao}.
-
-A submissão à deliberação da Plenária do CODEMA fundamenta-se nos termos do Art. 3º, § 2º
-da Deliberação Normativa CODEMA nº 09/2026, em razão de:
-- Fatores determinantes: ${e.triggers.length ? e.triggers.join('; ') : 'Matéria reservada à competência colegiada do Conselho'}.
-
-2. INVENTÁRIO TÉCNICO DOS EXEMPLARES
---------------------------------------------------------------------------------
-${inventorySemDap}
-
-3. DIAGNÓSTICO CIRCUNSTANCIADO DA FISCALIZAÇÃO
---------------------------------------------------------------------------------
-${val('diagnostico') || 'Avaliação técnica de campo atesta as condições do exemplar vistoriado.'}
-Análise de alternativas conservacionistas: ${label('alternativa')}.
-
-4. PROPOSTA DE COMPENSAÇÃO AMBIENTAL (Art. 6º e 7º da DN CODEMA 09/2026)
---------------------------------------------------------------------------------
-Memória de Fixação da Obrigação:
-${compDetails}
-
-Parâmetro Geral Calculado:
-${comp.text}
-Modalidade indicada: ${label('forma')}
-Espécies recomendadas oficialmente pelo Município:
-${listaMudasFormatada}
-
-5. MANIFESTAÇÃO CONCLUSIVA DO FISCAL RELATOR
---------------------------------------------------------------------------------
-Diante dos elementos apurados em campo, a equipe técnica da Divisão de Meio Ambiente
-submete o parecer à apreciação da Plenária com posicionamento de:
->> ${label('conclusao').toUpperCase()} <<
-
-Permanecemos à inteira disposição para prestar esclarecimentos complementares durante a sessão ordinária.
-
-Atenciosamente,
-
-
-____________________________________________________________
-${fiscalNome}
-Matrícula: ${fiscalMatricula} · ${fiscalCargo}
-Divisão de Meio Ambiente
-Secretaria Municipal de Planejamento Urbano e Meio Ambiente
-Prefeitura Municipal de Andradas / MG
-`;
-  }
-
-  // ═════════════════════════════════════════════════════════════════════════════
-  // MODELO 3: OFÍCIO DE EXECUÇÃO À SECRETARIA DE OBRAS E SERVIÇOS PÚBLICOS
-  // ═════════════════════════════════════════════════════════════════════════════
-  else if (destinacaoTipo === 'obras') {
-    doc = `================================================================================
-PREFEITURA MUNICIPAL DE ANDRADAS
-SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE
-DIVISÃO DE MEIO AMBIENTE
-================================================================================
-
-OFÍCIO Nº ${numOficio}
-
-Andradas/MG, ${dataHoje}.
-
-À
-Secretaria Municipal de Obras e Serviços Públicos
-Prefeitura Municipal de Andradas / MG
-A/C: Sr(a). Secretário(a) e Setor Operacional de Parques e Jardins
-
-Assunto: Solicitação Operacional de Intervenção / Manejo de Exemplares Arbóreos
-Referência: Processo Administrativo nº ${proc}
-Requerente / Interessado: ${req}
-Local da Intervenção: ${endereco}
-Coordenadas Geográficas: Latitude ${latCoord} | Longitude ${lngCoord}
-${linkedTree ? `Cadastro Arbóreo: Árvore ID #${linkedTree.id} (${linkedTree.logradouro || 'Inventário Municipal'})\n` : ''}
-Senhor(a) Secretário(a),
-
-1. SOLICITAÇÃO DE SERVIÇO PÚBLICO OPERACIONAL
-Pelo presente instrumento, a Divisão de Meio Ambiente solicita a este conceituado
-setor a programação e execução dos serviços de ${label('intervencao').toUpperCase()} de ${trees.length} exemplar(es)
-arbóreo(s) localizado(s) em logradouro público no endereço em epígrafe.
-
-2. JUSTIFICATIVA E DIAGNÓSTICO TÉCNICO
---------------------------------------------------------------------------------
-A vistoria técnica constatou a necessidade de atuação operacional com maquinário municipal devido a:
-- Diagnóstico: ${val('diagnostico') || 'Intervenção indispensável por motivo de segurança viária e salubridade pública.'}
-- Motivação declarada: ${motivoSolicitacao}.
-- Exemplar(es) sob intervenção:
-${inventorySemDap}
-
-3. ORIENTAÇÕES OPERACIONAIS E SEGURANÇA
---------------------------------------------------------------------------------
-a) Sinalização de segurança da via e isolamento de tráfego de pedestres durante a execução;
-b) Cuidados específicos quanto à proximidade da rede elétrica e de telecomunicações;
-c) Destinação e descarte ambientalmente adequado de todo o resíduo vegetal (galharias e troncos).
-
-Certos da costumeira presteza e cooperação desta Secretaria, renovamos nossos protestos de apreço.
-
-Atenciosamente,
-
-
-____________________________________________________________
-${fiscalNome}
-Matrícula: ${fiscalMatricula} · ${fiscalCargo}
-Divisão de Meio Ambiente
-Secretaria Municipal de Planejamento Urbano e Meio Ambiente
-Prefeitura Municipal de Andradas / MG
-`;
-  }
-
   const saidaEl = $('saida');
   if (saidaEl) saidaEl.value = doc;
   renderOfficialDocument(doc);
@@ -1476,7 +1436,7 @@ Prefeitura Municipal de Andradas / MG
 
   const badgeEl = $('rota-badge');
   if (badgeEl) {
-    badgeEl.textContent = destinacaoTipo === 'codema' ? 'CODEMA' : destinacaoTipo === 'obras' ? 'OBRAS' : (e.urgent ? 'URGÊNCIA' : 'DEFERIDO');
+    badgeEl.textContent = destinacaoTipo === 'codema' ? 'CODEMA' : destinacaoTipo === 'obras' ? 'OBRAS' : destinacaoTipo === 'planejamento' ? 'PLANEJAMENTO' : (e.urgent ? 'URGÊNCIA' : 'DEFERIDO');
     badgeEl.className = destinacaoTipo === 'codema' ? 'badge-codema' : destinacaoTipo === 'obras' ? 'badge-urgent' : 'badge-spuma';
   }
 
@@ -1485,6 +1445,7 @@ Prefeitura Municipal de Andradas / MG
     docEl.hidden = false;
     docEl.scrollIntoView({ behavior: 'smooth' });
   }
+  parecerNeedsRegeneration = false;
 }
 
 function renderOfficialDocument(text = val('saida')) {
@@ -1494,8 +1455,8 @@ function renderOfficialDocument(text = val('saida')) {
   const bodyText = String(text || '').replace(/^={20,}\s*\nPREFEITURA MUNICIPAL DE ANDRADAS\s*\nSECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E MEIO AMBIENTE\s*\nDIVISÃO DE MEIO AMBIENTE\s*\n={20,}\s*\n?/i, '');
   const galleries = trees.map((tree, index) => {
     const photos = organs
-      .filter(([key]) => tree.photos?.[key])
-      .map(([key, title]) => `<figure><img src="${tree.photos[key]}" alt="${esc(title)} do exemplar ${index + 1}"><figcaption>${esc(title)}</figcaption></figure>`)
+      .filter(([key]) => safeImageSource(tree.photos?.[key]))
+      .map(([key, title]) => `<figure><img src="${safeImageSource(tree.photos[key])}" width="900" height="675" loading="lazy" alt="${esc(title)} do exemplar ${index + 1}"><figcaption>${esc(title)}</figcaption></figure>`)
       .join('');
     if (!photos) return '';
     const name = tree.popular || tree.cientifico || `Exemplar nº ${index + 1}`;
@@ -1504,7 +1465,7 @@ function renderOfficialDocument(text = val('saida')) {
 
   preview.innerHTML = `
     <header class="official-letterhead">
-      <img src="app-icon.svg" alt="Identidade visual da Prefeitura Municipal de Andradas">
+      <img src="app-icon.svg" width="52" height="52" alt="Identidade visual da Prefeitura Municipal de Andradas">
       <div><strong>PREFEITURA MUNICIPAL DE ANDRADAS</strong><span>Secretaria Municipal de Planejamento Urbano e Meio Ambiente</span><span>Divisão de Meio Ambiente</span></div>
     </header>
     <div class="official-document-text">${esc(bodyText)}</div>
@@ -1536,7 +1497,7 @@ function showTab(name) {
     });
   }
 
-  if (name === 'parecer') {
+  if (name === 'parecer' || name === 'compensacao') {
     update();
   }
 
@@ -1545,73 +1506,78 @@ function showTab(name) {
 
 function isoToBr(s) {
   if (!s) return '';
-  const parts = s.split('-');
-  if (parts.length !== 3) return s;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  const match = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return String(s);
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? String(s) : new Intl.DateTimeFormat('pt-BR').format(date);
+}
+
+function brDateToIsoLocal(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : String(value || '').slice(0, 10);
 }
 
 // Gravação dos dados na planilha do Google Sheets via backend proxy
 async function saveSheet() {
+  normalizeAllUppercaseFields();
   const status = $('sheet-status');
-  const url = val('sheet-webhook') || localStorage.getItem('sheetWebhook') || '';
-
-  if (!url) {
-    if (status) {
-      status.textContent = 'Informe a URL do aplicativo Google Apps Script para habilitar a gravação.';
-      status.className = 'sheet-status text-danger';
-    }
-    const whInp = $('sheet-webhook');
-    if (whInp) whInp.focus();
-    return;
-  }
-
-  localStorage.setItem('sheetWebhook', url);
+  syncSpecies();
   const comp = calculateCompensation();
-
-  const payload = {
-    data: isoToBr(val('sheet-data')),
-    protocolo: val('processo'),
-    solicitante: val('requerente'),
+  const protocolo = val('processo') || `PROC-${Date.now()}`;
+  const existing = processos.find(item => item.protocolo === protocolo) || {};
+  const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || existing.destinacaoTipo || 'requerente';
+  const proc = {
+    ...existing,
+    id: existing.id || `PROC-${Date.now()}`,
+    data: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
+    protocolo,
+    requerente: val('requerente'),
+    solicitacaoRequerente: val('requerente-solicita'),
     endereco: val('local'),
-    solicitacao: `${label('intervencao')} de ${trees.length} árvore(s)`,
-    coordCorte1: val('coord-corte-1'),
-    coordCorte2: val('coord-corte-2'),
+    intervencao: val('intervencao'),
+    intervencaoLabel: label('intervencao'),
+    quantidade: trees.length,
+    finalidade: val('finalidade') === 'outro' ? val('finalidade-outro-detalhe') : label('finalidade'),
+    finalidadeVal: val('finalidade'),
+    finalidadeOutroDetalhe: val('finalidade-outro-detalhe'),
+    diagnostico: val('diagnostico'),
+    conclusao: val('conclusao'),
+    destinacaoTipo,
+    parecerTexto: val('saida') || existing.parecerTexto || '',
+    coordenadas: { lat: trees[0]?.latitude || val('coord-corte-1'), lng: trees[0]?.longitude || val('coord-corte-2') },
     responsavelCorte: val('responsavel-corte'),
     autorizacao: val('autorizacao'),
-    dataAutorizacao: isoToBr(val('data-autorizacao')),
+    dataAutorizacao: val('data-autorizacao'),
+    formaCompensacao: val('forma'),
     compensacao: comp.text,
-    prazo: isoToBr(val('prazo')),
+    prazo: val('prazo'),
     coordComp1: val('coord-comp-1'),
     coordComp2: val('coord-comp-2'),
-    situacao: val('situacao')
+    situacao: statusForSheet(val('situacao')),
+    trees: JSON.parse(JSON.stringify(trees)),
+    vistoriaInLoco: existing.vistoriaInLoco || false,
+    vistoriaRealizadaEm: existing.vistoriaRealizadaEm || '',
+    updatedAt: new Date().toISOString(),
+    ...processTrackingFields(existing)
   };
 
   if (status) {
-    status.textContent = 'Conectando e registrando na planilha…';
+    status.textContent = 'Sincronizando o processo completo…';
     status.className = 'sheet-status text-muted';
   }
-
-  try {
-    const r = await fetch('/api/sheet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, payload })
-    });
-    const d = await r.json();
-
-    if (!r.ok || !d.ok) {
-      throw new Error(d.error || 'Falha na resposta do Google Apps Script');
-    }
-
-    if (status) {
-      status.textContent = `✓ Sucesso! Registro nº ${d.row || ''} adicionado à planilha com sucesso.`;
-      status.className = 'sheet-status text-success';
-    }
-  } catch (e) {
-    if (status) {
-      status.textContent = 'Não foi possível salvar na planilha: ' + e.message;
-      status.className = 'sheet-status text-danger';
-    }
+  upsertLocalProcess(proc);
+  saveProcessos();
+  const syncResult = await syncNewProcessoVistoria(proc);
+  upsertLocalProcess(proc);
+  saveProcessos();
+  if (status) {
+    const inventoryOk = syncResult.inventoryErrors.length === 0;
+    status.textContent = syncResult.processSynced && inventoryOk
+      ? '✓ Processo e árvores sincronizados nas respectivas planilhas.'
+      : syncResult.processSynced
+        ? 'Processo sincronizado; há árvores pendentes na planilha do Inventário.'
+        : 'Sincronização pendente; o processo continua salvo neste aparelho.';
+    status.className = syncResult.processSynced && inventoryOk ? 'sheet-status text-success' : 'sheet-status text-danger';
   }
 }
 
@@ -1671,6 +1637,7 @@ async function loadInventoryTrees() {
     let res;
     try {
       res = await fetch('/api/inventory');
+      if (!res.ok) throw new Error(`API do inventário respondeu HTTP ${res.status}`);
     } catch {
       res = await fetch(`${INVENTORY_API_URL}?action=list`);
     }
@@ -1693,7 +1660,10 @@ async function loadInventoryTrees() {
             especie: st['Especie'] || '',
             porte: st['Porte'] || '',
             tronco: st['Tronco'] || '',
-            fotos: st['Fotos'] || st['Foto 1'] || '',
+            fotos: [st['Foto 1'], st['Foto 2'], st['Foto 3'], st['Foto 4'], st['Foto 5']].filter(Boolean),
+            dap: st['DAP'] || '',
+            altura: st['Altura'] || '',
+            protocoloVistoria: st['Protocolo Vistoria'] || '',
             problemas: st['Problemas'] || '',
             interferencias: st['Interferencias'] || '',
             status: st['Status'] || 'Cadastrada',
@@ -1876,9 +1846,11 @@ function linkInventoryTree(tree, distance) {
     if (tree.especie) {
       trees[0].popular = tree.especie;
       trees[0].cientifico = tree.especie;
-      trees[0].certeza = 'sim';
+      trees[0].certeza = 'confirmada';
     }
     trees[0].inventoryId = tree.id;
+    if (tree.latitude != null) trees[0].latitude = tree.latitude.toFixed(6);
+    if (tree.longitude != null) trees[0].longitude = tree.longitude.toFixed(6);
     if (tree.porte) {
       const p = tree.porte.toLowerCase();
       if (p.includes('grande')) $('grande').value = 'sim';
@@ -1932,6 +1904,21 @@ function captureGPS() {
       if (c1) c1.value = lat;
       if (c2) c2.value = lng;
 
+      if (trees[0] && !trees[0].latitude && !trees[0].longitude) {
+        trees[0].latitude = lat;
+        trees[0].longitude = lng;
+        trees[0].gpsAccuracy = acc;
+        const firstCard = document.getElementById('species-card-0');
+        if (firstCard) {
+          const treeLat = firstCard.querySelector('.tree-lat');
+          const treeLng = firstCard.querySelector('.tree-lng');
+          const treeStatus = firstCard.querySelector('.tree-gps-status');
+          if (treeLat) treeLat.value = lat;
+          if (treeLng) treeLng.value = lng;
+          if (treeStatus) treeStatus.textContent = `Ponto registrado (precisão ±${acc} m).`;
+        }
+      }
+
       if (statusEl) {
         statusEl.textContent = `✓ Coordenadas obtidas: ${lat}, ${lng} (Precisão: ±${acc}m)`;
         statusEl.className = 'gps-status text-success';
@@ -1947,6 +1934,38 @@ function captureGPS() {
     },
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
   );
+}
+
+function captureTreeGPS(index, card) {
+  const status = card?.querySelector('.tree-gps-status');
+  if (!navigator.geolocation) {
+    if (status) status.textContent = 'Este aparelho não oferece geolocalização.';
+    return;
+  }
+  if (status) status.textContent = 'Buscando o ponto desta árvore…';
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude.toFixed(6);
+    const lng = pos.coords.longitude.toFixed(6);
+    const accuracy = Math.round(pos.coords.accuracy);
+    trees[index].latitude = lat;
+    trees[index].longitude = lng;
+    trees[index].gpsAccuracy = accuracy;
+    trees[index].inventorySync = 'pending';
+    const latInput = card.querySelector('.tree-lat');
+    const lngInput = card.querySelector('.tree-lng');
+    if (latInput) latInput.value = lat;
+    if (lngInput) lngInput.value = lng;
+    if (status) status.textContent = `Ponto registrado (precisão ±${accuracy} m).`;
+    if (index === 0) {
+      if ($('geo-lat')) $('geo-lat').value = lat;
+      if ($('geo-lng')) $('geo-lng').value = lng;
+      if ($('coord-corte-1')) $('coord-corte-1').value = lat;
+      if ($('coord-corte-2')) $('coord-corte-2').value = lng;
+      initOrUpdateMiniMap(lat, lng, val('local') || 'Árvore em vistoria');
+    }
+  }, error => {
+    if (status) status.textContent = `Não foi possível obter o GPS: ${error.message}`;
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 // Modal de Busca Manual no Inventário
@@ -2014,12 +2033,62 @@ function filterInventoryCatalog(query) {
 // GESTÃO DE PROCESSOS EM ANDAMENTO
 // =============================================================================
 
+const PROCESS_BACKUP_DB = 'ambiental-andradas-processos';
+const PROCESS_BACKUP_STORE = 'state';
+let processStorageWarningShown = false;
+
+function openProcessBackupDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('IndexedDB indisponível'));
+    const request = indexedDB.open(PROCESS_BACKUP_DB, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(PROCESS_BACKUP_STORE)) {
+        request.result.createObjectStore(PROCESS_BACKUP_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Falha ao abrir o armazenamento de segurança'));
+  });
+}
+
+async function readProcessBackup() {
+  const db = await openProcessBackupDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROCESS_BACKUP_STORE, 'readonly');
+    const request = transaction.objectStore(PROCESS_BACKUP_STORE).get('processes');
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => db.close();
+  });
+}
+
+async function writeProcessBackup(records, savedAt) {
+  const db = await openProcessBackupDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROCESS_BACKUP_STORE, 'readwrite');
+    transaction.objectStore(PROCESS_BACKUP_STORE).put({ records, savedAt }, 'processes');
+    transaction.oncomplete = () => { db.close(); resolve(); };
+    transaction.onerror = () => { db.close(); reject(transaction.error); };
+    transaction.onabort = () => { db.close(); reject(transaction.error || new Error('Gravação interrompida')); };
+  });
+}
+
 async function loadProcessos() {
+  let localSavedAt = 0;
   try {
     const raw = localStorage.getItem('arbo_processos');
     processos = raw ? JSON.parse(raw) : [];
+    localSavedAt = Number(localStorage.getItem('arbo_processos_saved_at') || 0);
   } catch {
     processos = [];
+  }
+  try {
+    const backup = await readProcessBackup();
+    if (Array.isArray(backup?.records) && (!processos.length || Number(backup.savedAt || 0) >= localSavedAt)) {
+      processos = backup.records;
+    }
+  } catch (error) {
+    console.warn('[vistoria] Backup local avançado indisponível:', error.message);
   }
   updateProcessosBadge();
   renderProcessos();
@@ -2035,13 +2104,20 @@ async function loadProcessos() {
 
     if (Array.isArray(data.processes)) {
       const localByProtocol = new Map(processos.map(p => [String(p.protocolo || ''), p]));
-      processos = data.processes.map(remote => ({
-        ...(localByProtocol.get(String(remote.protocolo || '')) || {}),
-        ...remote
-      }));
-      localStorage.setItem('arbo_processos', JSON.stringify(processos));
-      updateProcessosBadge();
-      renderProcessos();
+      const remoteProtocols = new Set(data.processes.map(remote => String(remote.protocolo || '')));
+      const mergedRemote = data.processes.map(remote => {
+        const local = localByProtocol.get(String(remote.protocolo || ''));
+        if (!local) return remote;
+        // Nunca deixa uma resposta antiga da planilha apagar uma edição que ainda
+        // está aguardando sincronização neste aparelho.
+        return local.syncStatus === 'pending'
+          ? { ...remote, ...local, id: local.id || remote.id }
+          : { ...local, ...remote, id: local.id || remote.id };
+      });
+      const localOnly = processos.filter(local => !remoteProtocols.has(String(local.protocolo || '')));
+      processos = [...localOnly, ...mergedRemote];
+      includeProcessFiscalProfiles();
+      saveProcessos();
     }
     return true;
   } catch (error) {
@@ -2051,22 +2127,55 @@ async function loadProcessos() {
 }
 
 function saveProcessos() {
-  localStorage.setItem('arbo_processos', JSON.stringify(processos));
+  const savedAt = Date.now();
+  writeProcessBackup(processos, savedAt).catch(error => {
+    console.error('[vistoria] Falha no backup local avançado:', error.message);
+    if (!processStorageWarningShown) {
+      processStorageWarningShown = true;
+      alert('Não foi possível criar a cópia de segurança local. Mantenha a internet conectada e sincronize o processo antes de fechar o aplicativo.');
+    }
+  });
+  try {
+    localStorage.setItem('arbo_processos', JSON.stringify(processos));
+    localStorage.setItem('arbo_processos_saved_at', String(savedAt));
+  } catch (error) {
+    console.error('[vistoria] Não foi possível gravar os processos no aparelho:', error.message);
+    try {
+      localStorage.setItem('arbo_processos', JSON.stringify(processos.map(remoteProcessCopy)));
+      localStorage.setItem('arbo_processos_saved_at', '0');
+    } catch {}
+    if (!processStorageWarningShown) {
+      processStorageWarningShown = true;
+      alert('O armazenamento rápido deste aparelho está cheio. O app criou uma cópia de segurança maior para preservar as fotos, mas sincronize o processo antes de limpar os dados do navegador.');
+    }
+  }
   updateProcessosBadge();
   renderProcessos();
+}
+
+function upsertLocalProcess(proc) {
+  const index = processos.findIndex(item => String(item.protocolo || '') === String(proc.protocolo || ''));
+  if (index >= 0) {
+    const stableId = processos[index].id || proc.id;
+    processos[index] = { ...processos[index], ...proc, id: stableId };
+    proc.id = stableId;
+    return processos[index];
+  }
+  processos.unshift(proc);
+  return proc;
 }
 
 function updateProcessosBadge() {
   const badge = $('badge-total-processos');
   if (badge) {
-    const activeCount = processos.filter(p => !['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
-    badge.textContent = String(activeCount || processos.length);
+    const activeCount = processos.filter(p => processMatchesSelectedFiscal(p) && !['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
+    badge.textContent = String(activeCount);
   }
 }
 
 const SHEET_PROCESS_STATUSES = [
   'Aguardando Vistoria', 'Parecer em Elaboração', 'Enviado para Deliberação do CODEMA',
-  'Encaminhado para Corte pela Secretaria de Obras', 'Aguardando Compensação',
+  'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento', 'Aguardando Compensação',
   'Compensado', 'Indeferido / Arquivado'
 ];
 
@@ -2076,6 +2185,7 @@ function statusForSheet(status) {
   if (normalized.includes('compensado') || normalized.includes('concluido')) return 'Compensado';
   if (normalized.includes('codema')) return 'Enviado para Deliberação do CODEMA';
   if (normalized.includes('obras')) return 'Encaminhado para Corte pela Secretaria de Obras';
+  if (normalized.includes('planejamento')) return 'Encaminhado para a Secretaria de Planejamento';
   if (normalized.includes('compensacao') || normalized.includes('autorizado')) return 'Aguardando Compensação';
   if (normalized.includes('parecer') || normalized.includes('vistoriado') || normalized.includes('diligencia')) return 'Parecer em Elaboração';
   return 'Aguardando Vistoria';
@@ -2088,10 +2198,11 @@ function renderProcessos() {
   const listEl = $('processos-list');
   if (!listEl) return;
 
-  const total = processos.length;
-  const analise = processos.filter(p => statusForSheet(p.situacao) === 'Aguardando Vistoria').length;
-  const autorizados = processos.filter(p => ['Parecer em Elaboração', 'Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras'].includes(statusForSheet(p.situacao))).length;
-  const concluidos = processos.filter(p => ['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
+  const scopedProcesses = processos.filter(processMatchesSelectedFiscal);
+  const total = scopedProcesses.length;
+  const analise = scopedProcesses.filter(p => statusForSheet(p.situacao) === 'Aguardando Vistoria').length;
+  const autorizados = scopedProcesses.filter(p => ['Parecer em Elaboração', 'Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'].includes(statusForSheet(p.situacao))).length;
+  const concluidos = scopedProcesses.filter(p => ['Compensado', 'Indeferido / Arquivado'].includes(statusForSheet(p.situacao))).length;
 
   if ($('stat-total')) $('stat-total').textContent = String(total);
   if ($('stat-analise')) $('stat-analise').textContent = String(analise);
@@ -2099,12 +2210,13 @@ function renderProcessos() {
   if ($('stat-concluidos')) $('stat-concluidos').textContent = String(concluidos);
 
   const s = normalizeText(activeProcessSearch);
-  const filtered = processos.filter(p => {
+  const filtered = scopedProcesses.filter(p => {
     const processStatus = statusForSheet(p.situacao);
     if (activeProcessFilter === 'vistoria' && processStatus !== 'Aguardando Vistoria') return false;
     if (activeProcessFilter === 'parecer' && processStatus !== 'Parecer em Elaboração') return false;
     if (activeProcessFilter === 'codema' && processStatus !== 'Enviado para Deliberação do CODEMA') return false;
     if (activeProcessFilter === 'obras' && processStatus !== 'Encaminhado para Corte pela Secretaria de Obras') return false;
+    if (activeProcessFilter === 'planejamento' && processStatus !== 'Encaminhado para a Secretaria de Planejamento') return false;
     if (activeProcessFilter === 'compensacao' && processStatus !== 'Aguardando Compensação') return false;
     if (activeProcessFilter === 'concluido' && !['Compensado', 'Indeferido / Arquivado'].includes(processStatus)) return false;
     if (s) {
@@ -2138,7 +2250,7 @@ function renderProcessos() {
     const badgeClass = sheetStatus === 'Compensado' ? 'concluido'
       : sheetStatus === 'Indeferido / Arquivado' ? 'indeferido'
       : sheetStatus === 'Aguardando Compensação' ? 'compensacao'
-      : sheetStatus.includes('CODEMA') || sheetStatus.includes('Obras') ? 'autorizado' : 'analise';
+      : sheetStatus.includes('CODEMA') || sheetStatus.includes('Obras') || sheetStatus.includes('Planejamento') ? 'autorizado' : 'analise';
     const canConfirmCompensation = sheetStatus === 'Aguardando Compensação';
     return `
       <article class="processo-card">
@@ -2160,6 +2272,12 @@ function renderProcessos() {
             </div>
             <div class="proc-info-row">
               <span class="proc-label">Objeto:</span> ${esc(p.intervencaoLabel || p.intervencao)} (${p.quantidade || 1} árvore(s))
+            </div>
+            <div class="proc-info-row">
+              <span class="proc-label">Vistoria in loco:</span> ${p.vistoriaInLoco ? `✓ realizada${p.vistoriaRealizadaEm ? ` em ${new Date(p.vistoriaRealizadaEm).toLocaleDateString('pt-BR')}` : ''}` : 'ainda não registrada'}
+            </div>
+            <div class="proc-info-row">
+              <span class="proc-label">Fiscal:</span> ${esc(processFiscal(p).nome || 'Não atribuído')} · matrícula ${esc(processFiscal(p).matricula || '0')}
             </div>
           </div>
           <div>
@@ -2220,21 +2338,95 @@ function renderProcessos() {
   });
 }
 
-async function syncNewProcessoVistoria(proc, isNew) {
-  if (!isNew) return true;
+function remoteProcessCopy(proc) {
+  const copy = JSON.parse(JSON.stringify(proc));
+  copy.trees = (copy.trees || []).map(tree => ({
+    ...tree,
+    photos: Object.fromEntries(Object.entries(tree.photos || {}).filter(([, photo]) => photo && !String(photo).startsWith('data:')))
+  }));
+  return copy;
+}
+
+function inventoryPayload(tree, index, proc) {
+  const ownPhotos = Object.values(tree.photos || {}).filter(Boolean);
+  const catalogTree = tree.inventoryId
+    ? inventoryTrees.find(item => String(item.id) === String(tree.inventoryId))
+    : null;
+  const photos = ownPhotos.length ? ownPhotos : (catalogTree?.fotos || []);
+  return {
+    id: tree.inventoryId || '', latitude: tree.latitude || '', longitude: tree.longitude || '',
+    rua: proc.endereco || '', bairro: '', logradouro: proc.endereco || '',
+    referencia: `Vistoria ${proc.protocolo} · exemplar ${index + 1}`, localPlantio: 'Vistoria in loco',
+    especie: tree.cientifico || tree.popular || 'Não identificada', nomePopular: tree.popular || '',
+    nomeCientifico: tree.cientifico || '', familia: tree.familia || '', origem: tree.origem || '',
+    certeza: tree.certeza || '', porte: tree.altura ? `${tree.altura} m` : '',
+    tronco: tree.dap ? `DAP ${tree.dap} cm` : '', dap: tree.dap || '', altura: tree.altura || '',
+    protocoloVistoria: proc.protocolo || '', problemas: [tree.doenca, tree.condicao].filter(Boolean),
+    interferencia: selectedConflicts(tree), intervencao: proc.intervencaoLabel || proc.intervencao || '',
+    observacoes: tree.observacao || '',
+    status: tree.risco === 'sim' ? 'critico' : tree.risco === 'monitorar' ? 'atencao' : 'vistoriada',
+    timestamp: Date.now(), dataAtualizacao: Date.now(),
+    foto1: photos[0] || '', foto2: photos[1] || '', foto3: photos[2] || '', foto4: photos[3] || '', foto5: photos[4] || ''
+  };
+}
+
+async function syncTreesToInventory(proc) {
+  if (!proc.vistoriaInLoco || !Array.isArray(proc.trees)) return [];
+  const errors = [];
+  for (let index = 0; index < proc.trees.length; index++) {
+    const tree = proc.trees[index];
+    try {
+      const response = await fetch('/api/inventory', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: tree.inventoryId ? 'update' : 'create', id: tree.inventoryId || '', data: inventoryPayload(tree, index, proc) })
+      });
+      const result = await response.json();
+      if (!response.ok || !(result.ok || result.status === 'ok' || result.success)) throw new Error(result.error || result.message || 'Inventário não respondeu');
+      tree.inventoryId = result.id || tree.inventoryId;
+      tree.inventorySync = 'synced';
+      const savedPhotos = result.data?.fotos || result.photos;
+      if (Array.isArray(savedPhotos)) {
+        const keys = Object.keys(tree.photos || {});
+        keys.forEach((key, photoIndex) => { if (savedPhotos[photoIndex]) tree.photos[key] = savedPhotos[photoIndex]; });
+      }
+      if (trees[index]) trees[index] = JSON.parse(JSON.stringify(tree));
+    } catch (error) {
+      tree.inventorySync = 'pending';
+      errors.push(`Árvore ${index + 1}: ${error.message}`);
+    }
+  }
+  proc.trees = JSON.parse(JSON.stringify(proc.trees));
+  proc.arvoreInventarioId = proc.trees[0]?.inventoryId || proc.arvoreInventarioId || null;
+  proc.arvoreInventarioNome = proc.trees[0]?.popular || proc.arvoreInventarioNome || '';
+  return errors;
+}
+
+async function syncNewProcessoVistoria(proc) {
+  const inventoryErrors = await syncTreesToInventory(proc);
   const toBr = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? isoToBr(value) : (value || '');
   const coords = proc.coordenadas || {};
+  const syncTimestamp = new Date().toISOString();
   const payload = {
+    action: 'upsertProcess',
+    process: remoteProcessCopy({ ...proc, syncStatus: 'synced', syncedAt: syncTimestamp }),
     data: toBr(proc.data),
     protocolo: proc.protocolo || '',
     solicitante: proc.requerente || '',
     endereco: proc.endereco || '',
-    solicitacao: proc.intervencaoLabel || proc.intervencao || '',
+    solicitacao: proc.solicitacaoRequerente || proc.intervencaoLabel || proc.intervencao || '',
     coordCorte1: coords.lat || '',
     coordCorte2: coords.lng || '',
     responsavelCorte: proc.responsavelCorte || '',
     autorizacao: proc.autorizacao || '',
     dataAutorizacao: toBr(proc.dataAutorizacao),
+    dataVistoria: toBr(proc.dataVistoria),
+    dataEncaminhamento: toBr(proc.dataEncaminhamento),
+    dataCompensacao: toBr(proc.dataCompensacao),
+    fiscalNome: proc.fiscalNome || '',
+    fiscalMatricula: proc.fiscalMatricula || '0',
+    fiscalCargo: proc.fiscalCargo || '',
+    formaCompensacao: proc.formaCompensacao || '',
+    formaCompensacaoLabel: proc.formaCompensacaoLabel || '',
     compensacao: proc.compensacao || '',
     prazo: toBr(proc.prazo),
     coordComp1: proc.coordComp1 || '',
@@ -2243,67 +2435,90 @@ async function syncNewProcessoVistoria(proc, isNew) {
   };
 
   try {
-    const response = await fetch('/api/sheet', {
+    const response = await fetch('/api/process-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload })
+      body: JSON.stringify(payload)
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || 'Resposta inválida do Google');
-    return true;
+    proc.syncStatus = 'synced';
+    proc.syncedAt = syncTimestamp;
+    if (inventoryErrors.length) alert(`O processo foi sincronizado, mas há itens pendentes no Inventário:\n${inventoryErrors.join('\n')}`);
+    return { processSynced: true, inventoryErrors };
   } catch (error) {
-    alert(`O processo foi salvo neste computador, mas não foi enviado à planilha: ${error.message}`);
-    return false;
+    proc.syncStatus = 'pending';
+    alert(`O processo ficou salvo neste aparelho, mas a sincronização compartilhada falhou: ${error.message}${inventoryErrors.length ? `\n\nInventário pendente:\n${inventoryErrors.join('\n')}` : ''}`);
+    return { processSynced: false, inventoryErrors, processError: error.message };
   }
 }
 // Salva processo atual
 async function saveCurrentProcesso() {
+  normalizeAllUppercaseFields();
+  syncSpecies();
   const prot = val('processo') || `PROC-${new Date().getFullYear()}-${String(processos.length + 1).padStart(4, '0')}`;
+  const existing = processos.find(p => p.protocolo === prot) || {};
   const req = val('requerente') || 'Não informado';
   const end = val('local') || 'Andradas/MG';
   const inter = val('intervencao');
   const sit = statusForSheet(val('situacao'));
   const parecerText = val('saida') || '';
+  const destinacaoTipo = document.querySelector('input[name="destinacao-tipo"]:checked')?.value || existing.destinacaoTipo || 'requerente';
 
   const proc = {
     id: `PROC-${Date.now()}`,
     protocolo: prot,
-    data: new Date().toISOString().slice(0, 10),
+    data: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
     requerente: req,
+    solicitacaoRequerente: val('requerente-solicita'),
     endereco: end,
     intervencao: inter,
     intervencaoLabel: label('intervencao'),
     quantidade: trees.length,
-    finalidade: label('finalidade'),
+    finalidade: val('finalidade') === 'outro' ? val('finalidade-outro-detalhe') : label('finalidade'),
+    finalidadeVal: val('finalidade'),
+    finalidadeOutroDetalhe: val('finalidade-outro-detalhe'),
     situacao: sit,
+    destinacaoTipo,
+    conclusao: val('conclusao'),
+    diagnostico: val('diagnostico'),
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
-      lat: val('geo-lat') || val('coord-corte-1'),
-      lng: val('geo-lng') || val('coord-corte-2')
+      lat: trees[0]?.latitude || val('geo-lat') || val('coord-corte-1'),
+      lng: trees[0]?.longitude || val('geo-lng') || val('coord-corte-2')
     },
-    compensacao: $('compensacao')?.innerText?.trim() || '',
+    trees: JSON.parse(JSON.stringify(trees)),
+    vistoriaInLoco: existing.vistoriaInLoco || false,
+    vistoriaRealizadaEm: existing.vistoriaRealizadaEm || '',
+    responsavelCorte: val('responsavel-corte'),
+    autorizacao: val('autorizacao'),
+    dataAutorizacao: val('data-autorizacao'),
+    formaCompensacao: val('forma'),
+    compensacao: calculateCompensation().text,
+    prazo: val('prazo'),
+    coordComp1: val('coord-comp-1'),
+    coordComp2: val('coord-comp-2'),
     parecerTexto: parecerText,
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    ...processTrackingFields(existing)
   };
 
-  const existingIdx = processos.findIndex(p => p.protocolo === prot);
-  const isNewProcess = existingIdx < 0;
-  if (existingIdx >= 0) {
-    processos[existingIdx] = { ...processos[existingIdx], ...proc };
-  } else {
-    processos.unshift(proc);
-  }
-
+  upsertLocalProcess(proc);
   saveProcessos();
-  await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Processo nº ${prot} salvo com sucesso em "Processos em Andamento"!`);
+  const syncResult = await syncNewProcessoVistoria(proc);
+  const synced = syncResult.processSynced && syncResult.inventoryErrors.length === 0;
+  upsertLocalProcess(proc);
+  saveProcessos();
+  if (synced) alert(`✓ Processo nº ${prot} salvo e sincronizado com sucesso.`);
   switchMainView('processos');
 }
 
 // ── Salvamento da Etapa 1: Requerimento Administrativo ───────────────────────
 async function saveEtapa1() {
+  normalizeAllUppercaseFields();
   const prot = val('processo') || `PROV-${Date.now().toString().slice(-5)}`;
+  const existing = processos.find(p => p.protocolo === prot) || {};
   const req = val('requerente') || 'Requerente não informado';
   const end = val('local') || 'Endereço não informado';
   const inter = val('intervencao');
@@ -2319,8 +2534,9 @@ async function saveEtapa1() {
   const proc = {
     id: 'PROC-' + Date.now(),
     protocolo: prot,
-    data: new Date().toISOString().slice(0, 10),
+    data: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
     requerente: req,
+    solicitacaoRequerente: val('requerente-solicita'),
     endereco: end,
     intervencao: inter,
     intervencaoLabel: label('intervencao'),
@@ -2332,32 +2548,37 @@ async function saveEtapa1() {
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
-      lat: val('geo-lat') || val('coord-corte-1'),
-      lng: val('geo-lng') || val('coord-corte-2')
+      lat: trees[0]?.latitude || val('geo-lat') || val('coord-corte-1'),
+      lng: trees[0]?.longitude || val('geo-lng') || val('coord-corte-2')
     },
     trees: JSON.parse(JSON.stringify(trees)),
+    vistoriaInLoco: false,
     compensacao: 'Aguardando vistoria técnica a campo',
     parecerTexto: 'Requerimento administrativo registrado. Aguardando coleta de dados e vistoria técnica in loco.',
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    ...processTrackingFields(existing)
   };
 
-  const existingIdx = processos.findIndex(p => p.protocolo === prot);
-  const isNewProcess = existingIdx < 0;
-  if (existingIdx >= 0) {
-    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
-  } else {
-    processos.unshift(proc);
-  }
-
+  upsertLocalProcess(proc);
   saveProcessos();
-  await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Etapa 1 salva com sucesso! Processo nº ${prot} registrado como "Aguardando Vistoria".`);
+  const syncResult = await syncNewProcessoVistoria(proc);
+  const synced = syncResult.processSynced;
+  upsertLocalProcess(proc);
+  saveProcessos();
+  if (synced) alert(`✓ Etapa 1 salva e sincronizada. Processo nº ${prot} registrado como "Aguardando Vistoria".`);
 }
 
 // ── Salvamento da Etapa 2: Vistoria Técnica a Campo ─────────────────────────
 async function saveEtapa2() {
+  normalizeAllUppercaseFields();
   syncSpecies();
+  const invalidCoordinates = trees.map((tree, index) => !validCoordinatePair(tree.latitude, tree.longitude) ? index + 1 : null).filter(Boolean);
+  if (invalidCoordinates.length) {
+    alert(`Registre uma latitude e uma longitude válidas para cada árvore antes de salvar. Verifique o(s) exemplar(es) ${invalidCoordinates.join(', ')}.`);
+    return;
+  }
   const prot = val('processo') || `PROV-${Date.now().toString().slice(-5)}`;
+  const existing = processos.find(p => p.protocolo === prot) || {};
   const req = val('requerente') || 'Requerente não informado';
   const end = val('local') || 'Endereço não informado';
   const inter = val('intervencao');
@@ -2373,8 +2594,9 @@ async function saveEtapa2() {
   const proc = {
     id: 'PROC-' + Date.now(),
     protocolo: prot,
-    data: new Date().toISOString().slice(0, 10),
+    data: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
     requerente: req,
+    solicitacaoRequerente: val('requerente-solicita'),
     endereco: end,
     intervencao: inter,
     intervencaoLabel: label('intervencao'),
@@ -2386,32 +2608,41 @@ async function saveEtapa2() {
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
-      lat: val('geo-lat') || val('coord-corte-1'),
-      lng: val('geo-lng') || val('coord-corte-2')
+      lat: trees[0]?.latitude || val('geo-lat') || val('coord-corte-1'),
+      lng: trees[0]?.longitude || val('geo-lng') || val('coord-corte-2')
     },
     trees: JSON.parse(JSON.stringify(trees)),
+    vistoriaInLoco: true,
+    vistoriaRealizadaEm: new Date().toISOString(),
+    formaCompensacao: val('forma'),
     compensacao: comp.text,
     diagnostico: val('diagnostico'),
     parecerTexto: 'Vistoria a campo realizada e registrada pela equipe técnica. Aguardando emissão do parecer/ofício.',
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    ...processTrackingFields(existing),
+    dataVistoria: val('data-vistoria') || new Date().toISOString().slice(0, 10)
   };
 
-  const existingIdx = processos.findIndex(p => p.protocolo === prot);
-  const isNewProcess = existingIdx < 0;
-  if (existingIdx >= 0) {
-    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
-  } else {
-    processos.unshift(proc);
-  }
-
+  upsertLocalProcess(proc);
   saveProcessos();
-  await syncNewProcessoVistoria(proc, isNewProcess);
-  alert(`✓ Vistoria do processo nº ${prot} salva. O andamento agora é "Parecer em Elaboração".`);
+  const syncResult = await syncNewProcessoVistoria(proc);
+  const synced = syncResult.processSynced && syncResult.inventoryErrors.length === 0;
+  upsertLocalProcess(proc);
+  saveProcessos();
+  if (synced) alert(`✓ Vistoria in loco do processo nº ${prot} salva e sincronizada. Cada árvore foi enviada ao Inventário.`);
 }
 
 // ── Salvamento da Etapa 3 / Conclusão: Parecer e Expedição ──────────────────
 async function saveFinalProcesso() {
-  if (!val('saida')) {
+  normalizeAllUppercaseFields();
+  syncSpecies();
+  const invalidCoordinates = trees.map((tree, index) => !validCoordinatePair(tree.latitude, tree.longitude) ? index + 1 : null).filter(Boolean);
+  if (invalidCoordinates.length) {
+    alert(`Registre uma latitude e uma longitude válidas para cada árvore antes de concluir o parecer. Verifique o(s) exemplar(es) ${invalidCoordinates.join(', ')}.`);
+    showTab('vistoria');
+    return;
+  }
+  if (!val('saida') || parecerNeedsRegeneration) {
     generate();
   }
 
@@ -2421,9 +2652,11 @@ async function saveFinalProcesso() {
   if (concl === 'indeferir') sit = 'Indeferido / Arquivado';
   else if (destinacaoTipo === 'codema') sit = 'Enviado para Deliberação do CODEMA';
   else if (destinacaoTipo === 'obras') sit = 'Encaminhado para Corte pela Secretaria de Obras';
+  else if (destinacaoTipo === 'planejamento') sit = 'Encaminhado para a Secretaria de Planejamento';
   else if (concl === 'deferir') sit = 'Aguardando Compensação';
 
   const prot = val('processo') || `PROC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+  const existing = processos.find(p => p.protocolo === prot) || {};
   const req = val('requerente') || 'Requerente não informado';
   const end = val('local') || 'Endereço não informado';
   const inter = val('intervencao');
@@ -2434,13 +2667,12 @@ async function saveFinalProcesso() {
     finalidadeTxt = outroDetalhe ? `Outro: ${outroDetalhe}` : 'Outro motivo tecnicamente justificado';
   }
 
-  syncSpecies();
-
   const proc = {
     id: 'PROC-' + Date.now(),
     protocolo: prot,
-    data: new Date().toISOString().slice(0, 10),
+    data: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
     requerente: req,
+    solicitacaoRequerente: val('requerente-solicita'),
     endereco: end,
     intervencao: inter,
     intervencaoLabel: label('intervencao'),
@@ -2454,36 +2686,27 @@ async function saveFinalProcesso() {
     arvoreInventarioId: linkedTree ? linkedTree.id : (trees[0]?.inventoryId || null),
     arvoreInventarioNome: linkedTree ? (linkedTree.especie || '') : (trees[0]?.popular || ''),
     coordenadas: {
-      lat: val('geo-lat') || val('coord-corte-1'),
-      lng: val('geo-lng') || val('coord-corte-2')
+      lat: trees[0]?.latitude || val('geo-lat') || val('coord-corte-1'),
+      lng: trees[0]?.longitude || val('geo-lng') || val('coord-corte-2')
     },
     trees: JSON.parse(JSON.stringify(trees)),
-    compensacao: $('compensacao')?.innerText?.trim() || '',
+    vistoriaInLoco: true,
+    vistoriaRealizadaEm: existing.vistoriaRealizadaEm || new Date().toISOString(),
+    formaCompensacao: val('forma'),
+    compensacao: calculateCompensation().text,
     diagnostico: val('diagnostico'),
     parecerTexto: val('saida'),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    ...processTrackingFields(existing),
+    dataEncaminhamento: val('data-encaminhamento') || new Date().toISOString().slice(0, 10)
   };
 
-  const existingIdx = processos.findIndex(p => p.protocolo === prot);
-  const isNewProcess = existingIdx < 0;
-  if (existingIdx >= 0) {
-    processos[existingIdx] = { ...processos[existingIdx], ...proc, id: processos[existingIdx].id };
-  } else {
-    processos.unshift(proc);
-  }
-
+  upsertLocalProcess(proc);
   saveProcessos();
-  let synced = false;
-  if (isNewProcess) {
-    synced = await syncNewProcessoVistoria(proc, true);
-  } else {
-    try {
-      await syncProcessStatus(processos[existingIdx], sit, proc.compensacao);
-      synced = true;
-    } catch (error) {
-      alert(`O parecer foi salvo neste aparelho, mas o andamento não foi atualizado na planilha: ${error.message}`);
-    }
-  }
+  const syncResult = await syncNewProcessoVistoria(proc);
+  const synced = syncResult.processSynced && syncResult.inventoryErrors.length === 0;
+  upsertLocalProcess(proc);
+  saveProcessos();
   if (synced) alert(`✓ Parecer do processo nº ${prot} salvo. Andamento na planilha: "${sit}".`);
   switchMainView('processos');
 }
@@ -2496,9 +2719,24 @@ function resumeProcesso(id) {
     return;
   }
 
+  const chosenFiscal = selectedFiscal();
+  const assignedFiscal = processFiscal(p);
+  if (chosenFiscal.nome && fiscalKey(chosenFiscal) !== processFiscalKey(p)) {
+    const canAssign = !assignedFiscal.nome || confirm(`Este processo está atribuído a ${assignedFiscal.nome}. Deseja assumir o processo como ${chosenFiscal.nome}?`);
+    if (canAssign) {
+      Object.assign(p, { fiscal: chosenFiscal, fiscalNome: chosenFiscal.nome, fiscalMatricula: chosenFiscal.matricula, fiscalCargo: chosenFiscal.cargo });
+      saveProcessos();
+    } else {
+      if (!fiscalProfiles.some(item => fiscalKey(item) === fiscalKey(assignedFiscal))) fiscalProfiles.push(assignedFiscal);
+      renderFiscalSelectors(fiscalKey(assignedFiscal));
+    }
+  }
+
   // 1. Restaura campos da Etapa 1
   if ($('processo')) $('processo').value = p.protocolo || '';
+  if ($('data-cadastro')) $('data-cadastro').value = p.dataCadastro || p.data || '';
   if ($('requerente')) $('requerente').value = p.requerente || '';
+  if ($('requerente-solicita')) $('requerente-solicita').value = p.solicitacaoRequerente || '';
   if ($('local')) $('local').value = p.endereco || '';
   if ($('intervencao') && p.intervencao) $('intervencao').value = p.intervencao;
 
@@ -2552,6 +2790,14 @@ function resumeProcesso(id) {
   }
 
   // 3. Restaura campos da Etapa 3
+  const storedFiscal = processFiscal(p);
+  if (storedFiscal.nome) {
+    if (!fiscalProfiles.some(item => fiscalKey(item) === fiscalKey(storedFiscal))) fiscalProfiles.push(storedFiscal);
+    renderFiscalSelectors(fiscalKey(storedFiscal));
+  }
+  ['area', 'grande', 'valor', 'impacto', 'alternativa', 'especial', 'executor'].forEach(field => {
+    if ($(field) && p[field]) $(field).value = p[field];
+  });
   if ($('diagnostico') && p.diagnostico) $('diagnostico').value = p.diagnostico;
   if ($('conclusao') && p.conclusao) $('conclusao').value = p.conclusao;
   if (p.destinacaoTipo) {
@@ -2564,14 +2810,35 @@ function resumeProcesso(id) {
   if (p.parecerTexto && $('saida')) {
     $('saida').value = p.parecerTexto;
     if ($('documento')) $('documento').hidden = false;
+    parecerNeedsRegeneration = false;
+  } else {
+    parecerNeedsRegeneration = true;
   }
+  if ($('num-oficio')) $('num-oficio').value = p.numeroOficio || '';
+  if ($('destinatario-formal')) $('destinatario-formal').value = p.destinatarioFormal || '';
+  if ($('data-vistoria')) $('data-vistoria').value = p.dataVistoria || (p.vistoriaRealizadaEm ? String(p.vistoriaRealizadaEm).slice(0, 10) : '');
+  if ($('data-encaminhamento')) $('data-encaminhamento').value = p.dataEncaminhamento || '';
+
+  // 4. Restaura os dados administrativos da compensação
+  if ($('forma') && p.formaCompensacao) $('forma').value = p.formaCompensacao;
+  if ($('responsavel-corte') && p.responsavelCorte) $('responsavel-corte').value = p.responsavelCorte;
+  if ($('autorizacao') && p.autorizacao) $('autorizacao').value = p.autorizacao;
+  if ($('data-autorizacao') && p.dataAutorizacao) $('data-autorizacao').value = p.dataAutorizacao;
+  if ($('data-compensacao')) $('data-compensacao').value = p.dataCompensacao || (p.compensacaoConfirmadaEm ? brDateToIsoLocal(p.compensacaoConfirmadaEm) : '');
+  if ($('prazo') && p.prazo) $('prazo').value = p.prazo;
+  if ($('coord-comp-1') && p.coordComp1) $('coord-comp-1').value = p.coordComp1;
+  if ($('coord-comp-2') && p.coordComp2) $('coord-comp-2').value = p.coordComp2;
+  if ($('situacao') && p.situacao) $('situacao').value = statusForSheet(p.situacao);
 
   // Muda para a visão do Wizard
   switchMainView('novo');
 
   // Abre a etapa mais relevante para continuar o trabalho
-  if (statusForSheet(p.situacao) === 'Aguardando Vistoria' && !p.diagnostico && !p.parecerTexto) {
+  const processStatus = statusForSheet(p.situacao);
+  if (processStatus === 'Aguardando Vistoria' && !p.diagnostico && !p.parecerTexto) {
     showTab('vistoria');
+  } else if (['Aguardando Compensação', 'Compensado'].includes(processStatus)) {
+    showTab('compensacao');
   } else {
     showTab('parecer');
   }
@@ -2690,27 +2957,157 @@ function initOrUpdateMiniMap(lat, lng, labelText = 'Localização do Exemplar') 
 }
 
 // ── Dados do Fiscal ─────────────────────────────────────────────────────────
+function fiscalKey(fiscal) {
+  const nome = normalizeText(fiscal?.nome || fiscal?.fiscalNome || '');
+  const matricula = String(fiscal?.matricula || fiscal?.fiscalMatricula || '0').trim() || '0';
+  return nome ? `${nome}|${matricula}` : '';
+}
+
+function normalizedFiscal(fiscal = {}) {
+  return {
+    nome: String(fiscal.nome || fiscal.fiscalNome || '').trim(),
+    matricula: String(fiscal.matricula || fiscal.fiscalMatricula || '0').trim() || '0',
+    cargo: String(fiscal.cargo || fiscal.fiscalCargo || 'Fiscal de Meio Ambiente').trim() || 'Fiscal de Meio Ambiente'
+  };
+}
+
+function selectedFiscal() {
+  const selector = $('fiscal-selector');
+  const selected = fiscalProfiles.find(item => fiscalKey(item) === selector?.value);
+  if (selected) return normalizedFiscal(selected);
+  const typed = normalizedFiscal({ nome: val('fiscal-nome'), matricula: val('fiscal-matricula'), cargo: val('fiscal-cargo') });
+  return typed.nome ? typed : normalizedFiscal(fiscalProfiles[0] || {});
+}
+
+function processFiscal(process = {}) {
+  return normalizedFiscal(process.fiscal || {
+    nome: process.fiscalNome,
+    matricula: process.fiscalMatricula,
+    cargo: process.fiscalCargo
+  });
+}
+
+function processFiscalKey(process) {
+  const fiscal = processFiscal(process);
+  return fiscal.nome ? fiscalKey(fiscal) : '';
+}
+
+function processMatchesSelectedFiscal(process) {
+  if (!selectedProcessFiscalFilter || selectedProcessFiscalFilter === '__all__') return true;
+  const key = processFiscalKey(process);
+  return selectedProcessFiscalFilter === '__unassigned__' ? !key : key === selectedProcessFiscalFilter;
+}
+
+function fillFiscalFields(fiscal) {
+  const normalized = normalizedFiscal(fiscal);
+  if ($('fiscal-nome')) $('fiscal-nome').value = normalized.nome;
+  if ($('fiscal-matricula')) $('fiscal-matricula').value = normalized.matricula;
+  if ($('fiscal-cargo')) $('fiscal-cargo').value = normalized.cargo;
+}
+
+function renderFiscalSelectors(selectedKey) {
+  const formSelector = $('fiscal-selector');
+  const processFilter = $('process-fiscal-filter');
+  const options = fiscalProfiles.map(fiscal => `<option value="${esc(fiscalKey(fiscal))}">${esc(fiscal.nome)} · matrícula ${esc(fiscal.matricula)}</option>`).join('');
+  if (formSelector) {
+    formSelector.innerHTML = options || '<option value="">Cadastre um fiscal</option>';
+    const preferred = selectedKey || localStorage.getItem(SELECTED_FISCAL_KEY) || fiscalKey(fiscalProfiles[0]);
+    if ([...formSelector.options].some(option => option.value === preferred)) formSelector.value = preferred;
+    fillFiscalFields(fiscalProfiles.find(item => fiscalKey(item) === formSelector.value) || {});
+  }
+  if (processFilter) {
+    processFilter.innerHTML = `<option value="__all__">Todos os fiscais</option>${options}<option value="__unassigned__">Sem fiscal atribuído</option>`;
+    const preferredFilter = selectedProcessFiscalFilter || localStorage.getItem(PROCESS_FISCAL_FILTER_KEY) || formSelector?.value || '__all__';
+    processFilter.value = [...processFilter.options].some(option => option.value === preferredFilter) ? preferredFilter : '__all__';
+    selectedProcessFiscalFilter = processFilter.value;
+  }
+}
+
 function loadFiscalData() {
-  const fNome = $('fiscal-nome');
-  const fMat = $('fiscal-matricula');
-  const fCargo = $('fiscal-cargo');
-  if (fNome) fNome.value = localStorage.getItem('fiscal_nome') || 'Júlia R. Meira';
-  if (fMat) fMat.value = localStorage.getItem('fiscal_matricula') || '04218';
-  if (fCargo) fCargo.value = localStorage.getItem('fiscal_cargo') || 'Fiscal de Meio Ambiente';
+  try {
+    const stored = JSON.parse(localStorage.getItem(FISCAL_PROFILES_KEY) || '[]');
+    fiscalProfiles = Array.isArray(stored) ? stored.map(normalizedFiscal).filter(item => item.nome) : [];
+  } catch { fiscalProfiles = []; }
+  if (!fiscalProfiles.length) {
+    const migrated = normalizedFiscal({
+      nome: localStorage.getItem('fiscal_nome') || 'Júlia R. Meira',
+      matricula: localStorage.getItem('fiscal_matricula') || '0',
+      cargo: localStorage.getItem('fiscal_cargo') || 'Fiscal de Meio Ambiente'
+    });
+    fiscalProfiles = [migrated];
+    localStorage.setItem(FISCAL_PROFILES_KEY, JSON.stringify(fiscalProfiles));
+  }
+  renderFiscalSelectors();
+}
+
+function includeProcessFiscalProfiles() {
+  let changed = false;
+  processos.forEach(process => {
+    const fiscal = processFiscal(process);
+    if (fiscal.nome && !fiscalProfiles.some(item => fiscalKey(item) === fiscalKey(fiscal))) {
+      fiscalProfiles.push(fiscal);
+      changed = true;
+    }
+  });
+  if (changed) localStorage.setItem(FISCAL_PROFILES_KEY, JSON.stringify(fiscalProfiles));
+  renderFiscalSelectors($('fiscal-selector')?.value || localStorage.getItem(SELECTED_FISCAL_KEY));
 }
 
 function saveFiscalData() {
-  const nome = val('fiscal-nome');
-  const mat = val('fiscal-matricula');
-  const cargo = val('fiscal-cargo');
-  localStorage.setItem('fiscal_nome', nome);
-  localStorage.setItem('fiscal_matricula', mat);
-  localStorage.setItem('fiscal_cargo', cargo);
+  normalizeAllUppercaseFields();
+  const fiscal = normalizedFiscal({ nome: val('fiscal-nome'), matricula: val('fiscal-matricula'), cargo: val('fiscal-cargo') });
+  if (!fiscal.nome) { alert('Informe o nome do fiscal.'); return; }
+  const selector = $('fiscal-selector');
+  const previousKey = selector?.value || '';
+  const existingIndex = fiscalProfiles.findIndex(item => fiscalKey(item) === previousKey || fiscalKey(item) === fiscalKey(fiscal));
+  if (existingIndex >= 0) fiscalProfiles[existingIndex] = fiscal; else fiscalProfiles.push(fiscal);
+  localStorage.setItem(FISCAL_PROFILES_KEY, JSON.stringify(fiscalProfiles));
+  localStorage.setItem(SELECTED_FISCAL_KEY, fiscalKey(fiscal));
+  localStorage.setItem('fiscal_nome', fiscal.nome);
+  localStorage.setItem('fiscal_matricula', fiscal.matricula);
+  localStorage.setItem('fiscal_cargo', fiscal.cargo);
+  selectedProcessFiscalFilter = fiscalKey(fiscal);
+  localStorage.setItem(PROCESS_FISCAL_FILTER_KEY, selectedProcessFiscalFilter);
+  renderFiscalSelectors(fiscalKey(fiscal));
+  renderProcessos();
   const btn = $('btn-save-fiscal');
   if (btn) {
-    btn.textContent = '✓ Dados salvos com sucesso!';
-    setTimeout(() => { btn.textContent = '💾 Salvar meus dados padrão'; }, 2500);
+    btn.textContent = '✓ Fiscal salvo';
+    setTimeout(() => { btn.textContent = '💾 Salvar fiscal'; }, 2500);
   }
+}
+
+function startNewFiscal() {
+  if ($('fiscal-selector')) $('fiscal-selector').value = '';
+  fillFiscalFields({ nome: '', matricula: '0', cargo: 'Fiscal de Meio Ambiente' });
+  $('fiscal-nome')?.focus();
+}
+
+function fiscalProcessFields(existing = {}) {
+  const fiscal = selectedFiscal();
+  return {
+    fiscal,
+    fiscalNome: fiscal.nome || existing.fiscalNome || '',
+    fiscalMatricula: fiscal.nome ? fiscal.matricula : (existing.fiscalMatricula || '0'),
+    fiscalCargo: fiscal.nome ? fiscal.cargo : (existing.fiscalCargo || '')
+  };
+}
+
+function processTrackingFields(existing = {}) {
+  return {
+    ...fiscalProcessFields(existing),
+    dataCadastro: val('data-cadastro') || existing.dataCadastro || existing.data || new Date().toISOString().slice(0, 10),
+    dataVistoria: val('data-vistoria') || existing.dataVistoria || '',
+    dataEncaminhamento: val('data-encaminhamento') || existing.dataEncaminhamento || '',
+    dataCompensacao: val('data-compensacao') || existing.dataCompensacao || '',
+    formaCompensacaoLabel: label('forma'),
+    area: val('area'), areaLabel: label('area'), grande: val('grande'), grandeLabel: label('grande'),
+    valor: val('valor'), valorLabel: label('valor'), impacto: val('impacto'), impactoLabel: label('impacto'),
+    alternativa: val('alternativa'), alternativaLabel: label('alternativa'), especial: val('especial'), especialLabel: label('especial'),
+    conclusaoLabel: label('conclusao'), executor: val('executor'), executorLabel: label('executor'),
+    destinacaoLabel: ({ requerente: 'Requerente', codema: 'CODEMA', obras: 'Secretaria de Obras', planejamento: 'Secretaria de Planejamento' })[document.querySelector('input[name="destinacao-tipo"]:checked')?.value || existing.destinacaoTipo] || '',
+    numeroOficio: val('num-oficio'), destinatarioFormal: val('destinatario-formal')
+  };
 }
 
 // ── Configuração do Seletor de Destinação (Parecer vs Ofício) ────────────────
@@ -2732,6 +3129,10 @@ function setupDestinacaoEvents() {
       if (numOficioWrap) numOficioWrap.hidden = false;
       if (destFormal) destFormal.value = 'À Secretaria Municipal de Obras e Serviços Públicos';
       if (numOficio && !numOficio.value) numOficio.value = `___/${new Date().getFullYear()} - DMA/SPUMA`;
+    } else if (chosen === 'planejamento') {
+      if (numOficioWrap) numOficioWrap.hidden = false;
+      if (destFormal) destFormal.value = 'À Secretaria Municipal de Planejamento Urbano e Meio Ambiente';
+      if (numOficio && !numOficio.value) numOficio.value = `___/${new Date().getFullYear()} - DMA`;
     }
     const docEl = $('documento');
     if (docEl && !docEl.hidden) {
@@ -2793,7 +3194,16 @@ async function syncProcessStatus(processo, situacao, compensacao) {
   const response = await fetch('/api/process-status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ protocolo: processo.protocolo, situacao, compensacao: compensacao || processo.compensacao || '' })
+    body: JSON.stringify({
+      protocolo: processo.protocolo,
+      situacao,
+      compensacao: compensacao || processo.compensacao || '',
+      formaCompensacao: processo.formaCompensacao || '',
+      formaCompensacaoLabel: processo.formaCompensacaoLabel || '',
+      dataCompensacao: processo.dataCompensacao || '',
+      dataEncaminhamento: processo.dataEncaminhamento || '',
+      process: remoteProcessCopy(processo)
+    })
   });
   const data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível atualizar a planilha');
@@ -2805,16 +3215,15 @@ async function confirmCompensacao(procId) {
   if (!p) return;
   if (!confirm(`Confirmar que a compensação do processo nº ${p.protocolo} foi cumprida?`)) return;
 
-  const dataConfirmacao = new Date().toLocaleDateString('pt-BR');
+  const dataConfirmacaoIso = new Date().toISOString().slice(0, 10);
+  const dataConfirmacao = isoToBr(dataConfirmacaoIso);
   const compensacao = p.compensacao
     ? `${p.compensacao} — Cumprimento confirmado em ${dataConfirmacao}`
     : `Compensação cumprida em ${dataConfirmacao}`;
   try {
-    await syncProcessStatus(p, 'Compensado', compensacao);
-    p.situacao = 'Compensado';
-    p.compensacao = compensacao;
-    p.compensacaoConfirmadaEm = dataConfirmacao;
-    p.updatedAt = new Date().toISOString();
+    const updatedProcess = { ...p, situacao: 'Compensado', compensacao, dataCompensacao: dataConfirmacaoIso, compensacaoConfirmadaEm: dataConfirmacao, updatedAt: new Date().toISOString() };
+    await syncProcessStatus(updatedProcess, 'Compensado', compensacao);
+    Object.assign(p, updatedProcess);
     saveProcessos();
     alert(`✓ Compensação do processo nº ${p.protocolo} confirmada na planilha.`);
   } catch (error) {
@@ -2833,7 +3242,8 @@ function viewProcessoParecer(procId) {
   const sheetStatus = statusForSheet(p.situacao);
   $('modal-processo-badge').textContent = `Proc. nº ${p.protocolo}`;
   $('modal-processo-titulo').textContent = 'Detalhes do processo';
-  $('modal-processo-sub').textContent = `${p.requerente || 'Requerente não informado'} · ${p.endereco || 'Endereço não informado'}`;
+  const modalFiscal = processFiscal(p);
+  $('modal-processo-sub').textContent = `${p.requerente || 'Requerente não informado'} · ${p.endereco || 'Endereço não informado'} · Fiscal: ${modalFiscal.nome || 'não atribuído'} (matrícula ${modalFiscal.matricula || '0'})`;
   $('modal-resumo-situacao').textContent = sheetStatus;
   $('modal-resumo-objeto').textContent = p.intervencaoLabel || p.intervencao || 'Não informado';
   const resultLabels = { deferir: 'Favorável', indeferir: 'Desfavorável', diligencia: 'Diligência necessária' };
@@ -2855,7 +3265,7 @@ function viewProcessoParecer(procId) {
       treeInfo.innerHTML = `
         <div class="tree-badge-link" style="margin-bottom: 12px;">
           <span>🌳</span>
-          <span>Vinculado à <b>Árvore #${p.arvoreInventarioId}</b> (${p.arvoreInventarioNome}) do Inventário Municipal</span>
+          <span>Vinculado à <b>Árvore #${esc(p.arvoreInventarioId)}</b> (${esc(p.arvoreInventarioNome || 'sem identificação')}) do Inventário Municipal</span>
         </div>
       `;
     } else {
@@ -2898,9 +3308,11 @@ async function updateViewingProcessStatus() {
     feedback.className = 'status-feedback text-muted';
   }
   try {
-    await syncProcessStatus(p, newStatus, p.compensacao);
-    p.situacao = newStatus;
-    p.updatedAt = new Date().toISOString();
+    const sentStatuses = ['Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'];
+    const updatedProcess = { ...p, situacao: newStatus, updatedAt: new Date().toISOString() };
+    if (sentStatuses.includes(newStatus) && !updatedProcess.dataEncaminhamento) updatedProcess.dataEncaminhamento = new Date().toISOString().slice(0, 10);
+    await syncProcessStatus(updatedProcess, newStatus, p.compensacao);
+    Object.assign(p, updatedProcess);
     saveProcessos();
     $('modal-resumo-situacao').textContent = newStatus;
     if (feedback) {
@@ -2979,6 +3391,13 @@ function checkUrlDeepLink() {
 
 // Inicialização dos eventos da aplicação
 function init() {
+  setupCaseNormalization();
+  $('view-novo')?.addEventListener('input', event => {
+    if (event.target?.id !== 'saida') parecerNeedsRegeneration = true;
+  }, true);
+  $('view-novo')?.addEventListener('change', event => {
+    if (event.target?.id !== 'saida') parecerNeedsRegeneration = true;
+  }, true);
   const qtdInput = $('quantidade');
   if (qtdInput) {
     qtdInput.addEventListener('change', () => renderAll(true));
@@ -3005,7 +3424,33 @@ function init() {
 
   // Fiscal e Configurações
   $('btn-save-fiscal')?.addEventListener('click', saveFiscalData);
+  $('btn-new-fiscal')?.addEventListener('click', startNewFiscal);
   loadFiscalData();
+  $('fiscal-selector')?.addEventListener('change', event => {
+    const fiscal = fiscalProfiles.find(item => fiscalKey(item) === event.target.value);
+    if (!fiscal) return;
+    fillFiscalFields(fiscal);
+    localStorage.setItem(SELECTED_FISCAL_KEY, event.target.value);
+    selectedProcessFiscalFilter = event.target.value;
+    localStorage.setItem(PROCESS_FISCAL_FILTER_KEY, selectedProcessFiscalFilter);
+    if ($('process-fiscal-filter')) $('process-fiscal-filter').value = selectedProcessFiscalFilter;
+    updateProcessosBadge();
+    renderProcessos();
+  });
+  $('process-fiscal-filter')?.addEventListener('change', event => {
+    selectedProcessFiscalFilter = event.target.value;
+    localStorage.setItem(PROCESS_FISCAL_FILTER_KEY, selectedProcessFiscalFilter);
+    if (!['__all__', '__unassigned__'].includes(selectedProcessFiscalFilter)) {
+      const fiscal = fiscalProfiles.find(item => fiscalKey(item) === selectedProcessFiscalFilter);
+      if (fiscal && $('fiscal-selector')) {
+        $('fiscal-selector').value = selectedProcessFiscalFilter;
+        fillFiscalFields(fiscal);
+        localStorage.setItem(SELECTED_FISCAL_KEY, selectedProcessFiscalFilter);
+      }
+    }
+    updateProcessosBadge();
+    renderProcessos();
+  });
   setupDestinacaoEvents();
   setupMotivoEvents();
 
@@ -3094,6 +3539,8 @@ function init() {
     'especial', 'conclusao', 'forma', 'proprio', 'executor',
     'intervencao', 'finalidade'
   ];
+  const today = new Date().toISOString().slice(0, 10);
+  if ($('data-cadastro') && !$('data-cadastro').value) $('data-cadastro').value = today;
   watchIds.forEach(id => {
     const el = $(id);
     if (el) el.addEventListener('change', update);
@@ -3364,7 +3811,7 @@ function openMunicipalModule(moduleName) {
   }
   if (moduleName === 'inventario') {
     if (!navigator.onLine) { alert('O catálogo disponível no aparelho será incorporado aqui na próxima etapa. No momento, o acesso completo ao Inventário precisa de internet.'); return; }
-    window.open('https://arvores-andradas.vercel.app', '_blank', 'noopener');
+    window.location.assign('https://arvores-andradas.vercel.app');
     return;
   }
   alert('O módulo de Análise de Água está preparado na nova central e será a próxima planilha a ser transformada em formulário offline.');
@@ -3404,6 +3851,7 @@ document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp();
   let leafletMap   = null;
   let markersLayer = null;
   let isOpen       = false;
+  let previousMapFocus = null;
 
   // Elementos do DOM
   const modal        = document.getElementById("mapa-modal");
@@ -3424,9 +3872,11 @@ document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp();
 
   // ── Abrir / Fechar ──────────────────────────────────────────────────────────
   function openMapa() {
+    previousMapFocus = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = "hidden";
     isOpen = true;
+    setTimeout(() => closeBtn?.focus(), 0);
     if (!leafletMap) {
       initLeafletMap();
     } else {
@@ -3444,6 +3894,7 @@ document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp();
     modal.hidden = true;
     document.body.style.overflow = "";
     isOpen = false;
+    previousMapFocus?.focus?.();
   }
 
   if (openBtn)  openBtn.addEventListener("click", openMapa);
@@ -3493,7 +3944,7 @@ document.addEventListener('DOMContentLoaded', () => { init(); setupOfflineApp();
   // ── Carregar árvores via proxy local ────────────────────────────────────────
   async function loadTrees(webhookUrl) {
     showStatus("Buscando registros na planilha...", "loading");
-    statsEl.textContent = "Carregando...";
+    statsEl.textContent = "Carregando…";
 
     if (!leafletMap) initLeafletMap();
     if (markersLayer) markersLayer.clearLayers();

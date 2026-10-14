@@ -11,7 +11,7 @@
   <meta name="description" content="Sistema de Vistoria Ambiental e Emissão de Parecer Técnico - Deliberação Normativa CODEMA nº 09/2026 - Município de Andradas/MG">
   <title>Parecer Ambiental · Vistoria Arbórea · Andradas/MG</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
-  <link rel="stylesheet" href="index.css?v=9">
+  <link rel="stylesheet" href="index.css?v=11">
 </head>
 <body>
 <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
@@ -24,12 +24,12 @@
     </div>
   </div>
   <div class="topbar-actions">
-    <button id="btn-mapa" class="topbar-map-btn" title="Ver mapa de árvores registradas">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+    <button id="btn-mapa" class="topbar-map-btn" type="button" title="Ver mapa de árvores registradas" aria-label="Ver mapa de árvores registradas">
+      <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
       Mapa de Árvores
     </button>
-    <a id="btn-open-inventory" href="https://arvores-andradas.vercel.app" target="_blank" rel="noopener" class="topbar-link-btn" title="Acessar Inventário Arbóreo de Andradas">
-      🌳 Catálogo do Inventário ↗
+    <a id="btn-open-inventory" href="https://arvores-andradas.vercel.app" class="topbar-link-btn" title="Acessar Inventário Arbóreo de Andradas" aria-label="Abrir o Inventário Arbóreo de Andradas">
+      🌳 Catálogo do Inventário
     </a>
     <span class="status">Andradas · MG</span>
   </div>
@@ -156,16 +156,20 @@
       </div>
     </div>
 
-        <div class="process-refresh-row">
+    <div class="process-refresh-row">
+      <label class="process-fiscal-filter" for="process-fiscal-filter">
+        <span>Fiscal responsável</span>
+        <select id="process-fiscal-filter" aria-label="Filtrar processos pelo fiscal responsável"></select>
+      </label>
       <button id="btn-refresh-processos" class="button-outline" type="button">Atualizar planilha</button>
       <span id="process-refresh-status" class="text-muted" role="status"></span>
     </div>
 
     <div class="processos-toolbar">
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon" aria-hidden="true">🔍</span>
         <label class="sr-only" for="processos-search">Buscar processos</label>
-        <input id="processos-search" type="search" aria-label="Buscar por protocolo, solicitante, rua ou ID da árvore" placeholder="Filtrar por protocolo, solicitante, rua ou ID da árvore..." autocomplete="off">
+        <input id="processos-search" name="busca-processos" type="search" aria-label="Buscar por protocolo, solicitante, rua ou ID da árvore" placeholder="Filtrar por protocolo, solicitante, rua ou ID da árvore…" autocomplete="off">
       </div>
       <div class="filter-pills" role="group" aria-label="Filtro de situação">
         <button class="filter-pill active" data-filter="todos" type="button">Todos</button>
@@ -173,6 +177,7 @@
         <button class="filter-pill" data-filter="parecer" type="button">Parecer</button>
         <button class="filter-pill" data-filter="codema" type="button">CODEMA</button>
         <button class="filter-pill" data-filter="obras" type="button">Obras</button>
+        <button class="filter-pill" data-filter="planejamento" type="button">Planejamento</button>
         <button class="filter-pill" data-filter="compensacao" type="button">Compensação</button>
         <button class="filter-pill" data-filter="concluido" type="button">Finalizados</button>
       </div>
@@ -195,14 +200,17 @@
     </section>
 
     <nav class="steps" aria-label="Etapas do Processo" role="tablist">
-      <button class="step active" data-tab="requerimento" role="tab" aria-selected="true" id="step-requerimento">
+      <button class="step active" type="button" data-tab="requerimento" role="tab" aria-selected="true" id="step-requerimento">
         <b>1</b><span>Requerimento</span>
       </button>
-      <button class="step" data-tab="vistoria" role="tab" aria-selected="false" id="step-vistoria">
+      <button class="step" type="button" data-tab="vistoria" role="tab" aria-selected="false" id="step-vistoria">
         <b>2</b><span>Vistoria a Campo</span>
       </button>
-      <button class="step" data-tab="parecer" role="tab" aria-selected="false" id="step-parecer">
+      <button class="step" type="button" data-tab="parecer" role="tab" aria-selected="false" id="step-parecer">
         <b>3</b><span>Decisão e parecer</span>
+      </button>
+      <button class="step" type="button" data-tab="compensacao" role="tab" aria-selected="false" id="step-compensacao">
+        <b>4</b><span>Compensação</span>
       </button>
     </nav>
 
@@ -220,12 +228,20 @@
         <label>Número do processo / protocolo
           <input id="processo" placeholder="Ex.: 01234/2026" autocomplete="off">
         </label>
+        <label>Data de cadastro / recebimento
+          <input id="data-cadastro" type="date">
+        </label>
         <label>Requerente (Solicitante)
-          <input id="requerente" placeholder="Nome completo ou razão social" autocomplete="off">
+          <input id="requerente" data-case-normalize="name" placeholder="Nome completo ou razão social" autocomplete="off">
         </label>
         <label class="full">Endereço da vistoria (Rua, número e bairro)
-          <input id="local" placeholder="Ex.: Rua Cel. Oliveira, 120 - Centro" autocomplete="off">
+          <input id="local" data-case-normalize="name" placeholder="Ex.: Rua Cel. Oliveira, 120 - Centro" autocomplete="off">
         </label>
+
+        <label class="full">Solicitação do requerente
+          <textarea id="requerente-solicita" name="solicitacao-requerente" data-case-normalize="sentence" rows="5" aria-describedby="case-normalize-hint" placeholder="Cole aqui o texto completo da solicitação, como consta no protocolo."></textarea>
+        </label>
+        <p id="case-normalize-hint" class="case-normalize-hint full">Ao colar um texto em MAIÚSCULAS, o sistema ajusta automaticamente a escrita, preservando parágrafos e pontuação.</p>
 
         <label>Solicitação principal
           <select id="intervencao">
@@ -252,7 +268,7 @@
         </label>
         <div id="finalidade-outro-wrap" class="full" hidden>
           <label>Detalhamento do motivo da solicitação
-            <textarea id="finalidade-outro-detalhe" rows="2" placeholder="Especifique detalhadamente o motivo que justifica a intervenção arbórea..."></textarea>
+            <textarea id="finalidade-outro-detalhe" data-case-normalize="sentence" rows="2" placeholder="Especifique detalhadamente o motivo que justifica a intervenção arbórea..."></textarea>
           </label>
         </div>
       </div>
@@ -284,6 +300,10 @@
         </header>
 
         <div class="location-fields">
+          <label class="coordinate-field" for="data-vistoria">
+            <span>Data da vistoria</span>
+            <input id="data-vistoria" type="date">
+          </label>
           <label class="coordinate-field" for="geo-lat">
             <span>Latitude</span>
             <div class="coordinate-control"><b>LAT</b><input id="geo-lat" inputmode="decimal" placeholder="-22.067420" autocomplete="off"></div>
@@ -352,13 +372,17 @@
             <strong style="display:block; margin-top: 4px; font-size: 1.05rem;">Divisão de Meio Ambiente · SPUMA</strong>
             <small class="text-muted">Prefeitura Municipal de Andradas / MG</small>
           </div>
-          <button id="btn-save-fiscal" type="button" class="btn-sm button-outline" title="Salvar meus dados para os próximos pareceres">
-            💾 Salvar meus dados padrão
-          </button>
+          <div class="fiscal-card-actions">
+            <button id="btn-new-fiscal" type="button" class="btn-sm button-outline">Novo fiscal</button>
+            <button id="btn-save-fiscal" type="button" class="btn-sm button-outline" title="Salvar o fiscal para os próximos pareceres">💾 Salvar fiscal</button>
+          </div>
         </div>
+        <label class="full fiscal-selector-label">Fiscal selecionado
+          <select id="fiscal-selector" aria-label="Selecionar fiscal responsável"></select>
+        </label>
         <div class="grid three" style="margin-top: 14px;">
           <label>Nome do Fiscal Responsável
-            <input id="fiscal-nome" placeholder="Ex.: Júlia R. Meira" autocomplete="name">
+            <input id="fiscal-nome" data-case-normalize="name" placeholder="Ex.: Júlia R. Meira" autocomplete="name">
           </label>
           <label>Matrícula / Registro Funcional
             <input id="fiscal-matricula" placeholder="Ex.: 04218" autocomplete="off">
@@ -424,26 +448,18 @@
             <option value="diligencia">Necessária diligência / laudo complementar</option>
           </select>
         </label>
-        <label>Forma de cumprimento da compensação
-          <select id="forma">
-            <option value="direta">Execução direta: plantio compensatório</option>
-            <option value="pecuniaria">Execução indireta: pecuniária (FMMA)</option>
-            <option value="doacao">Execução indireta: doação de bens/projetos</option>
-            <option value="dispensa">Dispensa motivada (Art. 9º §2º - exótica sem vida)</option>
-            <option value="naoaplica">Não se aplica</option>
-          </select>
-        </label>
         <label>Responsável pela execução do corte
           <select id="executor">
             <option value="requerente">Requerente / Proprietário</option>
-            <option value="municipio">Município (Secretaria de Obras / SPUMA)</option>
+            <option value="obras">Secretaria Municipal de Obras</option>
+            <option value="planejamento">Secretaria Municipal de Planejamento Urbano e Meio Ambiente</option>
             <option value="definir">A definir no ato autorizativo</option>
           </select>
         </label>
       </div>
 
       <label class="full" style="margin-top: 10px;">Diagnóstico circunstanciado e justificativa técnica
-        <textarea id="diagnostico" rows="4" placeholder="Descreva os achados da vistoria: fitossanidade, interferências radiculares, fiação, risco estrutural, funções ambientais e justificativa da alternativa adotada."></textarea>
+        <textarea id="diagnostico" data-case-normalize="sentence" rows="4" placeholder="Descreva os achados da vistoria: fitossanidade, interferências radiculares, fiação, risco estrutural, funções ambientais e justificativa da alternativa adotada."></textarea>
       </label>
 
       <div class="workflow-heading"><b>2</b><div><strong>Encaminhamento</strong><small>Escolha quem receberá o parecer após a conclusão.</small></div></div>
@@ -457,7 +473,7 @@
           <label class="destinacao-opt">
             <input type="radio" name="destinacao-tipo" value="requerente" checked>
             <div class="destinacao-box">
-              <span class="dest-icon">📄</span>
+              <span class="dest-icon" aria-hidden="true">📄</span>
               <div>
                 <strong>Parecer / Autorização ao Requerente</strong>
                 <small>Endereçado ao solicitante com linguagem direta, clara e acessível (sem juridiquês desnecessário).</small>
@@ -467,7 +483,7 @@
           <label class="destinacao-opt">
             <input type="radio" name="destinacao-tipo" value="codema">
             <div class="destinacao-box">
-              <span class="dest-icon">🏛️</span>
+              <span class="dest-icon" aria-hidden="true">🏛️</span>
               <div>
                 <strong>Ofício de Encaminhamento ao CODEMA</strong>
                 <small>Para deliberação da Plenária (espécies protegidas, grande porte, área pública, etc.).</small>
@@ -477,10 +493,20 @@
           <label class="destinacao-opt">
             <input type="radio" name="destinacao-tipo" value="obras">
             <div class="destinacao-box">
-              <span class="dest-icon">🚜</span>
+              <span class="dest-icon" aria-hidden="true">🚜</span>
               <div>
                 <strong>Ofício à Secretaria de Obras</strong>
                 <small>Para execução de corte ou poda pelo maquinário municipal (via pública ou risco iminente).</small>
+              </div>
+            </div>
+          </label>
+          <label class="destinacao-opt">
+            <input type="radio" name="destinacao-tipo" value="planejamento">
+            <div class="destinacao-box">
+              <span class="dest-icon" aria-hidden="true">🏙️</span>
+              <div>
+                <strong>Encaminhamento ao Planejamento Urbano</strong>
+                <small>Para providências administrativas e urbanísticas da Secretaria de Planejamento, separadamente da Secretaria de Obras.</small>
               </div>
             </div>
           </label>
@@ -492,6 +518,11 @@
           </label>
           <label>Destinatário Formal
             <input id="destinatario-formal" readonly>
+          </label>
+        </div>
+        <div class="grid two" style="margin-top: 16px;">
+          <label>Data de atualização / encaminhamento
+            <input id="data-encaminhamento" type="date">
           </label>
         </div>
       </div>
@@ -508,10 +539,6 @@
           <small>Ato Administrativo</small>
           <strong>Aguardando avaliação...</strong>
         </article>
-        <article id="compensacao">
-          <small>Compensação Ambiental (DN 09/2026)</small>
-          <strong>Aguardando avaliação...</strong>
-        </article>
       </div>
 
       <div id="alertas" class="alerts" hidden></div>
@@ -520,6 +547,7 @@
       <div class="actions">
         <button id="gerar" class="primary" type="button">Gerar Documento (Parecer / Ofício)</button>
         <button data-go="vistoria" type="button">← Revisar Vistoria</button>
+        <button data-go="compensacao" type="button">Avançar para Compensação →</button>
       </div>
 
       <!-- DOCUMENTO EMITIDO -->
@@ -541,6 +569,39 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- ETAPA 4: COMPENSAÇÃO AMBIENTAL E REGISTRO ADMINISTRATIVO -->
+    <section class="panel tab" id="tab-compensacao" role="tabpanel" aria-labelledby="step-compensacao" hidden>
+      <header class="panel-head">
+        <span>04</span>
+        <div>
+          <p class="eyebrow">Compensação ambiental · Controle administrativo</p>
+          <h2>Compensação Ambiental</h2>
+          <p>Defina a forma de cumprimento, confira o cálculo e registre a compensação na planilha oficial.</p>
+        </div>
+      </header>
+
+      <div class="grid two">
+        <label>Forma de cumprimento da compensação
+          <select id="forma">
+            <option value="direta">Execução direta: plantio compensatório</option>
+            <option value="pecuniaria">Execução indireta: pecuniária (FMMA)</option>
+            <option value="doacao">Execução indireta: doação de bens/projetos</option>
+            <option value="dispensa">Dispensa motivada (Art. 9º §2º - exótica sem vida)</option>
+            <option value="naoaplica">Não se aplica</option>
+          </select>
+        </label>
+        <article id="compensacao" class="compensation-result">
+          <small>Compensação Ambiental (DN 09/2026)</small>
+          <strong>Aguardando avaliação...</strong>
+        </article>
+      </div>
+
+      <div class="next-row">
+        <button data-go="parecer" type="button">← Voltar ao Parecer</button>
+      </div>
+
       <!-- REGISTRO NA PLANILHA DE CONTROLE -->
       <section class="sheet-card">
         <header class="sheet-head">
@@ -555,8 +616,9 @@
         </header>
 
         <div class="grid three">
-          <label>Data do registro
-            <input id="sheet-data" type="date">
+          <input id="sheet-data" type="hidden">
+          <label>Data da compensação
+            <input id="data-compensacao" type="date">
           </label>
           <label>Coordenada 1 (Corte / Latitude)
             <input id="coord-corte-1" placeholder="Ex.: -22.06742">
@@ -568,6 +630,7 @@
             <select id="responsavel-corte">
               <option>Solicitante</option>
               <option>Sec. de Obras</option>
+              <option>Sec. de Planejamento Urbano e Meio Ambiente</option>
               <option>A definir</option>
             </select>
           </label>
@@ -595,6 +658,7 @@
           <option value="Parecer em Elaboração">Parecer em Elaboração</option>
           <option value="Enviado para Deliberação do CODEMA">Enviado para Deliberação do CODEMA</option>
           <option value="Encaminhado para Corte pela Secretaria de Obras">Encaminhado para Corte pela Secretaria de Obras</option>
+          <option value="Encaminhado para a Secretaria de Planejamento">Encaminhado para a Secretaria de Planejamento</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
           <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
@@ -606,8 +670,8 @@
         </div>
 
         <div class="actions">
-          <button id="save-sheet" class="primary" type="button">Salvar registro na planilha</button>
-          <button id="btn-save-processo" class="button-outline" type="button">💾 Salvar em Processos em Andamento</button>
+          <button id="save-sheet" class="primary" type="button">Salvar compensação na planilha</button>
+          <button id="btn-save-processo" class="button-outline" type="button">💾 Salvar processo e compensação</button>
         </div>
         <p id="sheet-status" class="sheet-status" role="status" aria-live="polite"></p>
       </section>
@@ -672,6 +736,7 @@
           <option value="Parecer em Elaboração">Parecer em Elaboração</option>
           <option value="Enviado para Deliberação do CODEMA">Enviado para Deliberação do CODEMA</option>
           <option value="Encaminhado para Corte pela Secretaria de Obras">Encaminhado para Corte pela Secretaria de Obras</option>
+          <option value="Encaminhado para a Secretaria de Planejamento">Encaminhado para a Secretaria de Planejamento</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
           <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
@@ -699,11 +764,11 @@
     </header>
     <div class="dialog-body">
       <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input id="inventory-search-input" type="search" placeholder="Buscar por número ID, rua, bairro ou espécie..." autocomplete="off">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="inventory-search-input" name="busca-inventario" type="search" aria-label="Buscar árvore no inventário" placeholder="Buscar por número ID, rua, bairro ou espécie…" autocomplete="off">
       </div>
       <div id="inventory-search-results" class="inventory-results-list">
-        <div class="loading-state">Carregando catálogo do inventário...</div>
+        <div class="loading-state" role="status">Carregando catálogo do inventário…</div>
       </div>
     </div>
   </div>
@@ -718,33 +783,33 @@
   <div class="mapa-container">
     <div class="mapa-header">
       <div class="mapa-title"><div><h2>Vistorias pendentes</h2><p>Processos que ainda aguardam vistoria de campo</p></div></div>
-      <div class="mapa-header-actions"><div id="vistoria-map-stats" class="mapa-stats">Carregando...</div><button id="vistoria-map-close" class="mapa-close" type="button" title="Fechar">&times;</button></div>
+      <div class="mapa-header-actions"><div id="vistoria-map-stats" class="mapa-stats" aria-live="polite">Carregando…</div><button id="vistoria-map-close" class="mapa-close" type="button" title="Fechar" aria-label="Fechar mapa de vistorias">&times;</button></div>
     </div>
     <div id="vistoria-map" class="arvores-map" aria-label="Mapa com endereços das vistorias pendentes"></div>
-    <div id="vistoria-map-status" class="mapa-status" hidden></div>
+    <div id="vistoria-map-status" class="mapa-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=16"></script>
-<script defer src="pending-map.js?v=3"></script>
+<script defer src="index.js?v=19"></script>
+<script defer src="pending-map.js?v=5"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->
 <div id="mapa-modal" class="mapa-overlay" hidden aria-modal="true" role="dialog" aria-label="Mapa de Árvores Registradas">
   <div class="mapa-container">
     <div class="mapa-header">
       <div class="mapa-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+        <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
         Mapa de Árvores Registradas &mdash; Andradas/MG
       </div>
       <div class="mapa-header-actions">
-        <div class="mapa-stats" id="mapa-stats">Carregando...</div>
+        <div class="mapa-stats" id="mapa-stats" aria-live="polite">Carregando…</div>
         <div class="mapa-webhook-row">
-          <input id="mapa-webhook-input" class="mapa-webhook-input" type="url"
-            placeholder="URL do Apps Script (para buscar dados)" />
-          <button id="mapa-load-btn" class="mapa-load-btn">Carregar</button>
+          <input id="mapa-webhook-input" name="url-mapa" class="mapa-webhook-input" type="url" aria-label="URL do Apps Script para carregar o mapa" autocomplete="off" spellcheck="false"
+            placeholder="URL do Apps Script para buscar dados…" />
+          <button id="mapa-load-btn" class="mapa-load-btn" type="button">Carregar</button>
         </div>
-        <button id="mapa-close" class="mapa-close" title="Fechar">&times;</button>
+        <button id="mapa-close" class="mapa-close" type="button" title="Fechar" aria-label="Fechar mapa de árvores">&times;</button>
       </div>
     </div>
 
@@ -760,7 +825,7 @@
     <div id="arvores-map"></div>
 
     <!-- Estado de carregamento/erro -->
-    <div id="mapa-status" class="mapa-status" hidden></div>
+    <div id="mapa-status" class="mapa-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
 

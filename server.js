@@ -5,6 +5,10 @@ import { extname, join, normalize, resolve } from "node:path";
 const root = process.cwd();
 const port = Number(process.env.PORT) || 4178;
 const VISTORIA_SPREADSHEET_ID = "1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU";
+const INVENTORY_SPREADSHEET_ID = "1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU";
+const INVENTORY_SHEET_GID = "180119124";
+const DEFAULT_INVENTORY_WEBHOOK = "https://script.google.com/macros/s/AKfycbzYaVf1-1iWrUVNZZkvNwPH1TvNqEqS7EYqu2goz-gNTO7tw5ZvKVPXz-HIZB6jrHiB/exec";
+const DEFAULT_VISTORIA_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdoB7nNc4LwAL-Gkk5z93FUPGmtLDSuoLuNBu4jL6K01N8szSH1rpF94Kvuk_Vgf0/exec";
 const WATER_SPREADSHEET_ID = "1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y";
 const geocodeCache = new Map();
 const DEFAULT_WATER_WEBHOOK = "https://script.google.com/macros/s/AKfycbxKCAT7elYq-msoEF9vMPss9TOdu7jlW-ze8xUqUAMs_z4NZHI21psoD-GJEMJJv518/exec";
@@ -64,6 +68,22 @@ const parseCsvLine = (line) => {
   return values;
 };
 
+const parseCsv = (text) => {
+  const rows = []; let row = []; let value = ""; let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '"' && quoted && text[i + 1] === '"') { value += '"'; i++; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { row.push(value); value = ""; }
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[i + 1] === "\n") i++;
+      row.push(value); if (row.some(cell => cell !== "")) rows.push(row); row = []; value = "";
+    } else value += char;
+  }
+  if (value || row.length) { row.push(value); rows.push(row); }
+  return rows;
+};
+
 const brDateToIso = (value) => {
   const text = String(value || "").trim();
   const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -121,23 +141,63 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, location });
       } catch (error) { return json(res, 502, { ok: false, error: `Falha ao localizar endereço: ${error.message}` }); }
     }
+    if (u.pathname === "/api/inventory" && req.method === "GET") {
+      const url = `https://docs.google.com/spreadsheets/d/${INVENTORY_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${INVENTORY_SHEET_GID}&_=${Date.now()}`;
+      try {
+        const upstream = await fetch(url, { redirect: "follow", cache: "no-store" });
+        if (!upstream.ok) return json(res, 502, { ok: false, error: `Planilha do Inventário respondeu HTTP ${upstream.status}` });
+        const rows = parseCsv(await upstream.text());
+        const headers = rows.shift() || [];
+        const trees = rows.map(row => Object.fromEntries(headers.map((header, index) => [header, row[index] || ""]))).filter(tree => String(tree.ID || "").trim());
+        return json(res, 200, { ok: true, status: "ok", trees });
+      } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
+    }
+    if (u.pathname === "/api/inventory" && req.method === "POST") {
+      const bodyBuffer = await readBody(req, 30_000_000);
+      let data; try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
+      const target = process.env.INVENTORY_WEBHOOK_URL || DEFAULT_INVENTORY_WEBHOOK;
+      try {
+        const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
+        const capability = await capabilityResponse.json();
+        if (Number(capability.apiVersion || 0) < 2) return json(res, 409, { ok: false, error: "Atualize e publique o Apps Script do Inventário (versão 2)." });
+        const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(data), redirect: "follow" });
+        const result = await upstream.json();
+        return json(res, upstream.ok && (result.ok || result.status === "ok" || result.success) ? 200 : 502, result);
+      } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
+    }
+    if (u.pathname === "/api/process-sync" && req.method === "POST") {
+      const bodyBuffer = await readBody(req, 10_000_000);
+      let data; try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
+      const target = process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl || DEFAULT_VISTORIA_WEBHOOK;
+      try {
+        const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
+        const capability = await capabilityResponse.json();
+        if (Number(capability.apiVersion || 0) < 7) return json(res, 409, { ok: false, error: "Atualize e publique o Apps Script da planilha de Processos (versão 7)." });
+        const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(data), redirect: "follow" });
+        const result = await upstream.json();
+        return json(res, upstream.ok && result.ok ? 200 : 502, result);
+      } catch (error) { return json(res, 502, { ok: false, error: error.message }); }
+    }
     // ── GET /api/processes (planilha exclusiva da Vistoria) ──────────────────
     if (req.method === "GET" && u.pathname === "/api/processes") {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${VISTORIA_SPREADSHEET_ID}/export?format=csv&gid=0&_=${Date.now()}`;
       try {
         const upstream = await fetch(csvUrl, { redirect: "follow", cache: "no-store" });
         if (!upstream.ok) return json(res, 502, { ok: false, error: `Planilha respondeu HTTP ${upstream.status}` });
-        const rows = (await upstream.text()).split(/\r?\n/).map(parseCsvLine);
+        const rows = parseCsv(await upstream.text());
         const byProtocol = new Map();
         rows.slice(1).forEach((row, index) => {
           const protocolo = String(row[1] || "").trim();
           if (!protocolo) return;
-          byProtocol.set(protocolo, {
+          let details = {};
+          try { details = row[16] ? JSON.parse(row.slice(16, 20).join('')) : {}; } catch {}
+          const base = {
             id: `SHEET-${index + 2}-${protocolo}`,
             protocolo,
             data: brDateToIso(row[0]),
             requerente: String(row[2] || ""),
             endereco: String(row[3] || ""),
+            solicitacaoRequerente: String(row[4] || ""),
             intervencao: String(row[4] || ""),
             intervencaoLabel: String(row[4] || ""),
             situacao: String(row[14] || "").trim() || "Em Análise",
@@ -146,11 +206,14 @@ const server = http.createServer(async (req, res) => {
             autorizacao: String(row[8] || ""),
             dataAutorizacao: brDateToIso(row[9]),
             compensacao: String(row[10] || ""),
+            fiscalNome: String(row[15] || ""),
+            formaCompensacaoLabel: String(row[21] || ""),
             prazo: brDateToIso(row[11]),
             coordComp1: String(row[12] || ""),
             coordComp2: String(row[13] || ""),
             parecerTexto: ""
-          });
+          };
+          byProtocol.set(protocolo, { ...base, ...details, id: details.id || base.id, protocolo, situacao: base.situacao, coordenadas: details.coordenadas || base.coordenadas });
         });
         return json(res, 200, { ok: true, processes: [...byProtocol.values()] });
       } catch (fetchErr) {
@@ -268,7 +331,7 @@ const server = http.createServer(async (req, res) => {
       catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
       const protocolo = String(data.protocolo || "").trim();
       const situacao = String(data.situacao || "").trim();
-      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
+      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
       if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
       if (!allowedStatuses.has(situacao)) return json(res, 400, { ok: false, error: "Andamento inválido para a planilha" });
 
@@ -276,13 +339,17 @@ const server = http.createServer(async (req, res) => {
       try {
         const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
         const capability = await capabilityResponse.json();
-        if (Number(capability.apiVersion || 0) < 2) {
-          return json(res, 409, { ok: false, error: "Atualize e publique novamente o Google Apps Script da Vistoria antes de alterar situações." });
+        if (Number(capability.apiVersion || 0) < 7) {
+          return json(res, 409, { ok: false, error: "Atualize e publique o Google Apps Script da Vistoria (versão 7) antes de alterar situações." });
         }
         const upstream = await fetch(target, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "updateStatus", protocolo, situacao, compensacao: String(data.compensacao || "") }),
+          body: JSON.stringify({
+            action: "updateStatus", protocolo, situacao, compensacao: String(data.compensacao || ""),
+            formaCompensacao: String(data.formaCompensacao || ""), formaCompensacaoLabel: String(data.formaCompensacaoLabel || ""), dataCompensacao: String(data.dataCompensacao || ""),
+            dataEncaminhamento: String(data.dataEncaminhamento || ""), process: data.process || null
+          }),
           redirect: "follow"
         });
         const result = await upstream.json();
