@@ -12,14 +12,40 @@ const DEFAULT_VISTORIA_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdoB7
 const WATER_SPREADSHEET_ID = "1BDuNmB5umdQLre8bDE-Ltuk0WCnl9pLT5kYYmFmzW6Y";
 const geocodeCache = new Map();
 const DEFAULT_WATER_WEBHOOK = "https://script.google.com/macros/s/AKfycbxKCAT7elYq-msoEF9vMPss9TOdu7jlW-ze8xUqUAMs_z4NZHI21psoD-GJEMJJv518/exec";
+const PROCESS_MIN_API_VERSION = 8;
+const WATER_MIN_API_VERSION = 3;
 
 let localKey = "";
 let sheetsWebhookUrl = "";
-try {
-  const cfg = await readFile(join(root, ".env"), "utf8");
-  localKey = cfg.match(/^PLANTNET_API_KEY=(.+)$/m)?.[1]?.trim() || "";
-  sheetsWebhookUrl = cfg.match(/^SHEETS_WEBHOOK_URL=(.+)$/m)?.[1]?.trim() || "";
-} catch {}
+let waterWebhookUrl = "";
+let inventoryWebhookUrl = "";
+const localEnv = {};
+for (const filename of [".env.local", ".env"]) {
+  try {
+    const cfg = await readFile(join(root, filename), "utf8");
+    for (const line of cfg.split(/\r?\n/)) {
+      const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (match && localEnv[match[1]] === undefined) localEnv[match[1]] = match[2].trim();
+    }
+  } catch {}
+}
+localKey = localEnv.PLANTNET_API_KEY || "";
+sheetsWebhookUrl = localEnv.SHEETS_WEBHOOK_URL || "";
+waterWebhookUrl = localEnv.WATER_SHEETS_WEBHOOK_URL || "";
+inventoryWebhookUrl = localEnv.INVENTORY_WEBHOOK_URL || "";
+
+const readJson = async (response, label) => {
+  const text = await response.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(label + " respondeu em formato invalido (HTTP " + response.status + ")"); }
+};
+
+const updateEnvValue = (contents, key, value) => {
+  const line = key + "=" + value;
+  const pattern = new RegExp("^" + key + "=.*$", "m");
+  if (pattern.test(contents)) return contents.replace(pattern, line);
+  return contents.replace(/\s*$/, "") + "\n" + line + "\n";
+};
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -84,6 +110,46 @@ const parseCsv = (text) => {
   return rows;
 };
 
+const sheetHeaderIndex = (headers, name, fallback = -1) => {
+  const normalizeHeader = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const index = headers.findIndex(header => normalizeHeader(header) === normalizeHeader(name));
+  return index >= 0 ? index : fallback;
+};
+
+const processDetailsFromSheetRow = (row, headers = []) => {
+  const configuredPositions = [1, 2, 3, 4]
+    .map(part => sheetHeaderIndex(headers, "Dados da Vistoria " + part, -1));
+  if (configuredPositions[0] >= 0) {
+    const configuredRaw = configuredPositions.map(position => position >= 0 ? row[position] || "" : "").join("");
+    if (configuredRaw.trim().startsWith("{")) {
+      try { return JSON.parse(configuredRaw); } catch {}
+    }
+  }
+  const starts = [15, 16];
+  for (const start of starts) {
+    const raw = row.slice(start, start + 4).join("");
+    if (!raw.trim().startsWith("{")) continue;
+    try { return JSON.parse(raw); } catch {}
+  }
+  return {};
+};
+const coordinateFromSheetCell = (value, maxAbsolute) => {
+  const original = String(value == null ? "" : value).trim();
+  if (!original) return "";
+  let candidate = original.replace(/\s+/g, "");
+  if (candidate.includes(",")) {
+    candidate = candidate.includes(".")
+      ? candidate.replace(/\./g, "").replace(",", ".")
+      : candidate.replace(",", ".");
+  } else if ((candidate.match(/\./g) || []).length > 1) {
+    const parts = candidate.split(".");
+    candidate = parts.shift() + "." + parts.join("");
+  }
+  let number = Number(candidate);
+  if (!Number.isFinite(number)) return original;
+  while (Math.abs(number) > maxAbsolute && Math.abs(number) >= 10) number /= 10;
+  return Math.abs(number) <= maxAbsolute ? String(number) : original;
+};
 const brDateToIso = (value) => {
   const text = String(value || "").trim();
   const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -155,10 +221,11 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/api/inventory" && req.method === "POST") {
       const bodyBuffer = await readBody(req, 30_000_000);
       let data; try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
-      const target = process.env.INVENTORY_WEBHOOK_URL || DEFAULT_INVENTORY_WEBHOOK;
+      const target = process.env.INVENTORY_WEBHOOK_URL || inventoryWebhookUrl || DEFAULT_INVENTORY_WEBHOOK;
       try {
         const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
         const capability = await capabilityResponse.json();
+        if (!Number(capability.apiVersion || 0)) capability.apiVersion = 2;
         if (Number(capability.apiVersion || 0) < 2) return json(res, 409, { ok: false, error: "Atualize e publique o Apps Script do Inventário (versão 2)." });
         const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(data), redirect: "follow" });
         const result = await upstream.json();
@@ -172,7 +239,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
         const capability = await capabilityResponse.json();
-        if (Number(capability.apiVersion || 0) < 7) return json(res, 409, { ok: false, error: "Atualize e publique o Apps Script da planilha de Processos (versão 7)." });
+        if (Number(capability.apiVersion || 0) < PROCESS_MIN_API_VERSION) return json(res, 409, { ok: false, error: "Atualize e publique o Apps Script da planilha de Processos (versão 8 ou superior)." });
         const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(data), redirect: "follow" });
         const result = await upstream.json();
         return json(res, upstream.ok && result.ok ? 200 : 502, result);
@@ -185,35 +252,56 @@ const server = http.createServer(async (req, res) => {
         const upstream = await fetch(csvUrl, { redirect: "follow", cache: "no-store" });
         if (!upstream.ok) return json(res, 502, { ok: false, error: `Planilha respondeu HTTP ${upstream.status}` });
         const rows = parseCsv(await upstream.text());
+        const headers = rows[0] || [];
         const byProtocol = new Map();
         rows.slice(1).forEach((row, index) => {
-          const protocolo = String(row[1] || "").trim();
+          const protocolPosition = sheetHeaderIndex(headers, "Protocolo", 1);
+          const protocolo = String(row[protocolPosition] || "").trim();
           if (!protocolo) return;
-          let details = {};
-          try { details = row[16] ? JSON.parse(row.slice(16, 20).join('')) : {}; } catch {}
+          const details = processDetailsFromSheetRow(row, headers);
+          const cell = (name, fallback = -1) => {
+            const position = sheetHeaderIndex(headers, name, fallback);
+            return position >= 0 ? String(row[position] || "") : "";
+          };
           const base = {
             id: `SHEET-${index + 2}-${protocolo}`,
             protocolo,
-            data: brDateToIso(row[0]),
-            requerente: String(row[2] || ""),
-            endereco: String(row[3] || ""),
-            solicitacaoRequerente: String(row[4] || ""),
-            intervencao: String(row[4] || ""),
-            intervencaoLabel: String(row[4] || ""),
-            situacao: String(row[14] || "").trim() || "Em Análise",
-            coordenadas: { lat: String(row[5] || ""), lng: String(row[6] || "") },
-            responsavelCorte: String(row[7] || ""),
-            autorizacao: String(row[8] || ""),
-            dataAutorizacao: brDateToIso(row[9]),
-            compensacao: String(row[10] || ""),
-            fiscalNome: String(row[15] || ""),
-            formaCompensacaoLabel: String(row[21] || ""),
-            prazo: brDateToIso(row[11]),
-            coordComp1: String(row[12] || ""),
-            coordComp2: String(row[13] || ""),
+            data: brDateToIso(cell("Data", 0)),
+            requerente: cell("Solicitante", 2),
+            telefone: cell("Telefone"),
+            endereco: cell("Endere\u00e7o", 5),
+            solicitacaoRequerente: cell("Solicita\u00e7\u00e3o", 4),
+            intervencao: cell("Solicita\u00e7\u00e3o", 4),
+            intervencaoLabel: cell("Solicita\u00e7\u00e3o", 4),
+            situacao: String(details.situacao || cell("Situa\u00e7\u00e3o")).trim() || "Aguardando Vistoria",
+            coordenadas: {
+              lat: coordinateFromSheetCell(cell("Coordenada 1 Corte", 6), 90),
+              lng: coordinateFromSheetCell(cell("Coordenada 2 Corte", 7), 180)
+            },
+            responsavelCorte: cell("Respons\u00e1vel Corte", 8),
+            autorizacao: cell("Autoriza\u00e7\u00e3o", 9),
+            dataAutorizacao: brDateToIso(cell("Data da Autoriza\u00e7\u00e3o", 10)),
+            compensacao: cell("Compensa\u00e7\u00e3o", 11),
+            fiscalNome: cell("Fiscal") || String(details.fiscalNome || ""),
+            formaCompensacaoLabel: cell("Forma de Compensa\u00e7\u00e3o", 20),
+            prazo: brDateToIso(cell("Prazo", 12)),
+            coordComp1: cell("Coordenada 1 Comp.", 13),
+            coordComp2: cell("Coordenada 2 Comp.", 14),
             parecerTexto: ""
           };
-          byProtocol.set(protocolo, { ...base, ...details, id: details.id || base.id, protocolo, situacao: base.situacao, coordenadas: details.coordenadas || base.coordenadas });
+          byProtocol.set(protocolo, {
+            ...base,
+            ...details,
+            id: details.id || base.id,
+            protocolo,
+            requerente: base.requerente || details.requerente || "",
+            telefone: base.telefone || details.telefone || "",
+            endereco: base.endereco || details.endereco || "",
+            solicitacaoRequerente: base.solicitacaoRequerente || details.solicitacaoRequerente || "",
+            situacao: base.situacao,
+            coordenadas: details.coordenadas || base.coordenadas,
+            syncStatus: "synced"
+          });
         });
         return json(res, 200, { ok: true, processes: [...byProtocol.values()] });
       } catch (fetchErr) {
@@ -254,9 +342,12 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === "/api/water" && req.method === "POST") {
       const bodyBuffer = await readBody(req);
       let data; try { data = JSON.parse(bodyBuffer.toString("utf8")); } catch { return json(res, 400, { ok: false, error: "JSON invalido" }); }
-      const target = process.env.WATER_SHEETS_WEBHOOK_URL || DEFAULT_WATER_WEBHOOK || process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
+      const target = process.env.WATER_SHEETS_WEBHOOK_URL || waterWebhookUrl || DEFAULT_WATER_WEBHOOK;
       if (!target || !/^https:\/\/script\.google\.com\//i.test(target)) return json(res, 503, { ok: false, error: "Google Apps Script da agua ainda nao configurado" });
       try {
+        const capabilityResponse = await fetch(`${target}?action=capabilities&module=water&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
+        const capability = await readJson(capabilityResponse, "Apps Script da Agua");
+        if (Number(capability.apiVersion || 0) < WATER_MIN_API_VERSION) return json(res, 409, { ok: false, error: `O Apps Script da Agua precisa ser versao ${WATER_MIN_API_VERSION} ou superior.` });
         const upstream = await fetch(target, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ ...data, action: data.action === "saveWaterPoint" ? "saveWaterPoint" : "addWaterRecord", module: "water" }), redirect: "follow" });
         const text = await upstream.text(); let result; try { result = JSON.parse(text); } catch { result = { ok: false, error: "Resposta invalida do Google Apps Script" }; }
         return json(res, upstream.ok && result.ok ? 200 : 502, result);
@@ -271,7 +362,9 @@ const server = http.createServer(async (req, res) => {
       localKey = key;
       process.env.PLANTNET_API_KEY = key;
       try {
-        await writeFile(join(root, ".env"), `PLANTNET_API_KEY=${key}\nSHEETS_WEBHOOK_URL=${sheetsWebhookUrl}\n`, "utf8");
+        let current = "";
+        try { current = await readFile(join(root, ".env"), "utf8"); } catch {}
+        await writeFile(join(root, ".env"), updateEnvValue(current, "PLANTNET_API_KEY", key), "utf8");
       } catch (err) {
         console.warn("[server] Não foi possível salvar no .env:", err.message);
       }
@@ -331,16 +424,16 @@ const server = http.createServer(async (req, res) => {
       catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
       const protocolo = String(data.protocolo || "").trim();
       const situacao = String(data.situacao || "").trim();
-      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
+      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
       if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
       if (!allowedStatuses.has(situacao)) return json(res, 400, { ok: false, error: "Andamento inválido para a planilha" });
 
-      const target = process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl;
+      const target = process.env.SHEETS_WEBHOOK_URL || sheetsWebhookUrl || DEFAULT_VISTORIA_WEBHOOK;
       try {
         const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
         const capability = await capabilityResponse.json();
-        if (Number(capability.apiVersion || 0) < 7) {
-          return json(res, 409, { ok: false, error: "Atualize e publique o Google Apps Script da Vistoria (versão 7) antes de alterar situações." });
+        if (Number(capability.apiVersion || 0) < 8) {
+          return json(res, 409, { ok: false, error: "Atualize e publique o Google Apps Script da Vistoria (versão 8) antes de alterar situações." });
         }
         const upstream = await fetch(target, {
           method: "POST",
@@ -348,7 +441,7 @@ const server = http.createServer(async (req, res) => {
           body: JSON.stringify({
             action: "updateStatus", protocolo, situacao, compensacao: String(data.compensacao || ""),
             formaCompensacao: String(data.formaCompensacao || ""), formaCompensacaoLabel: String(data.formaCompensacaoLabel || ""), dataCompensacao: String(data.dataCompensacao || ""),
-            dataEncaminhamento: String(data.dataEncaminhamento || ""), process: data.process || null
+            dataEncaminhamento: String(data.dataEncaminhamento || ""), process: null
           }),
           redirect: "follow"
         });

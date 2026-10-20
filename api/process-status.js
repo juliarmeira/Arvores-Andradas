@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método não permitido" });
   const protocolo = String(req.body?.protocolo || "").trim();
   const situacao = String(req.body?.situacao || "").trim();
-  const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido / Arquivado"]);
+  const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
   if (!protocolo || !situacao) return res.status(400).json({ ok: false, error: "Protocolo e situação são obrigatórios" });
   if (!allowedStatuses.has(situacao)) return res.status(400).json({ ok: false, error: "Andamento inválido para a planilha" });
 
@@ -12,10 +12,10 @@ export default async function handler(req, res) {
     const target = process.env.SHEETS_WEBHOOK_URL || DEFAULT_WEBHOOK;
     const capabilityResponse = await fetch(`${target}?action=capabilities&_=${Date.now()}`, { redirect: "follow", cache: "no-store" });
     const capability = await capabilityResponse.json();
-    if (Number(capability.apiVersion || 0) < 7) {
+    if (Number(capability.apiVersion || 0) < 8) {
       return res.status(409).json({
         ok: false,
-        error: "Atualize e publique o Google Apps Script da Vistoria (versão 7) antes de alterar situações."
+        error: "Atualize e publique o Google Apps Script da Vistoria (versão 8) antes de alterar situações."
       });
     }
 
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
         formaCompensacaoLabel: String(req.body?.formaCompensacaoLabel || ""),
         dataCompensacao: String(req.body?.dataCompensacao || ""),
         dataEncaminhamento: String(req.body?.dataEncaminhamento || ""),
-        process: req.body?.process || null
+        process: null
       }),
       redirect: "follow"
     });

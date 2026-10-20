@@ -352,6 +352,30 @@ textarea {
   margin-top: 24px;
 }
 
+.autosave-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 16px auto;
+  padding: 9px 13px;
+  border: 1px solid #c8ddd0;
+  border-radius: 999px;
+  background: #f4faf6;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.autosave-bar strong { color: var(--forest); }
+.autosave-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #6aa67d; }
+.autosave-bar.is-saving .autosave-dot { background: #d99a2b; animation: autosave-pulse 1s ease-in-out infinite; }
+.autosave-bar.is-saved .autosave-dot { background: #248a4b; }
+.autosave-bar.is-pending .autosave-dot { background: #d99a2b; }
+.autosave-bar.is-error .autosave-dot { background: var(--red); }
+
+@keyframes autosave-pulse { 50% { opacity: .35; transform: scale(.8); } }
+
 .api-box {
   display: grid;
   grid-template-columns: 1.3fr 1fr auto;
@@ -2765,3 +2789,63 @@ input:focus, select:focus, textarea:focus { border-color: #14b8a6; box-shadow: 0
 .workflow-heading strong { color: #173d34; font-size: .92rem; }
 .workflow-heading small { margin-top: 2px; color: #64748b; font-size: .75rem; }
 .workflow-heading-final { margin-top: 24px; }
+
+/* Parecer: fluxo curto e sem cartões decorativos */
+.encaminhamento-compacto {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.encaminhamento-compacto [hidden] { display: none !important; }
+.fiscal-compact { padding: 0; }
+.fiscal-compact > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 16px;
+  color: var(--forest);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.fiscal-compact > summary span { color: var(--muted); font-weight: 700; }
+.fiscal-compact[open] > summary { border-bottom: 1px solid #d5e8de; }
+.fiscal-card-content { padding: 16px; }
+.document-card { margin-top: 18px; padding-top: 18px; }
+.document-card .output {
+  min-height: 220px;
+  max-height: 360px;
+  resize: vertical;
+}
+.document-card .official-document { display: none; }
+.modal-detail {
+  margin-top: 10px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+.modal-detail > summary {
+  padding: 11px 13px;
+  color: var(--forest);
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.modal-detail[open] { padding: 0 13px 13px; }
+.modal-detail[open] > summary { margin: 0 -13px 10px; border-bottom: 1px solid var(--line); }
+.parecer-viewer { border-top: 0; }
+.parecer-viewer .output { min-height: 180px; max-height: 280px; }
+.dialog-status-changer { grid-template-columns: minmax(220px, 1fr) auto; }
+.status-field-copy { display: none; }
+.process-map-canvas { height: 190px; }
+
+@media (max-width: 760px) {
+  .encaminhamento-compacto { grid-template-columns: 1fr; }
+  .dialog-status-changer { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .document-card .official-document { display: block; }
+}

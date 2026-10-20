@@ -161,6 +161,7 @@
         <span>Fiscal responsável</span>
         <select id="process-fiscal-filter" aria-label="Filtrar processos pelo fiscal responsável"></select>
       </label>
+      <button id="btn-sync-processos" class="primary" type="button" hidden>Enviar c&oacute;pia pendente</button>
       <button id="btn-refresh-processos" class="button-outline" type="button">Atualizar planilha</button>
       <span id="process-refresh-status" class="text-muted" role="status"></span>
     </div>
@@ -214,6 +215,12 @@
       </button>
     </nav>
 
+    <div class="autosave-bar" aria-live="polite">
+      <span class="autosave-dot" aria-hidden="true"></span>
+      <strong>Salvamento automático</strong>
+      <span id="autosave-status">Informe o número do processo para começar.</span>
+    </div>
+
     <!-- ETAPA 1: REQUERIMENTO ADMINISTRATIVO -->
     <section class="panel tab active" id="tab-requerimento" role="tabpanel" aria-labelledby="step-requerimento">
       <header class="panel-head">
@@ -233,6 +240,9 @@
         </label>
         <label>Requerente (Solicitante)
           <input id="requerente" data-case-normalize="name" placeholder="Nome completo ou razão social" autocomplete="off">
+        </label>
+        <label>Telefone do requerente
+          <input id="telefone" name="telefone" type="tel" inputmode="tel" placeholder="Ex.: (35) 99999-9999" autocomplete="tel">
         </label>
         <label class="full">Endereço da vistoria (Rua, número e bairro)
           <input id="local" data-case-normalize="name" placeholder="Ex.: Rua Cel. Oliveira, 120 - Centro" autocomplete="off">
@@ -273,7 +283,6 @@
         </div>
       </div>
       <div class="next-row">
-        <button id="btn-save-etapa1" class="button-outline" type="button">💾 Salvar Requerimento</button>
         <button class="primary" data-go="vistoria" type="button">Avançar para Vistoria a Campo →</button>
       </div>
     </section>
@@ -348,7 +357,6 @@
 
       <div class="next-row">
         <button data-go="requerimento" type="button">← Voltar para Requerimento</button>
-        <button id="btn-save-etapa2" class="button-outline" type="button">💾 Salvar Vistoria de Campo</button>
         <button class="primary" data-go="parecer" type="button">Avançar para Parecer Técnico →</button>
       </div>
     </section>
@@ -365,7 +373,9 @@
       </header>
 
       <!-- DADOS DO FISCAL RESPONSÁVEL -->
-      <div class="fiscal-card">
+      <details class="fiscal-card fiscal-compact">
+        <summary>Fiscal responsável <span id="fiscal-resumo">Não selecionado</span></summary>
+        <div class="fiscal-card-content">
         <div class="fiscal-card-head">
           <div>
             <span class="badge">Identificação Oficial do Fiscal</span>
@@ -443,12 +453,21 @@
         </label>
         <label>Conclusão técnica do fiscal
           <select id="conclusao">
-            <option value="deferir">Favorável ao pedido (condicionado)</option>
-            <option value="indeferir">Desfavorável (indeferimento)</option>
-            <option value="diligencia">Necessária diligência / laudo complementar</option>
+            <option value="deferir">Autorizado</option>
+            <option value="indeferir">Não autorizado</option>
+            <option value="diligencia">Necessária diligência</option>
+            <option value="condicionado">Aprovado com condicionante</option>
           </select>
         </label>
-        <label>Responsável pela execução do corte
+        <label id="intervencao-autorizada-wrap">Intervenção autorizada
+          <select id="intervencao-autorizada">
+            <option value="corte">Corte</option>
+            <option value="poda">Poda</option>
+            <option value="corte_poda">Corte e poda</option>
+            <option value="naoaplica">Não se aplica</option>
+          </select>
+        </label>
+        <label>Responsável pela execução
           <select id="executor">
             <option value="requerente">Requerente / Proprietário</option>
             <option value="obras">Secretaria Municipal de Obras</option>
@@ -463,83 +482,24 @@
       </label>
 
       <div class="workflow-heading"><b>2</b><div><strong>Encaminhamento</strong><small>Escolha quem receberá o parecer após a conclusão.</small></div></div>
-      <!-- SELETOR CLARO DE DESTINAÇÃO DO DOCUMENTO -->
-      <div class="destinacao-card">
-        <div class="destinacao-head">
-          <strong>Tipo de Documento e Destinação Oficial:</strong>
-          <small class="text-muted">O sistema indica a rota recomendada pela DN 09/2026, mas você pode definir o destinatário com um clique.</small>
+      <div class="encaminhamento-compacto">
+        <label>Enviar para
+          <select id="destinacao-tipo">
+            <option value="requerente">Requerente</option>
+            <option value="codema">CODEMA</option>
+            <option value="obras">Secretaria de Obras</option>
+            <option value="planejamento">Secretaria de Planejamento</option>
+          </select>
+        </label>
+        <label id="num-oficio-wrap" hidden>Número do ofício
+          <input id="num-oficio" placeholder="Ex.: 042/2026 - DMA/SPUMA" autocomplete="off">
+        </label>
+        <label>Data do encaminhamento
+          <input id="data-encaminhamento" type="date">
+        </label>
+        <input id="destinatario-formal" type="hidden">
         </div>
-        <div class="destinacao-selector">
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="requerente" checked>
-            <div class="destinacao-box">
-              <span class="dest-icon" aria-hidden="true">📄</span>
-              <div>
-                <strong>Parecer / Autorização ao Requerente</strong>
-                <small>Endereçado ao solicitante com linguagem direta, clara e acessível (sem juridiquês desnecessário).</small>
-              </div>
-            </div>
-          </label>
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="codema">
-            <div class="destinacao-box">
-              <span class="dest-icon" aria-hidden="true">🏛️</span>
-              <div>
-                <strong>Ofício de Encaminhamento ao CODEMA</strong>
-                <small>Para deliberação da Plenária (espécies protegidas, grande porte, área pública, etc.).</small>
-              </div>
-            </div>
-          </label>
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="obras">
-            <div class="destinacao-box">
-              <span class="dest-icon" aria-hidden="true">🚜</span>
-              <div>
-                <strong>Ofício à Secretaria de Obras</strong>
-                <small>Para execução de corte ou poda pelo maquinário municipal (via pública ou risco iminente).</small>
-              </div>
-            </div>
-          </label>
-          <label class="destinacao-opt">
-            <input type="radio" name="destinacao-tipo" value="planejamento">
-            <div class="destinacao-box">
-              <span class="dest-icon" aria-hidden="true">🏙️</span>
-              <div>
-                <strong>Encaminhamento ao Planejamento Urbano</strong>
-                <small>Para providências administrativas e urbanísticas da Secretaria de Planejamento, separadamente da Secretaria de Obras.</small>
-              </div>
-            </div>
-          </label>
-        </div>
-
-        <div id="num-oficio-wrap" class="grid two" style="margin-top: 16px;" hidden>
-          <label>Número do Ofício
-            <input id="num-oficio" placeholder="Ex.: 042/2026 - DMA/SPUMA" autocomplete="off">
-          </label>
-          <label>Destinatário Formal
-            <input id="destinatario-formal" readonly>
-          </label>
-        </div>
-        <div class="grid two" style="margin-top: 16px;">
-          <label>Data de atualização / encaminhamento
-            <input id="data-encaminhamento" type="date">
-          </label>
-        </div>
-      </div>
-
-
-
-      <!-- SUMÁRIO DA DN 09/2026 -->
-      <div class="summary" style="margin-top: 22px;">
-        <article id="rota">
-          <small>Competência Decisória</small>
-          <strong>Aguardando avaliação...</strong>
-        </article>
-        <article id="modelo">
-          <small>Ato Administrativo</small>
-          <strong>Aguardando avaliação...</strong>
-        </article>
-      </div>
+      </details>
 
       <div id="alertas" class="alerts" hidden></div>
 
@@ -547,7 +507,7 @@
       <div class="actions">
         <button id="gerar" class="primary" type="button">Gerar Documento (Parecer / Ofício)</button>
         <button data-go="vistoria" type="button">← Revisar Vistoria</button>
-        <button data-go="compensacao" type="button">Avançar para Compensação →</button>
+        <button id="btn-ir-compensacao" data-go="compensacao" type="button">Registrar compensação →</button>
       </div>
 
       <!-- DOCUMENTO EMITIDO -->
@@ -559,13 +519,12 @@
           </div>
           <span id="rota-badge">SPUMA</span>
         </div>
-        <textarea id="saida" class="output" rows="30" aria-label="Texto do Parecer Técnico"></textarea>
+        <textarea id="saida" class="output" rows="10" aria-label="Texto do Parecer Técnico"></textarea>
         <div id="documento-impressao" class="official-document" aria-label="Prévia oficial do parecer"></div>
         <div class="actions">
           <button id="copiar" class="primary" type="button">Copiar texto</button>
           <button id="baixar" type="button">Baixar parecer (.txt)</button>
           <button id="imprimir" type="button">Imprimir / Salvar PDF</button>
-          <button id="btn-save-final-proc" class="button-outline" type="button">Salvar parecer e andamento</button>
         </div>
       </div>
 
@@ -661,7 +620,8 @@
           <option value="Encaminhado para a Secretaria de Planejamento">Encaminhado para a Secretaria de Planejamento</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
-          <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
+          <option value="Indeferido">Indeferido</option>
+          <option value="Arquivado">Arquivado</option>
             </select>
           </label>
           <label class="full">URL do Webhook do Google Apps Script
@@ -669,10 +629,6 @@
           </label>
         </div>
 
-        <div class="actions">
-          <button id="save-sheet" class="primary" type="button">Salvar compensação na planilha</button>
-          <button id="btn-save-processo" class="button-outline" type="button">💾 Salvar processo e compensação</button>
-        </div>
         <p id="sheet-status" class="sheet-status" role="status" aria-live="polite"></p>
       </section>
     </section>
@@ -696,9 +652,10 @@
         <article><small>Situação atual</small><strong id="modal-resumo-situacao">—</strong></article>
         <article><small>Solicitação</small><strong id="modal-resumo-objeto">—</strong></article>
         <article><small>Resultado do parecer</small><strong id="modal-resumo-conclusao">Não informado</strong></article>
-        <article><small>Compensação ambiental</small><strong id="modal-resumo-compensacao">—</strong></article>
+        <article id="modal-resumo-compensacao-card"><small>Compensação ambiental</small><strong id="modal-resumo-compensacao">—</strong></article>
       </section>      <div id="modal-tree-info" class="modal-tree-info" hidden></div>
-      <section id="modal-process-map-section" class="process-map-section" hidden aria-label="Localização da árvore">
+      <details id="modal-process-map-section" class="process-map-section modal-detail" hidden>
+        <summary>Ver localização no mapa</summary>
         <div class="process-map-heading">
           <div>
             <span class="process-map-kicker">Localização do exemplar</span>
@@ -708,8 +665,9 @@
         </div>
         <div id="modal-process-map" class="process-map-canvas"></div>
         <small id="modal-process-map-caption" class="process-map-caption"></small>
-      </section>
-      <section class="parecer-viewer">
+      </details>
+      <details class="parecer-viewer modal-detail">
+        <summary>Ver texto completo do parecer</summary>
         <div class="parecer-viewer-head">
           <div>
             <span class="process-map-kicker">Documento técnico</span>
@@ -717,13 +675,13 @@
           </div>
           <small id="modal-parecer-aviso" class="text-muted"></small>
         </div>
-        <textarea id="modal-parecer-texto" class="output" rows="18" readonly></textarea>
+        <textarea id="modal-parecer-texto" class="output" rows="8" readonly></textarea>
         <div id="modal-parecer-vazio" class="parecer-empty" hidden>
           <strong>Parecer ainda não preenchido</strong>
           <p>Continue o processo para registrar a vistoria, definir a conclusão técnica e gerar o documento.</p>
           <button id="modal-btn-continuar" type="button" class="btn-sm primary">Continuar preenchimento</button>
         </div>
-      </section>
+      </details>
     </div>
     <footer class="dialog-footer">
       <div class="dialog-status-changer">
@@ -739,7 +697,8 @@
           <option value="Encaminhado para a Secretaria de Planejamento">Encaminhado para a Secretaria de Planejamento</option>
           <option value="Aguardando Compensação">Aguardando Compensação</option>
           <option value="Compensado">Compensado</option>
-          <option value="Indeferido / Arquivado">Indeferido / Arquivado</option>
+          <option value="Indeferido">Indeferido</option>
+          <option value="Arquivado">Arquivado</option>
         </select>
         <button id="modal-status-save" type="button" class="btn-sm primary">Salvar andamento</button>
         <span id="modal-status-feedback" class="status-feedback" role="status" aria-live="polite"></span>
@@ -791,7 +750,7 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script src="data/flora-ameacada.js"></script>
-<script defer src="index.js?v=19"></script>
+<script defer src="index.js?v=25"></script>
 <script defer src="pending-map.js?v=5"></script>
 
 <!-- ══════ MODAL MAPA DE ÁRVORES ══════ -->

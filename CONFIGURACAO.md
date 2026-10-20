@@ -22,7 +22,7 @@
 
 A planilha configurada é `Controle de compensação - Corte de Árvore`, aba `Página1`, ID `1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU`.
 
-O Apps Script dessa planilha deve responder com `apiVersion: 7`. Depois de substituir o código, execute uma vez a função `configurarPlanilhas` para criar/ajustar as abas e, então, use **Implantar > Gerenciar implantações > Editar > Nova versão > Implantar**. A versão 7 preserva a coluna `Fiscal` já existente, grava a vistoria completa, cria a aba `Detalhes da Vistoria`, registra fiscal, datas e forma de compensação e permite retomar o processo em outro aparelho.
+O Apps Script dessa planilha deve responder com `apiVersion: 8`. Depois de substituir o código, execute uma vez a função `configurarPlanilhas` para validar a aba e criar/ajustar somente a aba separada `Detalhes da Vistoria`. Em seguida, use **Implantar > Gerenciar implantações > Editar > Nova versão > Implantar**. A versão 8 localiza as colunas pelo nome e nunca insere, move ou renomeia colunas da aba `Página1`; telefone, endereço e coordenadas permanecem nos cabeçalhos existentes, enquanto situação e fiscal ficam preservados no JSON da vistoria.
 
 ## 3. Inventário Arbóreo e fotos
 

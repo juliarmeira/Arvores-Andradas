@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check index.js"
+    "check": "node --check server.js && node --check index.js",
+    "test": "node --test --test-isolation=none"
   },
   "engines": { "node": ">=20" }
 }
