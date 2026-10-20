@@ -18,6 +18,8 @@
 // CONFIGURAÇÃO
 // ============================
 const SHEET_NAME = 'Arvores'; // Nome oficial da aba na planilha
+const SHEET_GID = 180119124;
+const API_VERSION = 2;
 
 // ============================
 // WEB APP — GET (listar)
@@ -28,6 +30,10 @@ function doGet(e) {
 
   if (action === 'list') {
     return listTrees();
+  }
+
+  if (action === 'capabilities') {
+    return jsonResponse({ status: 'ok', ok: true, apiVersion: API_VERSION });
   }
 
   return jsonResponse({ status: 'ok', message: 'Inventário Arbóreo API - Andradas MG' });
@@ -70,14 +76,14 @@ function doPost(e) {
 // ============================
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_NAME);
+  let sheet = ss.getSheets().find(function(item) { return item.getSheetId() === SHEET_GID; }) || ss.getSheetByName(SHEET_NAME);
 
-  // Se não encontrar pelo nome exato, busca por variações ou pelo ID 1119417971
+  // Se não encontrar pelo nome exato, busca pela aba oficial informada.
   if (!sheet) {
     const allSheets = ss.getSheets();
     for (let i = 0; i < allSheets.length; i++) {
       const s = allSheets[i];
-      if (s.getSheetId() === 1119417971 || s.getName().toLowerCase().indexOf('arvore') !== -1) {
+      if (s.getSheetId() === SHEET_GID || s.getName().toLowerCase().indexOf('arvore') !== -1) {
         sheet = s;
         break;
       }
@@ -91,15 +97,15 @@ function getSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
     // Cabeçalho conforme especificação da Prefeitura
     sheet.appendRow([
-      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Logradouro', 'Rua', 'Bairro',
+      'ID', 'Data Cadastro', 'Latitude', 'Longitude', 'Rua', 'Bairro', 'Logradouro',
       'Referencia', 'Local Plantio', 'Especie', 'Nome Cientifico', 'Familia', 'Origem', 'Data Coleta',
       'Amostra Coletada', 'Certeza', 'Porte', 'Tronco',
-      'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5',
-      'Problemas', 'Interferencias', 'Intervencao', 'Mes Poda', 'Ultima Poda',
-      'Observacoes', 'Status', 'Data Atualizacao'
+      'Fotos (qtd)', 'Problemas', 'Interferencias', 'Intervencao', 'Mes Poda', 'Ultima Poda',
+      'Historico Poda', 'Observacoes', 'Status', 'Data Atualizacao',
+      'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5'
     ]);
     // Formata cabecalho
-    const headerRange = sheet.getRange(1, 1, 1, 31);
+    const headerRange = sheet.getRange(1, 1, 1, 33);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#059669');
     headerRange.setFontColor('#FFFFFF');
@@ -117,7 +123,38 @@ function getSheet() {
     sheet.setColumnWidth(14, 100); // Data Coleta
   }
 
+  const extraHeaders = ['DAP', 'Altura', 'Protocolo Vistoria'];
+  if (sheet.getMaxColumns() < 36) sheet.insertColumnsAfter(sheet.getMaxColumns(), 36 - sheet.getMaxColumns());
+  sheet.getRange(1, 34, 1, extraHeaders.length).setValues([extraHeaders]);
   return sheet;
+}
+
+function getPhotoFolder() {
+  const properties = PropertiesService.getScriptProperties();
+  const savedId = properties.getProperty('INVENTORY_PHOTO_FOLDER_ID');
+  if (savedId) {
+    try { return DriveApp.getFolderById(savedId); } catch (ignore) {}
+  }
+  const folder = DriveApp.createFolder('Inventário Arbóreo - Fotos');
+  properties.setProperty('INVENTORY_PHOTO_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function savePhotoValue(value, treeId, index) {
+  const text = String(value || '');
+  if (!text || text.indexOf('data:image/') !== 0) return text;
+  const match = text.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) return '';
+  const extension = match[1].indexOf('png') !== -1 ? 'png' : match[1].indexOf('webp') !== -1 ? 'webp' : 'jpg';
+  const blob = Utilities.newBlob(Utilities.base64Decode(match[2]), match[1], 'arvore-' + treeId + '-foto-' + index + '.' + extension);
+  const file = getPhotoFolder().createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (ignore) {}
+  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+}
+
+function preparePhotos(data, treeId) {
+  for (let i = 1; i <= 5; i++) data['foto' + i] = savePhotoValue(data['foto' + i], treeId, i);
+  return data;
 }
 
 function formatDate(d) {
@@ -137,15 +174,16 @@ function jsonResponse(data) {
 function createTree(data) {
   const sheet = getSheet();
   const id = data.id || new Date().getTime();
+  data = preparePhotos(data || {}, id);
 
   const row = [
     id,
     formatDate(new Date(data.timestamp)),
     data.latitude || '',
     data.longitude || '',
-    data.logradouro || '',
     data.rua || '',
     data.bairro || '',
+    data.logradouro || '',
     data.referencia || '',
     data.localPlantio || '',
     data.especie || '',
@@ -157,19 +195,18 @@ function createTree(data) {
     data.certeza || '',
     data.porte || data.porte2 || '',
     data.tronco || data.tronco2 || '',
-    data.foto1 || '',
-    data.foto2 || '',
-    data.foto3 || '',
-    data.foto4 || '',
-    data.foto5 || '',
+    [data.foto1, data.foto2, data.foto3, data.foto4, data.foto5].filter(Boolean).length,
     (data.problemas || []).join(', '),
     (data.interferencia || []).join(', '),
     data.intervencao || '',
     data.mesPoda || '',
     data.dataUltimaPoda || '',
+    data.historicoPoda || '',
     data.observacoes || '',
     data.status || '',
-    formatDate(new Date(data.dataAtualizacao))
+    formatDate(new Date(data.dataAtualizacao)),
+    data.foto1 || '', data.foto2 || '', data.foto3 || '', data.foto4 || '', data.foto5 || '',
+    data.dap || '', data.altura || '', data.protocoloVistoria || ''
   ];
 
   sheet.appendRow(row);
@@ -177,51 +214,38 @@ function createTree(data) {
   return jsonResponse({
     status: 'ok',
     message: 'Árvore cadastrada com sucesso',
-    id: id
+    id: id,
+    data: { fotos: [data.foto1, data.foto2, data.foto3, data.foto4, data.foto5].filter(Boolean) }
   });
 }
 
 function updateTree(id, data) {
   const sheet = getSheet();
+  data = preparePhotos(data || {}, id);
   const allData = sheet.getDataRange().getValues();
 
   for (let i = 1; i < allData.length; i++) {
     if (String(allData[i][0]) === String(id)) {
       const rowNum = i + 1;
-      sheet.getRange(rowNum, 3).setValue(data.latitude || '');
-      sheet.getRange(rowNum, 4).setValue(data.longitude || '');
-      sheet.getRange(rowNum, 5).setValue(data.logradouro || '');
-      sheet.getRange(rowNum, 6).setValue(data.rua || '');
-      sheet.getRange(rowNum, 7).setValue(data.bairro || '');
-      sheet.getRange(rowNum, 8).setValue(data.referencia || '');
-      sheet.getRange(rowNum, 9).setValue(data.localPlantio || '');
-      sheet.getRange(rowNum, 10).setValue(data.especie || '');
-      sheet.getRange(rowNum, 11).setValue(data.nomeCientifico || data.especie || '');
-      sheet.getRange(rowNum, 12).setValue(data.familia || '');
-      sheet.getRange(rowNum, 13).setValue(data.origem || '');
-      sheet.getRange(rowNum, 14).setValue(data.dataColeta || '');
-      sheet.getRange(rowNum, 15).setValue(data.amostra || '');
-      sheet.getRange(rowNum, 16).setValue(data.certeza || '');
-      sheet.getRange(rowNum, 17).setValue(data.porte || data.porte2 || '');
-      sheet.getRange(rowNum, 18).setValue(data.tronco || data.tronco2 || '');
-      sheet.getRange(rowNum, 19).setValue(data.foto1 || '');
-      sheet.getRange(rowNum, 20).setValue(data.foto2 || '');
-      sheet.getRange(rowNum, 21).setValue(data.foto3 || '');
-      sheet.getRange(rowNum, 22).setValue(data.foto4 || '');
-      sheet.getRange(rowNum, 23).setValue(data.foto5 || '');
-      sheet.getRange(rowNum, 24).setValue((data.problemas || []).join(', '));
-      sheet.getRange(rowNum, 25).setValue((data.interferencia || []).join(', '));
-      sheet.getRange(rowNum, 26).setValue(data.intervencao || '');
-      sheet.getRange(rowNum, 27).setValue(data.mesPoda || '');
-      sheet.getRange(rowNum, 28).setValue(data.dataUltimaPoda || '');
-      sheet.getRange(rowNum, 29).setValue(data.observacoes || '');
-      sheet.getRange(rowNum, 30).setValue(data.status || '');
-      sheet.getRange(rowNum, 31).setValue(formatDate(new Date(data.dataAtualizacao)));
+      const photos = [data.foto1, data.foto2, data.foto3, data.foto4, data.foto5];
+      const row = [
+        id, allData[i][1] || formatDate(new Date(data.timestamp)), data.latitude || '', data.longitude || '',
+        data.rua || '', data.bairro || '', data.logradouro || '', data.referencia || '', data.localPlantio || '',
+        data.especie || '', data.nomeCientifico || data.especie || '', data.familia || '', data.origem || '',
+        data.dataColeta || '', data.amostra || '', data.certeza || '', data.porte || data.porte2 || '',
+        data.tronco || data.tronco2 || '', photos.filter(Boolean).length, (data.problemas || []).join(', '),
+        (data.interferencia || []).join(', '), data.intervencao || '', data.mesPoda || '', data.dataUltimaPoda || '',
+        data.historicoPoda || allData[i][24] || '', data.observacoes || '', data.status || '',
+        formatDate(new Date(data.dataAtualizacao)), photos[0] || '', photos[1] || '', photos[2] || '', photos[3] || '', photos[4] || '',
+        data.dap || '', data.altura || '', data.protocoloVistoria || ''
+      ];
+      sheet.getRange(rowNum, 1, 1, row.length).setValues([row]);
 
       return jsonResponse({
         status: 'ok',
         message: 'Árvore atualizada com sucesso',
-        id: id
+        id: id,
+        data: { fotos: [data.foto1, data.foto2, data.foto3, data.foto4, data.foto5].filter(Boolean) }
       });
     }
   }

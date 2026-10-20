@@ -1,7 +1,7 @@
 const DB_KEY = 'arbore_andradas_v4';
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzYaVf1-1iWrUVNZZkvNwPH1TvNqEqS7EYqu2goz-gNTO7tw5ZvKVPXz-HIZB6jrHiB/exec';
-const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/edit?gid=1119417971#gid=1119417971';
-const CSV_EXPORT_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/export?format=csv&gid=1119417971';
+const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/edit?gid=180119124#gid=180119124';
+const CSV_EXPORT_URL = 'https://docs.google.com/spreadsheets/d/1A8mIArlQiqcvnIgRGYgSiU5WDF2ClbGYe0XOHiyOciU/gviz/tq?tqx=out:csv&gid=180119124';
 const FLORA_API_URL = 'https://servicos.jbrj.gov.br/v2/flora/taxon/';
 
 /**
@@ -666,7 +666,10 @@ function loadTreesFromSheets(isManual) {
                     dataUltimaPoda: getVal('Ultima Poda'),
                     observacoes: getVal('Observacoes'),
                     status: getVal('Status') || 'saudavel',
-                    dataAtualizacao: parseBrDate(getVal('Data Atualizacao'))
+                    dataAtualizacao: parseBrDate(getVal('Data Atualizacao')),
+                    dap: getVal('DAP'),
+                    altura: getVal('Altura'),
+                    protocoloVistoria: getVal('Protocolo Vistoria')
                 };
 
                 if (!item.logradouro) {
@@ -733,7 +736,10 @@ function loadTreesFromSheets(isManual) {
                                 dataUltimaPoda: st['Ultima Poda'] || '',
                                 observacoes: st['Observacoes'] || '',
                                 status: st['Status'] || 'saudavel',
-                                dataAtualizacao: parseBrDate(st['Data Atualizacao'])
+                                dataAtualizacao: parseBrDate(st['Data Atualizacao']),
+                                dap: st['DAP'] || '',
+                                altura: st['Altura'] || '',
+                                protocoloVistoria: st['Protocolo Vistoria'] || ''
                             };
                             if (existingIdx === -1) {
                                 trees.push(item);
@@ -1678,6 +1684,13 @@ function syncToSheets(data, action) {
         return res.json();
     }).then(function(result) {
         if (result && (result.success || result.status === 'ok')) {
+            if (result.id) data.id = result.id;
+            if (result.data && Array.isArray(result.data.fotos)) {
+                data.fotos = result.data.fotos;
+                var savedIndex = trees.findIndex(function(item) { return String(item.id) === String(data.id); });
+                if (savedIndex !== -1) trees[savedIndex].fotos = result.data.fotos;
+                saveData();
+            }
             showToast('Salvo com sucesso na planilha!');
         } else {
             showToast('Salvo no dispositivo (pendente na planilha)');
@@ -1887,6 +1900,10 @@ function getFormData() {
     d.observacoes = (document.getElementById('observacoes') || {}).value || '';
     d.timestamp = editingId ? (trees.find(function(t) { return t.id === editingId; }) || {}).timestamp || Date.now() : Date.now();
     d.dataAtualizacao = Date.now();
+    var existingTree = editingId ? trees.find(function(t) { return t.id === editingId; }) : null;
+    d.dap = (existingTree && existingTree.dap) || '';
+    d.altura = (existingTree && existingTree.altura) || '';
+    d.protocoloVistoria = (existingTree && existingTree.protocoloVistoria) || '';
 
     var prob = d.problemas.length;
     var inter = d.interferencia.length;
@@ -2281,4 +2298,3 @@ function initMapFilters() {
         });
     });
 }
-
