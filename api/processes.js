@@ -88,6 +88,9 @@ export const processFromRow = (row, index, headers = []) => {
       const saved = String(details.situacao || "").trim();
       if (saved) return saved;
       const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
+      // Suporte ao formato legado: texto plano nas colunas Dados da Vistoria 1-2
+      const dv1 = cell("Dados da Vistoria 1");
+      if (dv1 && !dv1.trim().startsWith("{") && allowed.has(dv1.trim())) return dv1.trim();
       return [row[14], row[15]].map(value => String(value || "").trim()).find(value => allowed.has(value)) || "Aguardando Vistoria";
     })(),
     coordenadas: {
@@ -98,7 +101,16 @@ export const processFromRow = (row, index, headers = []) => {
     autorizacao: cell("Autorização", 9),
     dataAutorizacao: brDateToIso(cell("Data da Autorização", 10)),
     compensacao: cell("Compensação", 11),
-    fiscalNome: cell("Fiscal") || String(details.fiscalNome || ""),
+    fiscalNome: (() => {
+      const fromNamed = cell("Fiscal");
+      if (fromNamed) return fromNamed;
+      const fromDetails = String(details.fiscalNome || "");
+      if (fromDetails) return fromDetails;
+      // Formato legado: nome do fiscal em texto plano em "Dados da Vistoria 2"
+      const dv2 = cell("Dados da Vistoria 2");
+      if (dv2 && !dv2.trim().startsWith("{") && dv2.trim().length > 2) return dv2.trim();
+      return "";
+    })(),
     formaCompensacaoLabel: cell("Forma de Compensação", 20),
     prazo: brDateToIso(cell("Prazo", 12)),
     coordComp1: cell("Coordenada 1 Comp.", 13),

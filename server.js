@@ -273,7 +273,17 @@ const server = http.createServer(async (req, res) => {
             solicitacaoRequerente: cell("Solicita\u00e7\u00e3o", 4),
             intervencao: cell("Solicita\u00e7\u00e3o", 4),
             intervencaoLabel: cell("Solicita\u00e7\u00e3o", 4),
-            situacao: String(details.situacao || cell("Situa\u00e7\u00e3o")).trim() || "Aguardando Vistoria",
+            situacao: (() => {
+              const named = cell("Situação").trim();
+              if (named) return named;
+              const fromDetails = String(details.situacao || "").trim();
+              if (fromDetails) return fromDetails;
+              const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
+              // Formato legado: texto plano em "Dados da Vistoria 1"
+              const dv1 = cell("Dados da Vistoria 1");
+              if (dv1 && !dv1.trim().startsWith("{") && allowed.has(dv1.trim())) return dv1.trim();
+              return [row[14], row[15]].map(v => String(v || "").trim()).find(v => allowed.has(v)) || "Aguardando Vistoria";
+            })(),
             coordenadas: {
               lat: coordinateFromSheetCell(cell("Coordenada 1 Corte", 6), 90),
               lng: coordinateFromSheetCell(cell("Coordenada 2 Corte", 7), 180)
@@ -282,7 +292,16 @@ const server = http.createServer(async (req, res) => {
             autorizacao: cell("Autoriza\u00e7\u00e3o", 9),
             dataAutorizacao: brDateToIso(cell("Data da Autoriza\u00e7\u00e3o", 10)),
             compensacao: cell("Compensa\u00e7\u00e3o", 11),
-            fiscalNome: cell("Fiscal") || String(details.fiscalNome || ""),
+            fiscalNome: (() => {
+              const fromNamed = cell("Fiscal");
+              if (fromNamed) return fromNamed;
+              const fromDetails = String(details.fiscalNome || "");
+              if (fromDetails) return fromDetails;
+              // Formato legado: nome do fiscal em texto plano em "Dados da Vistoria 2"
+              const dv2 = cell("Dados da Vistoria 2");
+              if (dv2 && !dv2.trim().startsWith("{") && dv2.trim().length > 2) return dv2.trim();
+              return "";
+            })(),
             formaCompensacaoLabel: cell("Forma de Compensa\u00e7\u00e3o", 20),
             prazo: brDateToIso(cell("Prazo", 12)),
             coordComp1: cell("Coordenada 1 Comp.", 13),
