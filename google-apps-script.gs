@@ -39,6 +39,16 @@ function ensureProcessDataColumns(sheet) {
     return !processColumn(map, header);
   });
   if (missing.length) throw new Error('Cabeçalhos obrigatórios ausentes na Página1: ' + missing.join(', '));
+  // Remove any lingering data validation on inspection data columns (P‑U) to allow JSON storage.
+  const inspectionCols = ['Dados da Vistoria 1', 'Dados da Vistoria 2', 'Dados da Vistoria 3', 'Dados da Vistoria 4', 'Atualizado em', 'Forma de Compensação'];
+  inspectionCols.forEach(function(header) {
+    const col = processColumn(map, header);
+    if (col) {
+      try {
+        sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1)).clearDataValidations();
+      } catch (e) {}
+    }
+  });
   return map;
 }
 
@@ -49,7 +59,21 @@ function processColumn(map, header) {
 function setProcessValues(sheet, row, map, values) {
   Object.keys(values).forEach(function(header) {
     const column = processColumn(map, header);
-    if (column) sheet.getRange(row, column).setValue(values[header]);
+    if (column) {
+      const cell = sheet.getRange(row, column);
+      try {
+        cell.setValue(values[header]);
+      } catch (err) {
+        // Se a célula tiver regra de validação conflitante (ex: P274 antiga coluna de Situação),
+        // limpa a validação da célula e grava novamente:
+        try {
+          cell.clearDataValidations();
+          cell.setValue(values[header]);
+        } catch (innerErr) {
+          throw err;
+        }
+      }
+    }
   });
 }
 
