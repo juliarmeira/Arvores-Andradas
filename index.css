@@ -517,6 +517,8 @@ textarea {
 .photo-camera-action input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .photo-camera-action span { display: block; padding: 7px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--green); cursor: pointer; font-size: .72rem; font-weight: 800; }
 .photo-camera-action span:hover { border-color: var(--green); background: #eaf3ed; }
+.btn-remove-photo { display: block; width: 100%; padding: 5px 4px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2; color: #b91c1c; cursor: pointer; font-size: .72rem; font-weight: 700; text-align: center; }
+.btn-remove-photo:hover { background: #fee2e2; border-color: #ef4444; }
 
 .tree-coordinate-panel { padding: 14px; border: 1px solid #b9d4c1; border-radius: 12px; background: #f4faf6; }
 .tree-coordinate-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }

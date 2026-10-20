@@ -412,6 +412,7 @@ function photoSlots(t, i) {
         <input type="file" data-tree="${i}" data-organ="${key}" data-photo-source="camera" accept="image/*" capture="environment">
         <span>📷 Câmera</span>
       </label>
+      ${photo ? `<button type="button" class="btn-remove-photo" data-tree="${i}" data-organ="${key}" title="Remover foto de ${title}">✕ Remover foto</button>` : ''}
     </div>
   `;
   }).join('');
@@ -684,6 +685,20 @@ function bindSpecies() {
           if (status) status.textContent = `${Object.keys(trees[i].photos).length} foto(s) anexada(s). Clique para identificar.`;
           scheduleProcessAutosave();
         });
+      });
+    });
+
+    // Remoção individual de fotos
+    card.querySelectorAll('.btn-remove-photo').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const organ = btn.dataset.organ;
+        if (trees[i]?.photos && organ) {
+          delete trees[i].photos[organ];
+          renderAll(false);
+          scheduleProcessAutosave();
+        }
       });
     });
 
@@ -2441,7 +2456,11 @@ function renderProcessos() {
         <button type="button" class="primary" id="btn-empty-novo">➕ Iniciar Nova Solicitação</button>
       </div>
     `;
-    $('btn-empty-novo')?.addEventListener('click', () => switchMainView('novo'));
+    $('btn-empty-novo')?.addEventListener('click', () => {
+      resetProcessForm();
+      switchMainView('novo');
+      showTab('requerimento');
+    });
     return;
   }
 
@@ -2509,6 +2528,7 @@ function renderProcessos() {
             <div class="process-more-menu">
               <button type="button" class="btn-sm button-outline btn-resume-proc" data-id="${esc(p.id)}">Continuar ou editar</button>
               <button type="button" class="btn-sm button-outline btn-change-status" data-id="${esc(p.id)}">Atualizar andamento</button>
+              <button type="button" class="btn-sm button-outline btn-revert-proc" data-id="${esc(p.id)}">Restaurar da planilha</button>
               <button type="button" class="btn-sm button-outline btn-delete-proc danger-action" data-id="${esc(p.id)}">Excluir processo</button>
             </div>
           </details>
@@ -2531,6 +2551,10 @@ function renderProcessos() {
 
   listEl.querySelectorAll('.btn-change-status').forEach(btn => {
     btn.addEventListener('click', () => openStatusModal(btn.dataset.id));
+  });
+
+  listEl.querySelectorAll('.btn-revert-proc').forEach(btn => {
+    btn.addEventListener('click', () => revertProcessoToSheet(btn.dataset.id));
   });
 
   listEl.querySelectorAll('.btn-delete-proc').forEach(btn => {
@@ -3009,6 +3033,119 @@ async function saveFinalProcesso() {
   switchMainView('processos');
 }
 
+// ── Limpeza e Isolamento Completo do Formulário por Protocolo ───────────────
+function resetProcessForm() {
+  clearTimeout(processAutosaveTimer);
+  clearTimeout(processAutoSyncTimer);
+  currentEditingProcessId = null;
+
+  // 1. Etapa 1
+  if ($('processo')) $('processo').value = '';
+  if ($('data-cadastro')) $('data-cadastro').value = new Date().toISOString().slice(0, 10);
+  if ($('requerente')) $('requerente').value = '';
+  if ($('telefone')) $('telefone').value = '';
+  if ($('requerente-solicita')) $('requerente-solicita').value = '';
+  if ($('local')) $('local').value = '';
+  if ($('intervencao')) $('intervencao').value = 'corte';
+  if ($('finalidade')) $('finalidade').value = 'risco';
+  if ($('finalidade-outro-wrap')) $('finalidade-outro-wrap').hidden = true;
+  if ($('finalidade-outro-detalhe')) $('finalidade-outro-detalhe').value = '';
+  if ($('geo-lat')) $('geo-lat').value = '';
+  if ($('geo-lng')) $('geo-lng').value = '';
+  if ($('coord-corte-1')) $('coord-corte-1').value = '';
+  if ($('coord-corte-2')) $('coord-corte-2').value = '';
+  if (treeMiniMap && treeMiniMarker) {
+    try {
+      treeMiniMap.removeLayer(treeMiniMarker);
+      treeMiniMarker = null;
+    } catch (e) {}
+  }
+  linkedTree = null;
+  detectInventoryMatch();
+
+  // 2. Etapa 2
+  if ($('quantidade')) $('quantidade').value = '1';
+  trees = [defaultTree(0)];
+  renderAll(false);
+
+  // 3. Etapa 3
+  ['area', 'grande', 'valor', 'impacto', 'alternativa', 'especial', 'executor'].forEach(field => {
+    const el = $(field);
+    if (el) el.value = el.options?.[0]?.value || '';
+  });
+  if ($('diagnostico')) $('diagnostico').value = '';
+  if ($('conclusao')) $('conclusao').value = 'deferir';
+  if ($('destinacao-tipo')) {
+    $('destinacao-tipo').value = 'requerente';
+    $('destinacao-tipo').dispatchEvent(new Event('change'));
+  }
+  if ($('intervencao-autorizada')) $('intervencao-autorizada').value = 'corte';
+  if ($('saida')) $('saida').value = '';
+  if ($('documento')) $('documento').hidden = true;
+  const preview = $('documento-impressao');
+  if (preview) preview.innerHTML = '';
+  if ($('num-oficio')) $('num-oficio').value = '';
+  if ($('destinatario-formal')) $('destinatario-formal').value = '';
+  if ($('data-vistoria')) $('data-vistoria').value = '';
+  if ($('data-encaminhamento')) $('data-encaminhamento').value = '';
+
+  // 4. Etapa 4
+  if ($('forma')) $('forma').value = 'plantio';
+  if ($('responsavel-corte')) $('responsavel-corte').value = 'Solicitante';
+  if ($('autorizacao')) $('autorizacao').value = '';
+  if ($('data-autorizacao')) $('data-autorizacao').value = '';
+  if ($('data-compensacao')) $('data-compensacao').value = '';
+  if ($('prazo')) $('prazo').value = '';
+  if ($('coord-comp-1')) $('coord-comp-1').value = '';
+  if ($('coord-comp-2')) $('coord-comp-2').value = '';
+  if ($('situacao')) $('situacao').value = 'Aguardando Vistoria';
+
+  parecerNeedsRegeneration = true;
+  updateCompensation();
+  updateCalculationSummary();
+  update();
+  setProcessAutosaveStatus('Informe o número do processo para começar.');
+}
+
+// ── Restaurar Processo Limpo da Planilha ─────────────────────────────────────
+async function revertProcessoToSheet(procId) {
+  const p = processos.find(x => x.id === procId);
+  if (!p) return;
+  if (!confirm(`Deseja limpar as fotos e edições locais do processo nº ${p.protocolo} e restaurar como está na planilha?`)) return;
+
+  try {
+    const res = await fetch('/api/processes');
+    const data = await res.json();
+    if (data.ok && Array.isArray(data.processes)) {
+      const remote = data.processes.find(r => String(r.protocolo) === String(p.protocolo));
+      if (remote) {
+        processos = processos.map(x => x.id === procId ? remote : x);
+        await saveProcessos();
+        if (currentEditingProcessId === procId) {
+          resumeProcesso(procId);
+        }
+        alert(`Processo nº ${p.protocolo} restaurado com sucesso.`);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[vistoria] Não foi possível buscar da API remota:', e);
+  }
+
+  p.trees = [];
+  delete p.diagnostico;
+  delete p.conclusao;
+  delete p.parecerTexto;
+  delete p.vistoriaInLoco;
+  delete p.vistoriaRealizadaEm;
+  p.syncStatus = 'synced';
+  await saveProcessos();
+  if (currentEditingProcessId === procId) {
+    resumeProcesso(procId);
+  }
+  alert(`Fotos e dados locais do processo nº ${p.protocolo} foram limpos.`);
+}
+
 // ── Retomada / Edição de Processo no Wizard ─────────────────────────────────
 function resumeProcesso(id) {
   const p = processos.find(x => x.id === id);
@@ -3016,6 +3153,10 @@ function resumeProcesso(id) {
     alert('Processo não encontrado.');
     return;
   }
+
+  // 1. Limpa completamente qualquer resíduo de processo anterior
+  resetProcessForm();
+
   currentEditingProcessId = p.id;
   setProcessAutosaveStatus('Processo carregado. As alterações serão salvas automaticamente.', 'saved');
 
@@ -3032,14 +3173,14 @@ function resumeProcesso(id) {
     }
   }
 
-  // 1. Restaura campos da Etapa 1
+  // 2. Restaura campos da Etapa 1
   if ($('processo')) $('processo').value = p.protocolo || '';
   if ($('data-cadastro')) $('data-cadastro').value = p.dataCadastro || p.data || '';
   if ($('requerente')) $('requerente').value = p.requerente || '';
   if ($('telefone')) $('telefone').value = p.telefone || '';
   if ($('requerente-solicita')) $('requerente-solicita').value = p.solicitacaoRequerente || '';
   if ($('local')) $('local').value = p.endereco || '';
-  if ($('intervencao') && p.intervencao) $('intervencao').value = p.intervencao;
+  if ($('intervencao')) $('intervencao').value = p.intervencao || 'corte';
 
   // Finalidade e motivo detalhado
   if ($('finalidade')) {
@@ -3047,6 +3188,10 @@ function resumeProcesso(id) {
       $('finalidade').value = p.finalidadeVal;
     } else if (p.finalidade && p.finalidade.toLowerCase().includes('outro')) {
       $('finalidade').value = 'outro';
+    } else if (p.finalidade) {
+      $('finalidade').value = p.finalidade;
+    } else {
+      $('finalidade').value = 'risco';
     }
   }
   const outroWrap = $('finalidade-outro-wrap');
@@ -3056,6 +3201,7 @@ function resumeProcesso(id) {
     if (outroInp) outroInp.value = p.finalidadeOutroDetalhe || (p.finalidade?.replace(/^Outro:\s*/, '') || '');
   } else {
     if (outroWrap) outroWrap.hidden = true;
+    if (outroInp) outroInp.value = '';
   }
 
   // Coordenadas
@@ -3078,31 +3224,34 @@ function resumeProcesso(id) {
   } else {
     linkedTree = null;
   }
+  detectInventoryMatch();
 
-  // 2. Restaura árvores da Etapa 2
+  // 3. Restaura árvores da Etapa 2 exclusivamente deste processo
   if (Array.isArray(p.trees) && p.trees.length > 0) {
     trees = JSON.parse(JSON.stringify(p.trees));
     if ($('quantidade')) $('quantidade').value = trees.length;
     renderAll(false);
   } else {
-    const q = p.quantidade || 1;
+    const q = Math.max(1, Math.min(100, Math.floor(Number(p.quantidade) || 1)));
     if ($('quantidade')) $('quantidade').value = q;
-    renderAll(true);
+    trees = Array.from({ length: q }, (_, i) => defaultTree(i));
+    renderAll(false);
   }
 
-  // 3. Restaura campos da Etapa 3
+  // 4. Restaura campos da Etapa 3
   const storedFiscal = processFiscal(p);
   if (storedFiscal.nome) {
     if (!fiscalProfiles.some(item => fiscalKey(item) === fiscalKey(storedFiscal))) fiscalProfiles.push(storedFiscal);
     renderFiscalSelectors(fiscalKey(storedFiscal));
   }
   ['area', 'grande', 'valor', 'impacto', 'alternativa', 'especial', 'executor'].forEach(field => {
-    if ($(field) && p[field]) $(field).value = p[field];
+    const el = $(field);
+    if (el) el.value = p[field] || el.options?.[0]?.value || '';
   });
-  if ($('diagnostico') && p.diagnostico) $('diagnostico').value = p.diagnostico;
-  if ($('conclusao') && p.conclusao) $('conclusao').value = p.conclusao;
-  if ($('destinacao-tipo') && p.destinacaoTipo) {
-    $('destinacao-tipo').value = p.destinacaoTipo;
+  if ($('diagnostico')) $('diagnostico').value = p.diagnostico || '';
+  if ($('conclusao')) $('conclusao').value = p.conclusao || 'deferir';
+  if ($('destinacao-tipo')) {
+    $('destinacao-tipo').value = p.destinacaoTipo || 'requerente';
     $('destinacao-tipo').dispatchEvent(new Event('change'));
   }
   if ($('intervencao-autorizada')) {
@@ -3112,7 +3261,10 @@ function resumeProcesso(id) {
     $('saida').value = p.parecerTexto;
     if ($('documento')) $('documento').hidden = false;
     parecerNeedsRegeneration = false;
+    renderOfficialDocument(p.parecerTexto);
   } else {
+    if ($('saida')) $('saida').value = '';
+    if ($('documento')) $('documento').hidden = true;
     parecerNeedsRegeneration = true;
   }
   if ($('num-oficio')) $('num-oficio').value = p.numeroOficio || '';
@@ -3120,18 +3272,18 @@ function resumeProcesso(id) {
   if ($('data-vistoria')) $('data-vistoria').value = p.dataVistoria || (p.vistoriaRealizadaEm ? String(p.vistoriaRealizadaEm).slice(0, 10) : '');
   if ($('data-encaminhamento')) $('data-encaminhamento').value = p.dataEncaminhamento || '';
 
-  // 4. Restaura os dados administrativos da compensação
-  if ($('forma') && p.formaCompensacao) $('forma').value = p.formaCompensacao;
-  if ($('responsavel-corte') && p.responsavelCorte) $('responsavel-corte').value = p.responsavelCorte;
-  if ($('autorizacao') && p.autorizacao) $('autorizacao').value = p.autorizacao;
-  if ($('data-autorizacao') && p.dataAutorizacao) $('data-autorizacao').value = p.dataAutorizacao;
+  // 5. Restaura os dados administrativos da compensação
+  if ($('forma')) $('forma').value = p.formaCompensacao || 'plantio';
+  if ($('responsavel-corte')) $('responsavel-corte').value = p.responsavelCorte || 'Solicitante';
+  if ($('autorizacao')) $('autorizacao').value = p.autorizacao || '';
+  if ($('data-autorizacao')) $('data-autorizacao').value = p.dataAutorizacao || '';
   if ($('data-compensacao')) $('data-compensacao').value = p.dataCompensacao || (p.compensacaoConfirmadaEm ? brDateToIsoLocal(p.compensacaoConfirmadaEm) : '');
-  if ($('prazo') && p.prazo) $('prazo').value = p.prazo;
-  if ($('coord-comp-1') && p.coordComp1) $('coord-comp-1').value = p.coordComp1;
-  if ($('coord-comp-2') && p.coordComp2) $('coord-comp-2').value = p.coordComp2;
-  if ($('situacao') && p.situacao) $('situacao').value = statusForProcess(p);
+  if ($('prazo')) $('prazo').value = p.prazo || '';
+  if ($('coord-comp-1')) $('coord-comp-1').value = p.coordComp1 || '';
+  if ($('coord-comp-2')) $('coord-comp-2').value = p.coordComp2 || '';
+  if ($('situacao')) $('situacao').value = statusForProcess(p);
 
-  // Muda para a visão do Wizard
+  // 6. Muda para a visão do Wizard
   switchMainView('novo');
 
   // Abre a etapa mais relevante para continuar o trabalho
@@ -3143,6 +3295,10 @@ function resumeProcesso(id) {
   } else {
     showTab('parecer');
   }
+
+  // Evita que a simples abertura do processo agende salvamento prematuro com timer de tab
+  clearTimeout(processAutosaveTimer);
+  setProcessAutosaveStatus('Processo carregado. As alterações serão salvas automaticamente.', 'saved');
 }
 
 // ── Mini-Mapa da Árvore com Leaflet ──────────────────────────────────────────
@@ -3441,9 +3597,16 @@ function collectProcessForAutosave() {
   const protocolo = val('processo').trim();
   if (!protocolo) return null;
   syncSpecies();
-  const existing = processos.find(process =>
-    (currentEditingProcessId && process.id === currentEditingProcessId) || process.protocolo === protocolo
-  ) || {};
+  let existing = null;
+  if (currentEditingProcessId) {
+    const byId = processos.find(p => p.id === currentEditingProcessId);
+    if (byId && (!byId.protocolo || byId.protocolo === protocolo)) {
+      existing = byId;
+    }
+  }
+  if (!existing) {
+    existing = processos.find(p => p.protocolo === protocolo) || {};
+  }
   const stage = activeProcessFormStage();
   const validInspection = trees.length > 0 && trees.every(tree => validCoordinatePair(tree.latitude, tree.longitude));
   const destination = getDestinacaoTipo() || existing.destinacaoTipo || 'requerente';
@@ -3873,11 +4036,16 @@ function init() {
 
   // Alternância de visão principal
   $('view-tab-processos')?.addEventListener('click', () => switchMainView('processos'));
-  $('view-tab-novo')?.addEventListener('click', () => switchMainView('novo'));
-  $('btn-novo-processo')?.addEventListener('click', () => {
-    currentEditingProcessId = null;
-    setProcessAutosaveStatus('Informe o número do processo para começar.');
+  $('view-tab-novo')?.addEventListener('click', () => {
+    if (!currentEditingProcessId) {
+      resetProcessForm();
+    }
     switchMainView('novo');
+  });
+  $('btn-novo-processo')?.addEventListener('click', () => {
+    resetProcessForm();
+    switchMainView('novo');
+    showTab('requerimento');
   });
   $('btn-sync-processos')?.addEventListener('click', () => syncPendingProcesses({ feedback: true }));
 
