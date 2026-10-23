@@ -1,4 +1,30 @@
+import { parseCsv } from "./processes.js";
+
 const DEFAULT_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdoB7nNc4LwAL-Gkk5z93FUPGmtLDSuoLuNBu4jL6K01N8szSH1rpF94Kvuk_Vgf0/exec";
+const SPREADSHEET_ID = "1f03SZqhFe4AbSd-Z4kg_MgBzDxg9ES-nzgLAiZfLDNU";
+
+const normalize = value => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .replace(/\s+/g, " ")
+  .toUpperCase();
+
+async function verifyStatusInSheet(protocolo, situacao) {
+  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=0&_=${Date.now()}`;
+  const response = await fetch(url, { redirect: "follow", cache: "no-store" });
+  if (!response.ok) return false;
+  const rows = parseCsv(await response.text());
+  const headers = rows[0] || [];
+  const protocolColumn = headers.findIndex(header => normalize(header) === "PROTOCOLO");
+  const statusColumn = headers.findIndex(header => normalize(header) === "SITUACAO");
+  if (protocolColumn < 0 || statusColumn < 0) return false;
+  for (let index = rows.length - 1; index > 0; index--) {
+    if (normalize(rows[index][protocolColumn]).replace(/\s/g, "") !== normalize(protocolo).replace(/\s/g, "")) continue;
+    return normalize(rows[index][statusColumn]) === normalize(situacao);
+  }
+  return false;
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método não permitido" });
@@ -41,7 +67,26 @@ export default async function handler(req, res) {
       redirect: "follow"
     });
     const data = await upstream.json();
-    return res.status(upstream.ok && data.ok ? 200 : 502).json(data);
+    if (upstream.ok && data.ok) return res.status(200).json(data);
+
+    // O Apps Script legado grava a coluna Situação antes de tentar regravar o
+    // JSON da vistoria em P:S. Se P ainda tiver uma validação antiga, essa
+    // segunda etapa falha embora o andamento já esteja salvo. Confirme a fonte
+    // de verdade antes de devolver um falso erro à interface.
+    try {
+      if (await verifyStatusInSheet(protocolo, situacao)) {
+        return res.status(200).json({
+          ok: true,
+          protocolo,
+          situacao,
+          verified: true,
+          recoveredFromPostWriteError: true
+        });
+      }
+    } catch (verificationError) {
+      console.warn("[process-status] Falha ao confirmar a gravação:", verificationError.message);
+    }
+    return res.status(502).json(data);
   } catch (error) {
     return res.status(502).json({ ok: false, error: error.message });
   }

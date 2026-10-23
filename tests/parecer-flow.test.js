@@ -41,6 +41,7 @@ test('status-only update does not rewrite the stale fiscal column', async () => 
   const statusBlock = gas.slice(statusStart, gas.indexOf('const targetRow = Math.max', statusStart));
   assert.match(statusBlock, /const savedProcess = processDetailsFromValues/);
   assert.match(statusBlock, /updatedProcess\.situacao = situacao/);
+  assert.ok(statusBlock.indexOf('if (p.process)') < statusBlock.indexOf('const processChunks'));
   assert.doesNotMatch(statusBlock, /'Fiscal':/);
 });
 

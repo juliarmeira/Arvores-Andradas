@@ -108,8 +108,11 @@ const normalizeCoordinateValue = value => {
   return Number.isFinite(number) ? number.toFixed(6) : text;
 };
 const validCoordinatePair = (lat, lng) => {
-  const latitude = Number(String(lat || '').replace(',', '.'));
-  const longitude = Number(String(lng || '').replace(',', '.'));
+  const latitudeText = String(lat ?? '').trim().replace(',', '.');
+  const longitudeText = String(lng ?? '').trim().replace(',', '.');
+  if (!latitudeText || !longitudeText) return false;
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
   return Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
 };
 const label = id => {
@@ -3581,15 +3584,44 @@ function activeProcessFormStage() {
   return document.querySelector('.step.active')?.dataset.tab || 'requerimento';
 }
 
-function processStatusFromForm(existing, stage, validInspection) {
+function treeHasInspectionData(tree = {}) {
+  return Boolean(
+    tree.popular || tree.cientifico || tree.familia || Number(tree.dap) || Number(tree.altura) ||
+    tree.observacao || Object.values(tree.photos || {}).some(Boolean) || selectedConflicts(tree).length ||
+    (tree.condicao && tree.condicao !== 'viva') || (tree.doenca && tree.doenca !== 'ausente') ||
+    (tree.risco && tree.risco !== 'nao')
+  );
+}
+
+function inspectionIsComplete() {
+  return Boolean(val('data-vistoria')) && trees.length > 0 && trees.every(tree =>
+    validCoordinatePair(tree.latitude, tree.longitude) && treeHasInspectionData(tree)
+  );
+}
+
+function navigateToProcessStage(stage) {
+  if (['parecer', 'compensacao'].includes(stage) && !inspectionIsComplete()) {
+    setProcessAutosaveStatus('Vistoria incompleta: informe a data, as coordenadas e a avaliação de cada árvore.', 'pending');
+    alert('Conclua a vistoria antes de abrir o parecer: informe a data, coordenadas válidas e a avaliação de cada árvore.');
+    showTab('vistoria');
+    return;
+  }
+  showTab(stage);
+}
+
+function processStatusFromForm(existing, stage, inspectionComplete) {
   const current = statusForSheet(existing.situacao || '');
+  if (!inspectionComplete) {
+    if (!current || current === 'Aguardando Vistoria' || current === 'Parecer em Elaboração') return 'Aguardando Vistoria';
+    return current;
+  }
   if (val('saida') && decisaoAutoriza() && !exigeCompensacao()) return situacaoDoParecer();
   if (stage === 'compensacao') return statusForSheet(val('situacao') || current || 'Aguardando Compensação');
   if ((stage === 'parecer' || stage === 'compensacao') && val('saida')) {
     return situacaoDoParecer(getDestinacaoTipo());
   }
   if (current && current !== 'Aguardando Vistoria') return current;
-  if (validInspection && stage !== 'requerimento') return 'Parecer em Elaboração';
+  if (stage !== 'requerimento') return 'Parecer em Elaboração';
   return current || 'Aguardando Vistoria';
 }
 
@@ -3608,7 +3640,9 @@ function collectProcessForAutosave() {
     existing = processos.find(p => p.protocolo === protocolo) || {};
   }
   const stage = activeProcessFormStage();
-  const validInspection = trees.length > 0 && trees.every(tree => validCoordinatePair(tree.latitude, tree.longitude));
+  const inspectionComplete = inspectionIsComplete();
+  const existingStatus = statusForSheet(existing.situacao || '');
+  const preserveAdministrativeData = !['Aguardando Vistoria', 'Parecer em Elaboração'].includes(existingStatus);
   const destination = getDestinacaoTipo() || existing.destinacaoTipo || 'requerente';
   const compensation = calculateCompensation();
   const now = new Date().toISOString();
@@ -3627,22 +3661,24 @@ function collectProcessForAutosave() {
     finalidade: val('finalidade') === 'outro' ? val('finalidade-outro-detalhe') : label('finalidade'),
     finalidadeVal: val('finalidade'),
     finalidadeOutroDetalhe: val('finalidade-outro-detalhe'),
-    situacao: processStatusFromForm(existing, stage, validInspection),
+    situacao: processStatusFromForm(existing, stage, inspectionComplete),
     destinacaoTipo: destination,
-    conclusao: val('conclusao'),
+    conclusao: inspectionComplete || preserveAdministrativeData ? val('conclusao') : '',
     diagnostico: val('diagnostico'),
     coordenadas: {
       lat: trees[0]?.latitude || val('geo-lat') || val('coord-corte-1'),
       lng: trees[0]?.longitude || val('geo-lng') || val('coord-corte-2')
     },
     trees: JSON.parse(JSON.stringify(trees)),
-    vistoriaInLoco: existing.vistoriaInLoco || (stage !== 'requerimento' && validInspection),
-    vistoriaRealizadaEm: existing.vistoriaRealizadaEm || (stage !== 'requerimento' && validInspection ? now : ''),
+    vistoriaInLoco: inspectionComplete,
+    vistoriaRealizadaEm: inspectionComplete
+      ? (existing.vistoriaRealizadaEm || `${val('data-vistoria')}T12:00:00`)
+      : '',
     responsavelCorte: val('responsavel-corte'),
     autorizacao: val('autorizacao'),
     dataAutorizacao: val('data-autorizacao'),
-    formaCompensacao: val('forma'),
-    compensacao: compensation.text,
+    formaCompensacao: inspectionComplete || preserveAdministrativeData ? val('forma') : '',
+    compensacao: inspectionComplete ? compensation.text : (preserveAdministrativeData ? existing.compensacao || '' : ''),
     prazo: val('prazo'),
     coordComp1: val('coord-comp-1'),
     coordComp2: val('coord-comp-2'),
@@ -4027,11 +4063,11 @@ function init() {
   }
 
   document.querySelectorAll('.step').forEach(b => {
-    b.addEventListener('click', () => showTab(b.dataset.tab));
+    b.addEventListener('click', () => navigateToProcessStage(b.dataset.tab));
   });
 
   document.querySelectorAll('[data-go]').forEach(b => {
-    b.addEventListener('click', () => showTab(b.dataset.go));
+    b.addEventListener('click', () => navigateToProcessStage(b.dataset.go));
   });
 
   // Alternância de visão principal

@@ -116,6 +116,30 @@ const sheetHeaderIndex = (headers, name, fallback = -1) => {
   return index >= 0 ? index : fallback;
 };
 
+const normalizeSheetValue = value => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .replace(/\s+/g, " ")
+  .toUpperCase();
+
+const verifyProcessStatusInSheet = async (protocolo, situacao) => {
+  const url = `https://docs.google.com/spreadsheets/d/${VISTORIA_SPREADSHEET_ID}/export?format=csv&gid=0&_=${Date.now()}`;
+  const response = await fetch(url, { redirect: "follow", cache: "no-store" });
+  if (!response.ok) return false;
+  const rows = parseCsv(await response.text());
+  const headers = rows[0] || [];
+  const protocolColumn = sheetHeaderIndex(headers, "Protocolo");
+  const statusColumn = sheetHeaderIndex(headers, "Situação");
+  if (protocolColumn < 0 || statusColumn < 0) return false;
+  const protocolKey = normalizeSheetValue(protocolo).replace(/\s/g, "");
+  for (let index = rows.length - 1; index > 0; index--) {
+    if (normalizeSheetValue(rows[index][protocolColumn]).replace(/\s/g, "") !== protocolKey) continue;
+    return normalizeSheetValue(rows[index][statusColumn]) === normalizeSheetValue(situacao);
+  }
+  return false;
+};
+
 const processDetailsFromSheetRow = (row, headers = []) => {
   const configuredPositions = [1, 2, 3, 4]
     .map(part => sheetHeaderIndex(headers, "Dados da Vistoria " + part, -1));
@@ -468,7 +492,18 @@ const server = http.createServer(async (req, res) => {
           redirect: "follow"
         });
         const result = await upstream.json();
-        return json(res, upstream.ok && result.ok ? 200 : 502, result);
+        if (upstream.ok && result.ok) return json(res, 200, result);
+        try {
+          if (await verifyProcessStatusInSheet(protocolo, situacao)) {
+            return json(res, 200, {
+              ok: true, protocolo, situacao, verified: true,
+              recoveredFromPostWriteError: true
+            });
+          }
+        } catch (verificationError) {
+          console.warn("[process-status] Falha ao confirmar a gravação:", verificationError.message);
+        }
+        return json(res, 502, result);
       } catch (error) {
         return json(res, 502, { ok: false, error: error.message });
       }

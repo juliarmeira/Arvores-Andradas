@@ -70,6 +70,55 @@ test('process status normalizes the legacy CODEMA label before forwarding', asyn
   }
 });
 
+test('process status confirms the sheet after the legacy script fails post-write', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes('docs.google.com')) {
+      return new Response('Protocolo,Situação\n11171/2026,Aguardando Vistoria\n');
+    }
+    if (!options.method) return jsonResponse({ ok: true, apiVersion: 8 });
+    return jsonResponse({ ok: false, error: 'Os dados inseridos na célula P279 violam as regras de validação' });
+  };
+  try {
+    const res = responseCapture();
+    await processStatusHandler({
+      method: 'POST',
+      body: { protocolo: '11171/2026', situacao: 'Aguardando Vistoria' }
+    }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.verified, true);
+    assert.equal(res.body.recoveredFromPostWriteError, true);
+    assert.equal(calls.length, 3);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('process status keeps the real error when the sheet did not change', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    if (String(url).includes('docs.google.com')) {
+      return new Response('Protocolo,Situação\n11171/2026,Parecer em Elaboração\n');
+    }
+    if (!options.method) return jsonResponse({ ok: true, apiVersion: 8 });
+    return jsonResponse({ ok: false, error: 'Falha antes da gravação' });
+  };
+  try {
+    const res = responseCapture();
+    await processStatusHandler({
+      method: 'POST',
+      body: { protocolo: '11171/2026', situacao: 'Aguardando Vistoria' }
+    }, res);
+    assert.equal(res.statusCode, 502);
+    assert.equal(res.body.ok, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('inventory legacy capability response no longer blocks a valid write', async () => {
   const originalFetch = global.fetch;
   const calls = [];

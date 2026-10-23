@@ -325,25 +325,31 @@ function doPost(e) {
       if (p.compensacao) statusValues['Compensação'] = String(p.compensacao);
       if (p.formaCompensacaoLabel || p.formaCompensacao) statusValues['Forma de Compensação'] = String(p.formaCompensacaoLabel || p.formaCompensacao);
       setProcessValues(sheet, targetRow, processColumns, statusValues);
-      const savedRow = sheet.getRange(targetRow, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const savedProcess = processDetailsFromValues(savedRow, processColumns);
-      const updatedProcess = Object.assign({}, savedProcess, p.process || {});
-      updatedProcess.protocolo = protocolo;
-      updatedProcess.situacao = situacao;
-      updatedProcess.compensacao = p.compensacao || updatedProcess.compensacao || '';
-      updatedProcess.formaCompensacao = p.formaCompensacao || updatedProcess.formaCompensacao || '';
-      updatedProcess.formaCompensacaoLabel = p.formaCompensacaoLabel || updatedProcess.formaCompensacaoLabel || '';
-      updatedProcess.dataCompensacao = p.dataCompensacao || updatedProcess.dataCompensacao || '';
-      updatedProcess.dataEncaminhamento = p.dataEncaminhamento || updatedProcess.dataEncaminhamento || '';
-      updatedProcess.updatedAt = new Date().toISOString();
-      const processChunks = splitCellText(JSON.stringify(updatedProcess), 45000);
-      setProcessValues(sheet, targetRow, processColumns, {
-        'Dados da Vistoria 1': processChunks[0],
-        'Dados da Vistoria 2': processChunks[1],
-        'Dados da Vistoria 3': processChunks[2],
-        'Dados da Vistoria 4': processChunks[3]
-      });
-      if (p.process) upsertInspectionDetails(spreadsheet, updatedProcess);
+      // Alterar o andamento não deve regravar P:S. Essas colunas guardam o JSON
+      // completo da vistoria e podem ter validações legadas independentes. O
+      // endpoint de status envia process=null justamente para manter operações
+      // administrativas isoladas dos dados técnicos.
+      if (p.process) {
+        const savedRow = sheet.getRange(targetRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+        const savedProcess = processDetailsFromValues(savedRow, processColumns);
+        const updatedProcess = Object.assign({}, savedProcess, p.process);
+        updatedProcess.protocolo = protocolo;
+        updatedProcess.situacao = situacao;
+        updatedProcess.compensacao = p.compensacao || updatedProcess.compensacao || '';
+        updatedProcess.formaCompensacao = p.formaCompensacao || updatedProcess.formaCompensacao || '';
+        updatedProcess.formaCompensacaoLabel = p.formaCompensacaoLabel || updatedProcess.formaCompensacaoLabel || '';
+        updatedProcess.dataCompensacao = p.dataCompensacao || updatedProcess.dataCompensacao || '';
+        updatedProcess.dataEncaminhamento = p.dataEncaminhamento || updatedProcess.dataEncaminhamento || '';
+        updatedProcess.updatedAt = new Date().toISOString();
+        const processChunks = splitCellText(JSON.stringify(updatedProcess), 45000);
+        setProcessValues(sheet, targetRow, processColumns, {
+          'Dados da Vistoria 1': processChunks[0],
+          'Dados da Vistoria 2': processChunks[1],
+          'Dados da Vistoria 3': processChunks[2],
+          'Dados da Vistoria 4': processChunks[3]
+        });
+        upsertInspectionDetails(spreadsheet, updatedProcess);
+      }
       SpreadsheetApp.flush();
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, apiVersion: API_VERSION, row: targetRow, protocolo: protocolo, situacao: situacao }))
