@@ -3,8 +3,13 @@ const DEFAULT_WEBHOOK = "https://script.google.com/macros/s/AKfycbwdoB7nNc4LwAL-
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método não permitido" });
   const protocolo = String(req.body?.protocolo || "").trim();
-  const situacao = String(req.body?.situacao || "").trim();
-  const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
+  const requestedStatus = String(req.body?.situacao || "").trim();
+  // A validação da planilha usa este texto exato. Aceite também o rótulo antigo
+  // para que uma aba ainda em cache não volte a enviar um valor inválido.
+  const situacao = requestedStatus === "Enviado para Deliberação do CODEMA"
+    ? "Enviado para Deliberação CODEMA"
+    : requestedStatus;
+  const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
   if (!protocolo || !situacao) return res.status(400).json({ ok: false, error: "Protocolo e situação são obrigatórios" });
   if (!allowedStatuses.has(situacao)) return res.status(400).json({ ok: false, error: "Andamento inválido para a planilha" });
 

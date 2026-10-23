@@ -1185,7 +1185,7 @@ function situacaoDoParecer(destinacao = getDestinacaoTipo()) {
   const conclusao = val('conclusao');
   if (conclusao === 'indeferir') return 'Indeferido';
   if (conclusao === 'diligencia') return 'Parecer em Elaboração';
-  if (destinacao === 'codema') return 'Enviado para Deliberação do CODEMA';
+  if (destinacao === 'codema') return 'Enviado para Deliberação CODEMA';
   if (destinacao === 'obras') return 'Encaminhado para Corte pela Secretaria de Obras';
   if (destinacao === 'planejamento') return 'Encaminhado para a Secretaria de Planejamento';
   return exigeCompensacao() ? 'Aguardando Compensação' : 'Parecer em Elaboração';
@@ -2376,7 +2376,7 @@ function updateProcessosBadge() {
 }
 
 const SHEET_PROCESS_STATUSES = [
-  'Aguardando Vistoria', 'Parecer em Elaboração', 'Enviado para Deliberação do CODEMA',
+  'Aguardando Vistoria', 'Parecer em Elaboração', 'Enviado para Deliberação CODEMA',
   'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento', 'Aguardando Compensação',
   'Compensado', 'Indeferido', 'Arquivado'
 ];
@@ -2386,7 +2386,7 @@ function statusForSheet(status) {
   if (normalized.includes('indeferido')) return 'Indeferido';
   if (normalized.includes('arquivado')) return 'Arquivado';
   if (normalized.includes('compensado') || normalized.includes('concluido')) return 'Compensado';
-  if (normalized.includes('codema')) return 'Enviado para Deliberação do CODEMA';
+  if (normalized.includes('codema')) return 'Enviado para Deliberação CODEMA';
   if (normalized.includes('obras')) return 'Encaminhado para Corte pela Secretaria de Obras';
   if (normalized.includes('planejamento')) return 'Encaminhado para a Secretaria de Planejamento';
   if (normalized.includes('compensacao')) return 'Aguardando Compensação';
@@ -2399,7 +2399,7 @@ function statusForProcess(process) {
   const autorizada = process?.intervencaoAutorizada || (['poda', 'podadrastica'].includes(process?.intervencao) ? 'poda' : 'corte');
   const semCompensacao = autorizada === 'poda' || process?.formaCompensacao === 'naoaplica' || normalizeText(process?.compensacao).includes('nao se aplica');
   if (!semCompensacao) return current;
-  if (process?.destinacaoTipo === 'codema') return 'Enviado para Deliberação do CODEMA';
+  if (process?.destinacaoTipo === 'codema') return 'Enviado para Deliberação CODEMA';
   if (process?.destinacaoTipo === 'obras') return 'Encaminhado para Corte pela Secretaria de Obras';
   if (process?.destinacaoTipo === 'planejamento') return 'Encaminhado para a Secretaria de Planejamento';
   return 'Parecer em Elaboração';
@@ -2416,7 +2416,7 @@ function renderProcessos() {
   const scopedProcesses = processos.filter(processMatchesSelectedFiscal);
   const total = scopedProcesses.length;
   const analise = scopedProcesses.filter(p => statusForProcess(p) === 'Aguardando Vistoria').length;
-  const autorizados = scopedProcesses.filter(p => ['Parecer em Elaboração', 'Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'].includes(statusForProcess(p))).length;
+  const autorizados = scopedProcesses.filter(p => ['Parecer em Elaboração', 'Enviado para Deliberação CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'].includes(statusForProcess(p))).length;
   const concluidos = scopedProcesses.filter(p => ['Compensado', 'Indeferido', 'Arquivado'].includes(statusForProcess(p))).length;
 
   if ($('stat-total')) $('stat-total').textContent = String(total);
@@ -2429,7 +2429,7 @@ function renderProcessos() {
     const processStatus = statusForProcess(p);
     if (activeProcessFilter === 'vistoria' && processStatus !== 'Aguardando Vistoria') return false;
     if (activeProcessFilter === 'parecer' && processStatus !== 'Parecer em Elaboração') return false;
-    if (activeProcessFilter === 'codema' && processStatus !== 'Enviado para Deliberação do CODEMA') return false;
+    if (activeProcessFilter === 'codema' && processStatus !== 'Enviado para Deliberação CODEMA') return false;
     if (activeProcessFilter === 'obras' && processStatus !== 'Encaminhado para Corte pela Secretaria de Obras') return false;
     if (activeProcessFilter === 'planejamento' && processStatus !== 'Encaminhado para a Secretaria de Planejamento') return false;
     if (activeProcessFilter === 'compensacao' && processStatus !== 'Aguardando Compensação') return false;
@@ -3928,7 +3928,7 @@ async function updateViewingProcessStatus() {
     feedback.className = 'status-feedback text-muted';
   }
   try {
-    const sentStatuses = ['Enviado para Deliberação do CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'];
+    const sentStatuses = ['Enviado para Deliberação CODEMA', 'Encaminhado para Corte pela Secretaria de Obras', 'Encaminhado para a Secretaria de Planejamento'];
     const updatedProcess = { ...p, situacao: newStatus, updatedAt: new Date().toISOString() };
     if (sentStatuses.includes(newStatus) && !updatedProcess.dataEncaminhamento) updatedProcess.dataEncaminhamento = new Date().toISOString().slice(0, 10);
     await syncProcessStatus(updatedProcess, newStatus, p.compensacao);

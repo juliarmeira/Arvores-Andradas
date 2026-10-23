@@ -87,7 +87,7 @@ export const processFromRow = (row, index, headers = []) => {
       if (named) return named;
       const saved = String(details.situacao || "").trim();
       if (saved) return saved;
-      const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
+      const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação CODEMA", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
       // Suporte ao formato legado: texto plano nas colunas Dados da Vistoria 1-2
       const dv1 = cell("Dados da Vistoria 1");
       if (dv1 && !dv1.trim().startsWith("{") && allowed.has(dv1.trim())) return dv1.trim();

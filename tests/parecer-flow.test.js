@@ -22,6 +22,18 @@ test('poda and Não se aplica never wait for compensation', async () => {
   assert.match(source, /return exigeCompensacao\(\) \? 'Aguardando Compensação' : 'Parecer em Elaboração'/);
 });
 
+test('CODEMA status matches the exact spreadsheet validation value', async () => {
+  const [html, source, api, server] = await Promise.all([
+    read('index.html'), read('index.js'), read('api/process-status.js'), read('server.js')
+  ]);
+  for (const contents of [html, source]) {
+    assert.match(contents, /Enviado para Deliberação CODEMA/);
+    assert.doesNotMatch(contents, /Enviado para Deliberação do CODEMA/);
+  }
+  assert.match(api, /requestedStatus === "Enviado para Deliberação do CODEMA"/);
+  assert.match(server, /requestedStatus === "Enviado para Deliberação do CODEMA"/);
+});
+
 test('status-only update does not rewrite the stale fiscal column', async () => {
   const [api, gas] = await Promise.all([read('api/process-status.js'), read('google-apps-script.gs')]);
   assert.match(api, /process: null/);

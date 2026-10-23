@@ -27,7 +27,7 @@ test('large embedded photos are kept out of localStorage', async () => {
 test('the installed app exposes a manual pending-copy sync action', async () => {
   const html = await readProjectFile('index.html');
   assert.match(html, /id="btn-sync-processos"/);
-  assert.match(html, /index\.js\?v=25/);
+  assert.match(html, /index\.js\?v=31/);
 });
 
 test('process form advertises automatic saving without stage save buttons', async () => {

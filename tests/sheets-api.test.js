@@ -47,7 +47,7 @@ test('process sync accepts the deployed API v8', async () => {
   }
 });
 
-test('process status accepts API v8 and forwards the update', async () => {
+test('process status normalizes the legacy CODEMA label before forwarding', async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (url, options = {}) => {
@@ -59,11 +59,12 @@ test('process status accepts API v8 and forwards the update', async () => {
     const res = responseCapture();
     await processStatusHandler({
       method: 'POST',
-      body: { protocolo: 'TESTE-2', situacao: 'Aguardando Vistoria' }
+      body: { protocolo: 'TESTE-2', situacao: 'Enviado para Deliberação do CODEMA' }
     }, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.ok, true);
     assert.equal(calls.length, 2);
+    assert.equal(JSON.parse(calls[1].options.body).situacao, 'Enviado para Deliberação CODEMA');
   } finally {
     global.fetch = originalFetch;
   }

@@ -278,7 +278,7 @@ const server = http.createServer(async (req, res) => {
               if (named) return named;
               const fromDetails = String(details.situacao || "").trim();
               if (fromDetails) return fromDetails;
-              const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
+              const allowed = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação CODEMA", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Aguardando Compensação", "Encaminhado para a Secretaria de Planejamento", "Compensado", "Indeferido", "Arquivado"]);
               // Formato legado: texto plano em "Dados da Vistoria 1"
               const dv1 = cell("Dados da Vistoria 1");
               if (dv1 && !dv1.trim().startsWith("{") && allowed.has(dv1.trim())) return dv1.trim();
@@ -442,8 +442,11 @@ const server = http.createServer(async (req, res) => {
       try { data = JSON.parse(bodyBuffer.toString("utf8")); }
       catch { return json(res, 400, { ok: false, error: "JSON inválido" }); }
       const protocolo = String(data.protocolo || "").trim();
-      const situacao = String(data.situacao || "").trim();
-      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação do CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
+      const requestedStatus = String(data.situacao || "").trim();
+      const situacao = requestedStatus === "Enviado para Deliberação do CODEMA"
+        ? "Enviado para Deliberação CODEMA"
+        : requestedStatus;
+      const allowedStatuses = new Set(["Aguardando Vistoria", "Parecer em Elaboração", "Enviado para Deliberação CODEMA", "Encaminhado para Corte pela Secretaria de Obras", "Encaminhado para a Secretaria de Planejamento", "Aguardando Compensação", "Compensado", "Indeferido", "Arquivado"]);
       if (!protocolo || !situacao) return json(res, 400, { ok: false, error: "Protocolo e situação são obrigatórios" });
       if (!allowedStatuses.has(situacao)) return json(res, 400, { ok: false, error: "Andamento inválido para a planilha" });
 
